@@ -25,7 +25,20 @@ public class AppConfigController {
 		return new AppConfigResponse(
 				appProperties.reviewToolsEnabled(),
 				appProperties.guestUserEnabled(),
-				String.join(",", Arrays.asList(environment.getActiveProfiles()))
+				appProperties.mockMonetizationEnabled(),
+				String.join(",", Arrays.asList(environment.getActiveProfiles())),
+				appProperties.appsInTossAppName(),
+				appProperties.integrationMode(),
+				appProperties.tossReleaseReady(),
+				appProperties.releaseBlockers(),
+				appProperties.tossLoginEnabled(),
+				appProperties.tossUserKeyEnabled(),
+				appProperties.realRewardAdsEnabled(),
+				appProperties.realBannerAdsEnabled(),
+				appProperties.realPaymentsEnabled(),
+				appProperties.realTossPointRewardsEnabled(),
+				appProperties.realSmartMessageEnabled(),
+				appProperties.realShareRewardEnabled()
 		);
 	}
 }

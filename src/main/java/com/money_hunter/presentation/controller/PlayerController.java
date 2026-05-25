@@ -3,6 +3,7 @@ package com.money_hunter.presentation.controller;
 import java.security.Principal;
 
 import com.money_hunter.application.PlayerService;
+import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
 import com.money_hunter.presentation.dto.response.PlayerStateResponse;
@@ -22,10 +23,12 @@ import jakarta.validation.Valid;
 public class PlayerController {
 	private final PlayerService playerService;
 	private final UserKeyResolver userKeyResolver;
+	private final AppProperties appProperties;
 
-	public PlayerController(PlayerService playerService, UserKeyResolver userKeyResolver) {
+	public PlayerController(PlayerService playerService, UserKeyResolver userKeyResolver, AppProperties appProperties) {
 		this.playerService = playerService;
 		this.userKeyResolver = userKeyResolver;
+		this.appProperties = appProperties;
 	}
 
 	@GetMapping
@@ -40,17 +43,23 @@ public class PlayerController {
 
 	@PostMapping("/ads/auto-hunt/complete")
 	public PlayerStateResponse completeAutoHuntAd(Principal principal) {
-		return playerService.completeAutoHuntAd(userKey(principal));
+		String userKey = userKey(principal);
+		requireMockMonetization();
+		return playerService.completeAutoHuntAd(userKey);
 	}
 
 	@PostMapping("/ads/boost/complete")
 	public PlayerStateResponse completeBoostAd(Principal principal) {
-		return playerService.completeBoostAd(userKey(principal));
+		String userKey = userKey(principal);
+		requireMockMonetization();
+		return playerService.completeBoostAd(userKey);
 	}
 
 	@PostMapping("/ads/skill-point/complete")
 	public PlayerStateResponse completeSkillPointAd(Principal principal) {
-		return playerService.completeSkillPointAd(userKey(principal));
+		String userKey = userKey(principal);
+		requireMockMonetization();
+		return playerService.completeSkillPointAd(userKey);
 	}
 
 	@PostMapping("/combat/hit")
@@ -65,12 +74,16 @@ public class PlayerController {
 
 	@PostMapping("/shop/companions/purchase")
 	public PlayerStateResponse purchaseCompanion(Principal principal) {
-		return playerService.purchaseCompanion(userKey(principal));
+		String userKey = userKey(principal);
+		requireMockMonetization();
+		return playerService.purchaseCompanion(userKey);
 	}
 
 	@PostMapping("/shop/skill-points/purchase")
 	public PlayerStateResponse purchaseSkillPointPack(Principal principal) {
-		return playerService.purchaseSkillPointPack(userKey(principal));
+		String userKey = userKey(principal);
+		requireMockMonetization();
+		return playerService.purchaseSkillPointPack(userKey);
 	}
 
 	@PostMapping("/reward/claim-after-ad")
@@ -78,12 +91,16 @@ public class PlayerController {
 			Principal principal,
 			@Valid @RequestBody ClaimRewardRequest request
 	) {
-		return playerService.claimRewardAfterAd(userKey(principal), request.idempotencyKey());
+		String userKey = userKey(principal);
+		requireMockMonetization();
+		return playerService.claimRewardAfterAd(userKey, request.idempotencyKey());
 	}
 
 	@PostMapping("/reward/friend-invite/claim")
 	public PlayerStateResponse claimFriendInviteReward(Principal principal) {
-		return playerService.claimFriendInviteReward(userKey(principal));
+		String userKey = userKey(principal);
+		requireMockMonetization();
+		return playerService.claimFriendInviteReward(userKey);
 	}
 
 	@PostMapping("/notifications/{notificationId}/read")
@@ -93,5 +110,11 @@ public class PlayerController {
 
 	private String userKey(Principal principal) {
 		return userKeyResolver.resolve(principal);
+	}
+
+	private void requireMockMonetization() {
+		if (!appProperties.mockMonetizationEnabled()) {
+			throw new IllegalStateException("토스 광고, 결제, 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+		}
 	}
 }

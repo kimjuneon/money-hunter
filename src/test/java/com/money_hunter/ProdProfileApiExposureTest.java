@@ -1,6 +1,7 @@
 package com.money_hunter;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasItems;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -33,12 +34,27 @@ class ProdProfileApiExposureTest {
 		mockMvc.perform(get("/api/app/config"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.reviewToolsEnabled", is(false)))
-				.andExpect(jsonPath("$.guestUserEnabled", is(false)));
+				.andExpect(jsonPath("$.guestUserEnabled", is(false)))
+				.andExpect(jsonPath("$.mockMonetizationEnabled", is(false)))
+				.andExpect(jsonPath("$.tossReleaseReady", is(false)))
+				.andExpect(jsonPath("$.releaseBlockers", hasItems(
+						"toss-login-disabled",
+						"real-reward-ads-disabled",
+						"real-toss-point-rewards-disabled"
+				)));
 	}
 
 	@Test
 	void guestPlayerFallbackIsDisabledInProdProfile() throws Exception {
 		mockMvc.perform(get("/api/player"))
 				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void mockMonetizationApisAreBlockedInProdProfile() throws Exception {
+		mockMvc.perform(post("/api/player/ads/auto-hunt/complete").principal(() -> "reviewer"))
+				.andExpect(status().isConflict());
+		mockMvc.perform(post("/api/player/shop/companions/purchase").principal(() -> "reviewer"))
+				.andExpect(status().isConflict());
 	}
 }

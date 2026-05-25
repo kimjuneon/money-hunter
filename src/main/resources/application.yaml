@@ -23,6 +23,17 @@ money-hunter:
   app:
     review-tools-enabled: true
     guest-user-enabled: true
+    mock-monetization-enabled: true
+    apps-in-toss-app-name: money-hunter
+    integration-mode: mock
+    toss-login-enabled: false
+    toss-user-key-enabled: false
+    real-reward-ads-enabled: false
+    real-banner-ads-enabled: false
+    real-payments-enabled: false
+    real-toss-point-rewards-enabled: false
+    real-smart-message-enabled: false
+    real-share-reward-enabled: false
   economy:
     ad-revenue-per-reward-ad-won: 60
     gold-per-toss-point: 100
@@ -48,6 +59,16 @@ money-hunter:
   app:
     review-tools-enabled: false
     guest-user-enabled: false
+    mock-monetization-enabled: false
+    integration-mode: ${MONEY_HUNTER_INTEGRATION_MODE:toss-production}
+    toss-login-enabled: ${TOSS_LOGIN_ENABLED:false}
+    toss-user-key-enabled: ${TOSS_USER_KEY_ENABLED:false}
+    real-reward-ads-enabled: ${TOSS_REWARD_ADS_ENABLED:false}
+    real-banner-ads-enabled: ${TOSS_BANNER_ADS_ENABLED:false}
+    real-payments-enabled: ${TOSS_PAYMENTS_ENABLED:false}
+    real-toss-point-rewards-enabled: ${TOSS_POINT_REWARDS_ENABLED:false}
+    real-smart-message-enabled: ${TOSS_SMART_MESSAGE_ENABLED:false}
+    real-share-reward-enabled: ${TOSS_SHARE_REWARD_ENABLED:false}
 
 ---
 spring:
@@ -59,3 +80,5 @@ money-hunter:
   app:
     review-tools-enabled: true
     guest-user-enabled: true
+    mock-monetization-enabled: true
+    integration-mode: review-mock

@@ -3,7 +3,7 @@
 ## 구조
 
 - `money-hunter-review`: 심사용 Cloud Run 서비스입니다. `SPRING_PROFILES_ACTIVE=review`로 실행되며 테스트 패널과 `/api/player/test/**` API가 활성화됩니다.
-- `money-hunter-prod`: 운영 Cloud Run 서비스입니다. `SPRING_PROFILES_ACTIVE=prod`로 실행되며 테스트 패널과 `/api/player/test/**` API가 비활성화됩니다.
+- `money-hunter-prod`: 운영 Cloud Run 서비스입니다. `SPRING_PROFILES_ACTIVE=prod`로 실행되며 테스트 패널, `/api/player/test/**` API, 더미 광고/결제/리워드 API가 비활성화됩니다.
 - PostgreSQL은 Cloud SQL을 사용하고, 운영 DB와 심사용 DB를 분리합니다.
 - GitHub Actions는 Workload Identity Federation으로 GCP에 접속합니다. 장기 서비스 계정 키를 GitHub에 저장하지 않습니다.
 
@@ -55,7 +55,17 @@ curl https://PROD_URL/api/app/config
 기대 결과:
 
 - `/api/player/test/reset`: `404`
-- `/api/app/config`: `{"reviewToolsEnabled":false,"guestUserEnabled":false,"environment":"prod"}`
+- `/api/app/config`: `reviewToolsEnabled=false`, `guestUserEnabled=false`, `mockMonetizationEnabled=false`
+- 토스 로그인, 실제 광고, 실제 결제, 실제 토스 포인트 지급, Smart Message 연동 전에는 `tossReleaseReady=false`
+
+더미 수익화 API도 운영에서 차단되어야 합니다.
+
+```bash
+curl -i -X POST https://PROD_URL/api/player/ads/auto-hunt/complete
+curl -i -X POST https://PROD_URL/api/player/shop/companions/purchase
+```
+
+인증이 없으면 `401`, 인증이 있어도 실제 토스 연동 전에는 `409`가 정상입니다.
 
 ## 비용 주의
 

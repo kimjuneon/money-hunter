@@ -20,6 +20,8 @@ const state = {
   noticeTimer: null,
   showDummyBanner: true,
   reviewToolsEnabled: false,
+  mockMonetizationEnabled: false,
+  tossReleaseReady: false,
 };
 
 const emptyElement = {
@@ -198,8 +200,12 @@ async function loadAppConfig() {
   try {
     const config = await api("/api/app/config");
     state.reviewToolsEnabled = Boolean(config.reviewToolsEnabled);
+    state.mockMonetizationEnabled = Boolean(config.mockMonetizationEnabled);
+    state.tossReleaseReady = Boolean(config.tossReleaseReady);
   } catch {
     state.reviewToolsEnabled = false;
+    state.mockMonetizationEnabled = false;
+    state.tossReleaseReady = false;
   }
   renderReviewToolsVisibility();
 }
@@ -243,7 +249,8 @@ function render() {
 }
 
 function renderDummyBanner() {
-  $("dummyBannerAd").classList.toggle("hidden", !state.showDummyBanner);
+  const shouldShowDummyBanner = state.reviewToolsEnabled && state.showDummyBanner;
+  $("dummyBannerAd").classList.toggle("hidden", !shouldShowDummyBanner);
   $("devToggleBanner").classList.toggle("is-on", state.showDummyBanner);
   $("devToggleBanner").textContent = state.showDummyBanner ? "배너 숨기기" : "배너 표시";
 }
@@ -560,6 +567,10 @@ function remain(value) {
 }
 
 function showDummyAd(title, description, action) {
+  if (!state.mockMonetizationEnabled) {
+    setMessage("토스 광고 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+    return;
+  }
   state.adAction = action;
   $("adTitle").textContent = title;
   $("adDescription").textContent = description;
@@ -582,6 +593,10 @@ async function finishDummyAd() {
 }
 
 function showDummyPayment(action) {
+  if (!state.mockMonetizationEnabled) {
+    setMessage("토스 결제 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+    return;
+  }
   state.paymentAction = action;
   $("paymentTitle").textContent = action.title || "결제";
   $("paymentDescription").textContent = action.description || "결제를 완료하면 선택한 상품이 지급돼요.";
@@ -952,7 +967,12 @@ $("claimReward").addEventListener("click", () => showDummyAd(
 ));
 
 $("claimFriendInviteReward").addEventListener("click", () => run(
-  () => api("/api/player/reward/friend-invite/claim", { method: "POST" }),
+  () => {
+    if (!state.mockMonetizationEnabled) {
+      throw new Error("토스 공유 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+    }
+    return api("/api/player/reward/friend-invite/claim", { method: "POST" });
+  },
   `친구 초대 보상으로 SP ${(state.player?.friendInviteRewardSkillPoints || friendInviteRewardSkillPoints).toLocaleString("ko-KR")}개를 받았어요.`
 ));
 
