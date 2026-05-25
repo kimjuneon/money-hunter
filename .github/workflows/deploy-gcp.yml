@@ -74,11 +74,15 @@ jobs:
           test -n "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
           test -n "${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}"
 
-      - name: Build image with Cloud Build
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push image
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/money-hunter:${GITHUB_SHA}"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
-          gcloud builds submit --project "$PROJECT_ID" --tag "$IMAGE" .
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
 
       - name: Deploy review service
         if: github.event_name == 'push' || github.event.inputs.target == 'review' || github.event.inputs.target == 'all'
