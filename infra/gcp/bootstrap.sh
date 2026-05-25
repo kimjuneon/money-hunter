@@ -81,11 +81,21 @@ for database in "$PROD_DB_NAME" "$REVIEW_DB_NAME"; do
 	fi
 done
 
+secret_file="$(mktemp)"
+normalized_secret_file="$(mktemp)"
 if ! gcloud secrets describe "$DB_PASSWORD_SECRET" >/dev/null 2>&1; then
-	openssl rand -base64 32 | gcloud secrets create "$DB_PASSWORD_SECRET" --data-file=-
+	openssl rand -base64 32 | tr -d '\n' > "$secret_file"
+	gcloud secrets create "$DB_PASSWORD_SECRET" --data-file="$secret_file"
+else
+	gcloud secrets versions access latest --secret "$DB_PASSWORD_SECRET" --out-file="$secret_file"
+	tr -d '\n' < "$secret_file" > "$normalized_secret_file"
+	if ! cmp -s "$secret_file" "$normalized_secret_file"; then
+		gcloud secrets versions add "$DB_PASSWORD_SECRET" --data-file="$normalized_secret_file"
+		cp "$normalized_secret_file" "$secret_file"
+	fi
 fi
-
-DB_PASSWORD="$(gcloud secrets versions access latest --secret "$DB_PASSWORD_SECRET")"
+DB_PASSWORD="$(cat "$secret_file")"
+rm -f "$secret_file" "$normalized_secret_file"
 if ! gcloud sql users list --instance "$SQL_INSTANCE" --format="value(name)" | grep -Fx "$DB_USER" >/dev/null; then
 	gcloud sql users create "$DB_USER" --instance "$SQL_INSTANCE" --password "$DB_PASSWORD"
 else
