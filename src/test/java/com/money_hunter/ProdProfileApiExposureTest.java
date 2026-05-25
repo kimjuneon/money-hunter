@@ -2,6 +2,7 @@ package com.money_hunter;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.hasItems;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -52,9 +53,9 @@ class ProdProfileApiExposureTest {
 
 	@Test
 	void mockMonetizationApisAreBlockedInProdProfile() throws Exception {
-		mockMvc.perform(post("/api/player/ads/auto-hunt/complete").principal(() -> "reviewer"))
+		mockMvc.perform(post("/api/player/ads/auto-hunt/complete").with(user("reviewer")))
 				.andExpect(status().isConflict());
-		mockMvc.perform(post("/api/player/shop/companions/purchase").principal(() -> "reviewer"))
+		mockMvc.perform(post("/api/player/shop/companions/purchase").with(user("reviewer")))
 				.andExpect(status().isConflict());
 	}
 }
