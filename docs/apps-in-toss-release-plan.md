@@ -18,7 +18,7 @@ Apps in Toss는 WebView 또는 React Native SDK로 빌드한 번들을 콘솔에
 필수로 반영할 항목은 다음과 같습니다.
 
 - WebView 번들: `granite.config.ts`에 `appName=money-hunter`, 브랜드명, 아이콘, WebView 설정을 넣고 `.ait` 번들을 생성합니다.
-- 토스 로그인/userKey: 클라이언트는 인가 코드만 받고, 토큰 교환과 userKey 저장은 서버에서 처리합니다.
+- 유저 식별키 또는 토스 로그인: 게임 미니앱은 `getUserKeyForGame`으로 받은 hash를 기본 식별자로 사용합니다. 별도 개인정보 동의가 필요한 로그인 요구사항이 생기면 토스 로그인 `appLogin`을 추가합니다.
 - 리워드 광고: 더미 광고 대신 Apps in Toss 광고 SDK로 사전 로드, 노출, 완료 결과를 확인한 뒤 서버에 보상 지급을 요청합니다.
 - 배너 광고: 더미 배너 대신 WebView 배너 광고 SDK를 사용하고, 광고임을 명확히 유지합니다.
 - 토스 포인트 지급: 골드는 게임 내 재화로 유지하고, 보상 수령 시 토스 프로모션 API 또는 게임 프로모션 SDK를 통해 지급합니다. 중복 지급 방지 키를 반드시 유지합니다.
@@ -40,11 +40,11 @@ Apps in Toss는 WebView 또는 React Native SDK로 빌드한 번들을 콘솔에
    - `granite.config.ts` 설정
    - 세로형 화면, Safe Area, 닫기 버튼, 10초 이내 진입, 메모리 사용량 점검
 
-3. 인증 연동
-   - `appLogin`으로 인가 코드 획득
-   - 서버에서 토큰 교환
-   - 서버 DB의 `Player.userKey`를 토스 userKey로 저장
-   - 쿠키 의존 없이 토큰 기반 인증 적용
+3. 유저 식별 연동
+   - 게임 미니앱에서는 `getUserKeyForGame`으로 hash 획득
+   - 서버 DB의 `Player.userKey`를 토스 게임 유저 식별 hash로 저장
+   - 별도 동의 기반 로그인이 필요하면 `appLogin`과 서버 토큰 교환을 추가
+   - 쿠키 의존 없이 토스앱 WebView에서 안정적으로 전달되는 식별자 기반 인증 적용
 
 4. 광고 연동
    - 리워드 광고 사전 로드

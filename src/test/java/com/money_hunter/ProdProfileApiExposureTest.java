@@ -39,7 +39,8 @@ class ProdProfileApiExposureTest {
 				.andExpect(jsonPath("$.mockMonetizationEnabled", is(false)))
 				.andExpect(jsonPath("$.tossReleaseReady", is(false)))
 				.andExpect(jsonPath("$.releaseBlockers", hasItems(
-						"toss-login-disabled",
+						"toss-identity-disabled",
+						"toss-user-key-disabled",
 						"real-reward-ads-disabled",
 						"real-toss-point-rewards-disabled"
 				)));

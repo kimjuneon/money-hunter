@@ -36,8 +36,8 @@ public record AppProperties(
 		if (mockMonetizationEnabled) {
 			blockers.add("mock-monetization-enabled");
 		}
-		if (!tossLoginEnabled) {
-			blockers.add("toss-login-disabled");
+		if (!tossLoginEnabled && !tossUserKeyEnabled) {
+			blockers.add("toss-identity-disabled");
 		}
 		if (!tossUserKeyEnabled) {
 			blockers.add("toss-user-key-disabled");
