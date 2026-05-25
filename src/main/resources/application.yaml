@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: money-hunter
+  profiles:
+    default: local
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_MAX_POOL_SIZE:5}
+  flyway:
+    enabled: true
+
+server:
+  port: ${PORT:8080}
+
+money-hunter:
+  app:
+    review-tools-enabled: true
+    guest-user-enabled: true
+  economy:
+    ad-revenue-per-reward-ad-won: 60
+    gold-per-toss-point: 100
+    companion-price-won: 4900
+    skill-point-pack-price-won: 999
+    skill-point-pack-amount: 10
+    friend-invite-reward-skill-points: 5
+    friend-invite-limit: 3
+    max-character-slots: 3
+    auto-hunt-ad-seconds: 3600
+    boost-ad-seconds: 3600
+    max-ad-seconds: 14400
+    reward-gold-threshold: 12000
+    reward-point-amount: 120
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+money-hunter:
+  app:
+    review-tools-enabled: false
+    guest-user-enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: review
+
+money-hunter:
+  app:
+    review-tools-enabled: true
+    guest-user-enabled: true

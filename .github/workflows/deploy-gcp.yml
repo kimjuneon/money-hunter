@@ -1,0 +1,119 @@
+name: Deploy to GCP Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        default: review
+        type: choice
+        options:
+          - review
+          - prod
+          - all
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'asia-northeast3' }}
+  ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY || 'money-hunter' }}
+  REVIEW_SERVICE: ${{ vars.GCP_REVIEW_SERVICE || 'money-hunter-review' }}
+  PROD_SERVICE: ${{ vars.GCP_PROD_SERVICE || 'money-hunter-prod' }}
+  CLOUD_SQL_INSTANCE: ${{ vars.GCP_CLOUD_SQL_INSTANCE }}
+  DB_USER: ${{ vars.GCP_DB_USER || 'money_hunter_app' }}
+  DB_PASSWORD_SECRET: ${{ vars.GCP_DB_PASSWORD_SECRET || 'money-hunter-db-password' }}
+  PROD_DB_NAME: ${{ vars.GCP_PROD_DB_NAME || 'money_hunter' }}
+  REVIEW_DB_NAME: ${{ vars.GCP_REVIEW_DB_NAME || 'money_hunter_review' }}
+  RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+
+jobs:
+  deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' &&
+      vars.GCP_DEPLOYER_SERVICE_ACCOUNT != '' &&
+      vars.GCP_CLOUD_SQL_INSTANCE != '')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test
+        run: ./gradlew test --no-daemon
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Validate deployment variables
+        run: |
+          test -n "$PROJECT_ID"
+          test -n "$CLOUD_SQL_INSTANCE"
+          test -n "$RUNTIME_SERVICE_ACCOUNT"
+          test -n "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
+          test -n "${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}"
+
+      - name: Build image with Cloud Build
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/money-hunter:${GITHUB_SHA}"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          gcloud builds submit --project "$PROJECT_ID" --tag "$IMAGE" .
+
+      - name: Deploy review service
+        if: github.event_name == 'push' || github.event.inputs.target == 'review' || github.event.inputs.target == 'all'
+        run: |
+          REVIEW_DATASOURCE_URL="jdbc:postgresql://google/${REVIEW_DB_NAME}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
+          gcloud run deploy "$REVIEW_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --image "$IMAGE" \
+            --allow-unauthenticated \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --add-cloudsql-instances "$CLOUD_SQL_INSTANCE" \
+            --set-env-vars "SPRING_PROFILES_ACTIVE=review,SPRING_DATASOURCE_URL=${REVIEW_DATASOURCE_URL},SPRING_DATASOURCE_USERNAME=${DB_USER},SPRING_DATASOURCE_MAX_POOL_SIZE=5" \
+            --set-secrets "SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD_SECRET}:latest"
+          gcloud run services describe "$REVIEW_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format "value(status.url)"
+
+      - name: Deploy production service
+        if: github.event.inputs.target == 'prod' || github.event.inputs.target == 'all'
+        run: |
+          PROD_DATASOURCE_URL="jdbc:postgresql://google/${PROD_DB_NAME}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
+          gcloud run deploy "$PROD_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --image "$IMAGE" \
+            --allow-unauthenticated \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --add-cloudsql-instances "$CLOUD_SQL_INSTANCE" \
+            --set-env-vars "SPRING_PROFILES_ACTIVE=prod,SPRING_DATASOURCE_URL=${PROD_DATASOURCE_URL},SPRING_DATASOURCE_USERNAME=${DB_USER},SPRING_DATASOURCE_MAX_POOL_SIZE=5" \
+            --set-secrets "SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD_SECRET}:latest"
+          gcloud run services describe "$PROD_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format "value(status.url)"

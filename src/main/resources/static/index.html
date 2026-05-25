@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
+    <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
+    <link rel="stylesheet" href="/styles.css?v=20260525-38" />
+  </head>
+  <body>
+    <main class="game-shell" data-job="WARRIOR">
+      <section class="combat-panel" aria-label="자동 전투 현황">
+        <header class="top-hud" aria-label="게임 상태">
+          <div class="gold-total">
+            <span class="coin-stack" aria-hidden="true"></span>
+            <div>
+              <strong id="gold">0 골드</strong>
+              <p><span id="levelText">Lv.1</span> · 게임 재화</p>
+            </div>
+          </div>
+          <div class="rate-box">
+            <strong id="goldRateTop">0/시간</strong>
+            <p id="huntMode">대기중</p>
+          </div>
+        </header>
+
+        <section class="battle-screen" aria-label="자동 전투 화면">
+          <div class="battle-wall" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+
+          <div class="speech-bubble" id="battleTip">광고를 보고 자동사냥을 시작하세요</div>
+
+          <div class="hunter-wrap">
+            <div id="mainHero" class="hero-sprite warrior" aria-hidden="true">
+              <img id="heroImage" src="/assets/body-warrior.png?v=20260525-03" alt="" />
+              <img id="armImage" class="hero-weapon sword" src="/assets/arm-warrior.png?v=20260525-03" alt="" />
+            </div>
+            <span id="partyName" class="hunter-name">초보 헌터</span>
+          </div>
+
+          <div id="petParty" class="pet-party" aria-hidden="true">
+            <img id="petFlare" class="pet-sprite pet-flare hidden" src="/assets/pet-flarefox.svg?v=20260525-01" alt="" />
+            <img id="petAqua" class="pet-sprite pet-aqua hidden" src="/assets/pet-aquabun.svg?v=20260525-01" alt="" />
+          </div>
+
+          <div class="monster-wrap" aria-hidden="true">
+            <div class="monster-hp"><i id="monsterHp"></i></div>
+            <img id="monsterImage" class="monster-image" src="/assets/boss-rock.png" alt="" />
+            <span id="monsterName" class="monster-name">흑요석 골렘</span>
+            <span class="hit-burst"></span>
+          </div>
+
+          <div id="projectileLayer" class="projectile-layer" aria-hidden="true"></div>
+          <div id="skillEffectLayer" class="skill-effect-layer" aria-hidden="true"></div>
+          <div id="petAttackLayer" class="pet-attack-layer" aria-hidden="true"></div>
+
+          <div class="exp-gauge">
+            <span id="expText">EXP 0 / 1,500</span>
+            <i id="expBar"></i>
+          </div>
+        </section>
+      </section>
+
+      <section class="scroll-panel">
+        <section class="action-row" aria-label="광고 액션">
+          <button id="autoHuntAd" type="button">
+            <span>자동사냥</span>
+            <b id="huntTime">광고 시청 · 1시간</b>
+          </button>
+          <button id="boostAd" type="button">
+            <span>공속버프</span>
+            <b id="boostTime">광고 시청 · 1시간</b>
+          </button>
+          <button id="skillAd" type="button">
+            <span>스킬포인트</span>
+            <b>광고 시청</b>
+          </button>
+        </section>
+
+        <div class="content-scroll">
+          <section id="skillPanel" class="panel-view upgrade-sheet">
+          <div class="sheet-title">
+            <strong>헌터 성장</strong>
+            <span>SP <b id="skillPointsTop">0</b></span>
+          </div>
+
+        <article class="upgrade-row skill-row stat-skill-row" data-skill-row="STRENGTH">
+          <div class="skill-portrait skill-icon strength-icon" data-effect-icon="STRENGTH"></div>
+          <div class="upgrade-copy">
+            <strong>STR 전사 <span data-skill-level="STRENGTH">Lv.0</span></strong>
+            <p data-skill-effect="STRENGTH">전사 공격 +0% → +4%</p>
+            <small data-skill-tier="STRENGTH">이펙트 0단계</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="STRENGTH">강화<br />SP 1</button>
+        </article>
+
+        <article class="upgrade-row skill-row stat-skill-row" data-skill-row="DEXTERITY">
+          <div class="skill-portrait skill-icon dexterity-icon" data-effect-icon="DEXTERITY"></div>
+          <div class="upgrade-copy">
+            <strong>DEX 궁수 <span data-skill-level="DEXTERITY">Lv.0</span></strong>
+            <p data-skill-effect="DEXTERITY">궁수 집중 +0% → +4%</p>
+            <small data-skill-tier="DEXTERITY">이펙트 0단계</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="DEXTERITY">강화<br />SP 1</button>
+        </article>
+
+        <article class="upgrade-row skill-row stat-skill-row" data-skill-row="INTELLIGENCE">
+          <div class="skill-portrait skill-icon intelligence-icon" data-effect-icon="INTELLIGENCE"></div>
+          <div class="upgrade-copy">
+            <strong>INT 마법사 <span data-skill-level="INTELLIGENCE">Lv.0</span></strong>
+            <p data-skill-effect="INTELLIGENCE">마법 증폭 +0% → +4%</p>
+            <small data-skill-tier="INTELLIGENCE">이펙트 0단계</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="INTELLIGENCE">강화<br />SP 1</button>
+        </article>
+
+        <article class="upgrade-row skill-row stat-skill-row" data-skill-row="LUCK">
+          <div class="skill-portrait skill-icon luck-icon" data-effect-icon="LUCK"></div>
+          <div class="upgrade-copy">
+            <strong>LUK 도적 <span data-skill-level="LUCK">Lv.0</span></strong>
+            <p data-skill-effect="LUCK">행운 타격 +0% → +4%</p>
+            <small data-skill-tier="LUCK">이펙트 0단계</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="LUCK">강화<br />SP 1</button>
+        </article>
+
+        <article class="upgrade-row skill-row" data-skill-row="MINING_MASTERY">
+          <div class="skill-portrait mining"></div>
+          <div class="upgrade-copy">
+            <strong>채굴 숙련 <span data-skill-level="MINING_MASTERY">Lv.0</span></strong>
+            <p data-skill-effect="MINING_MASTERY">채굴량 +0% → +5%</p>
+            <small data-skill-tier="MINING_MASTERY">골드 획득량이 증가해요</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="MINING_MASTERY">강화<br />SP 1</button>
+        </article>
+
+        <article class="upgrade-row skill-row" data-skill-row="RAPID_ATTACK">
+          <div class="skill-portrait rapid"></div>
+          <div class="upgrade-copy">
+            <strong>연속 공격 <span data-skill-level="RAPID_ATTACK">Lv.0</span></strong>
+            <p data-skill-effect="RAPID_ATTACK">공격 효율 +0% → +3%</p>
+            <small data-skill-tier="RAPID_ATTACK">공격 간격이 짧아져요</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="RAPID_ATTACK">강화<br />SP 1</button>
+        </article>
+
+        <article class="upgrade-row skill-row" data-skill-row="REWARD_AMPLIFIER">
+          <div class="skill-portrait reward"></div>
+          <div class="upgrade-copy">
+            <strong>보상 증폭 <span data-skill-level="REWARD_AMPLIFIER">Lv.0</span></strong>
+            <p data-skill-effect="REWARD_AMPLIFIER">게이지 효율 +0% → +2%</p>
+            <small data-skill-tier="REWARD_AMPLIFIER">보상 게이지 효율이 좋아져요</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="REWARD_AMPLIFIER">강화<br />SP 1</button>
+        </article>
+
+        <article class="upgrade-row skill-row pet-skill-row" data-skill-row="PET_FLARE_ATTACK" data-pet-index="1">
+          <div class="skill-portrait pet-flare-icon"></div>
+          <div class="upgrade-copy">
+            <strong>해빛냥 공격 <span data-skill-level="PET_FLARE_ATTACK">Lv.0</span></strong>
+            <p data-skill-effect="PET_FLARE_ATTACK">잠금 해제 필요</p>
+            <small data-skill-tier="PET_FLARE_ATTACK">첫 번째 동료 펫을 구매하면 강화할 수 있어요</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="PET_FLARE_ATTACK">잠금</button>
+        </article>
+
+        <article class="upgrade-row skill-row pet-skill-row" data-skill-row="PET_AQUA_ATTACK" data-pet-index="2">
+          <div class="skill-portrait pet-aqua-icon"></div>
+          <div class="upgrade-copy">
+            <strong>물방울토 공격 <span data-skill-level="PET_AQUA_ATTACK">Lv.0</span></strong>
+            <p data-skill-effect="PET_AQUA_ATTACK">잠금 해제 필요</p>
+            <small data-skill-tier="PET_AQUA_ATTACK">두 번째 동료 펫을 구매하면 강화할 수 있어요</small>
+          </div>
+          <button class="upgrade-skill" type="button" data-skill="PET_AQUA_ATTACK">잠금</button>
+        </article>
+
+          </section>
+
+          <section id="rewardPanel" class="panel-view reward-panel hidden" aria-label="보상 수령">
+          <div class="reward-heading">
+            <div>
+              <strong>보상 수령</strong>
+              <p id="rewardConversionRate">100 골드 = 1 토스 포인트</p>
+            </div>
+            <span id="rewardPointEstimate">0P</span>
+          </div>
+          <div class="reward-progress">
+            <i id="rewardBar"></i>
+          </div>
+          <div class="reward-meta">
+            <span id="rewardNeed">0 / 12,000 골드</span>
+            <b id="rewardClaimAmount">수령 가능 0P</b>
+          </div>
+          <button id="claimReward" type="button">광고보고 토스 포인트 받기</button>
+
+          <article class="friend-invite-card" aria-label="친구 초대 보상">
+            <div class="friend-invite-icon" aria-hidden="true">SP</div>
+            <div class="friend-invite-copy">
+              <strong>친구 초대 보상</strong>
+              <p id="friendInviteRewardCopy">초대 성공 시 SP 5개 지급</p>
+              <small id="friendInviteRewardStatus">0 / 3명 완료</small>
+            </div>
+            <button id="claimFriendInviteReward" class="friend-invite-button" type="button">친구 초대하기</button>
+          </article>
+          </section>
+
+          <section id="shopPanel" class="panel-view shop-panel hidden" aria-label="상점">
+          <div class="shop-heading">
+            <div>
+              <strong>상점</strong>
+              <p>동료 펫을 데려오면 함께 공격하고 전투 보상률이 올라가요</p>
+            </div>
+            <span id="companionCount">0/2</span>
+          </div>
+          <div class="pet-shop-list">
+            <article id="petOneShop" class="shop-item pet-shop-item">
+              <img class="shop-pet-image" src="/assets/pet-flarefox.svg?v=20260525-01" alt="" />
+              <div class="shop-copy">
+                <strong>해빛냥</strong>
+                <p>불꽃 발톱으로 추가 공격</p>
+                <small id="petOneStatus">잠김 · 첫 번째 동료 펫</small>
+              </div>
+            </article>
+            <article id="petTwoShop" class="shop-item pet-shop-item locked">
+              <img class="shop-pet-image" src="/assets/pet-aquabun.svg?v=20260525-01" alt="" />
+              <div class="shop-copy">
+                <strong>물방울토</strong>
+                <p>물결 별빛으로 추가 공격</p>
+                <small id="petTwoStatus">잠김 · 두 번째 동료 펫</small>
+              </div>
+            </article>
+          </div>
+          <button id="buyCompanion" class="buy-pet-button" type="button">동료 펫 구매</button>
+          <article class="shop-item skill-point-shop-item">
+            <div class="skill-point-shop-icon" aria-hidden="true">SP</div>
+            <div class="shop-copy">
+              <strong>스킬 포인트 팩</strong>
+              <p id="skillPointPackCopy">SP 10개 즉시 지급</p>
+              <small id="skillPointPackStatus">₩999</small>
+            </div>
+          </article>
+          <button id="buySkillPointPack" class="buy-skill-pack-button" type="button">SP 10 구매</button>
+          </section>
+        </div>
+
+        <section id="dummyBannerAd" class="dummy-banner-ad" aria-label="배너 광고">
+          <span>AD</span>
+          <strong>배너 광고</strong>
+          <small>골드 보너스 이벤트</small>
+        </section>
+
+        <section class="panel-tabs" aria-label="하단 메뉴">
+          <button id="showSkillPanel" class="active" type="button">스킬</button>
+          <button id="showRewardPanel" type="button">보상 수령</button>
+          <button id="showShopPanel" type="button">상점</button>
+          <button id="openJobModal" type="button">직업 변경</button>
+        </section>
+      </section>
+
+      <section id="jobModal" class="job-modal" role="dialog" aria-modal="true" aria-labelledby="jobTitle">
+        <div class="job-sheet">
+          <button id="closeJobModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <p class="modal-kicker">Money Hunter</p>
+          <p class="app-subtitle">캐릭터를 키우고, 돈을 벌어보세요</p>
+          <h1 id="jobTitle">첫 헌터를 선택하세요</h1>
+          <p id="jobCopy" class="modal-copy">능력치는 동일해요. 마음에 드는 공격 모션을 고르세요.</p>
+          <div class="job-select-grid">
+            <button class="job-select warrior" type="button" data-job="WARRIOR">
+              <span class="mini-sprite"></span>
+              <b>전사</b>
+              <small>검으로 베기</small>
+            </button>
+            <button class="job-select archer" type="button" data-job="ARCHER">
+              <span class="mini-sprite"></span>
+              <b>궁수</b>
+              <small>화살 발사</small>
+            </button>
+            <button class="job-select mage" type="button" data-job="MAGE">
+              <span class="mini-sprite"></span>
+              <b>마법사</b>
+              <small>마법탄 시전</small>
+            </button>
+            <button class="job-select rogue" type="button" data-job="ROGUE">
+              <span class="mini-sprite"></span>
+              <b>도적</b>
+              <small>표창 투척</small>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="adModal" class="ad-modal hidden" role="dialog" aria-modal="true" aria-labelledby="adTitle">
+        <div class="ad-card">
+          <button id="closeAdModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <span class="ad-badge">AD</span>
+          <h2 id="adTitle">광고 시청 중</h2>
+          <p id="adDescription">완료 후 보상이 지급돼요.</p>
+          <div class="ad-progress"><i id="adProgress"></i></div>
+          <button id="adSkip" type="button" disabled>광고 완료까지 3</button>
+        </div>
+      </section>
+
+      <section id="paymentModal" class="ad-modal hidden" role="dialog" aria-modal="true" aria-labelledby="paymentTitle">
+        <div class="ad-card">
+          <button id="closePaymentModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <span class="ad-badge">PAYMENT</span>
+          <h2 id="paymentTitle">결제</h2>
+          <p id="paymentDescription">결제를 완료하면 선택한 상품이 지급돼요.</p>
+          <strong id="paymentAmount" class="payment-amount">₩4,900</strong>
+          <button id="confirmPayment" type="button">결제하기</button>
+        </div>
+      </section>
+
+      <section id="levelUpModal" class="levelup-modal hidden" role="dialog" aria-modal="true" aria-labelledby="levelUpTitle">
+        <div class="levelup-card">
+          <button id="closeLevelUpModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <span class="levelup-burst" aria-hidden="true"></span>
+          <p class="modal-kicker">LEVEL UP</p>
+          <h2 id="levelUpTitle">축하합니다!</h2>
+          <p id="levelUpDescription">Lv.2 달성! SP 1개가 지급됐어요.</p>
+          <button id="confirmLevelUp" type="button">확인</button>
+        </div>
+      </section>
+
+      <section id="notificationModal" class="ad-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
+        <div class="ad-card">
+          <button id="closeNotificationModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <span class="ad-badge">알림</span>
+          <h2 id="notificationTitle">자동사냥이 종료됐어요</h2>
+          <p id="notificationBody">광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.</p>
+          <button id="confirmNotification" type="button" class="ready">확인</button>
+        </div>
+      </section>
+    </main>
+
+    <aside id="devPanel" class="dev-panel" aria-label="테스트 도구">
+      <button id="devToggle" class="dev-toggle" type="button" aria-expanded="false">TEST</button>
+      <div class="dev-panel-body">
+        <div class="dev-heading">
+          <div>
+            <strong>테스트 도구</strong>
+            <p>로컬 MVP 확인용</p>
+          </div>
+          <span>LOCAL</span>
+        </div>
+
+        <div class="dev-section-title">직업 바로 변경</div>
+        <div class="dev-job-grid">
+          <button class="dev-job-button" type="button" data-dev-job="WARRIOR">전사</button>
+          <button class="dev-job-button" type="button" data-dev-job="ARCHER">궁수</button>
+          <button class="dev-job-button" type="button" data-dev-job="MAGE">마법사</button>
+          <button class="dev-job-button" type="button" data-dev-job="ROGUE">도적</button>
+        </div>
+
+        <div class="dev-section-title">상태 세팅</div>
+        <div class="dev-grid">
+          <button id="devBattlePreset" class="dev-primary" type="button">전투 테스트 세팅</button>
+          <button id="devAutoHunt" type="button">자동사냥 +1h</button>
+          <button id="devBoost" type="button">공속버프 +1h</button>
+          <button id="devSkillPoint" type="button">SP +1</button>
+          <button id="devBuyPets" type="button">펫 2마리</button>
+          <button id="devEndAutoHunt" type="button">사냥 종료 알림</button>
+          <button id="devFillReward" type="button">게이지 채우기</button>
+          <button id="devClaimReward" type="button">리워드 수령</button>
+          <button id="devToggleBanner" type="button">배너 숨기기</button>
+          <button id="devReset" class="dev-danger" type="button">초기화</button>
+        </div>
+        <p id="devStatus" class="dev-status">테스트 기능은 실제 광고/결제를 호출하지 않아요.</p>
+      </div>
+    </aside>
+
+    <script src="/app.js?v=20260525-38"></script>
+  </body>
+</html>
