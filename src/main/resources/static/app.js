@@ -218,6 +218,8 @@ function render() {
 
   const onboard = player.onboardingRequired;
   $("jobModal").classList.toggle("hidden", state.dismissedJobModal || (!onboard && !state.forceJobModal));
+  $("jobModal").classList.toggle("is-onboarding", onboard);
+  $("closeJobModal").classList.toggle("hidden", onboard);
   $("jobTitle").textContent = onboard ? "첫 헌터를 선택하세요" : "변경할 헌터를 선택하세요";
   $("jobCopy").textContent = onboard
     ? "능력치는 동일해요. 마음에 드는 공격 모션을 고르세요."
@@ -887,6 +889,10 @@ $("openJobModal").addEventListener("click", () => {
 });
 
 $("closeJobModal").addEventListener("click", () => {
+  if (state.player?.onboardingRequired) {
+    setMessage("첫 헌터를 선택해야 게임을 시작할 수 있어요.");
+    return;
+  }
   state.forceJobModal = false;
   state.dismissedJobModal = true;
   $("jobModal").classList.add("hidden");

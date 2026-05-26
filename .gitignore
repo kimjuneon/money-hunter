@@ -1,4 +1,6 @@
 HELP.md
+*.md
+!README.md
 .DS_Store
 .gradle
 build/
