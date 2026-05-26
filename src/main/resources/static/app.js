@@ -373,8 +373,7 @@ function renderRewardPanel(player) {
   $("rewardPointEstimate").textContent = `≈ ${estimatedPointAmount.toLocaleString("ko-KR")}P`;
   $("rewardClaimAmount").textContent = player.rewardClaimable
     ? `수령 가능 ${claimPointAmount.toLocaleString("ko-KR")}P`
-    : `목표 ${claimPointAmount.toLocaleString("ko-KR")}P`;
-  $("rewardConversionRate").textContent = `${pointGoldRate.toLocaleString("ko-KR")} 골드 = 1 토스 포인트`;
+    : "수령 조건 준비 중";
   $("claimReward").disabled = !player.rewardClaimable;
   $("claimReward").textContent = player.rewardClaimable
     ? "광고보고 토스 포인트 받기"
