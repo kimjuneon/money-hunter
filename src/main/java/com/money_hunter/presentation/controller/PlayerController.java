@@ -103,6 +103,55 @@ public class PlayerController {
 		return playerService.claimFriendInviteReward(userKey);
 	}
 
+	@PostMapping("/onestore/auto-hunt/claim")
+	public PlayerStateResponse claimOneStoreAutoHunt(Principal principal) {
+		String userKey = userKey(principal);
+		requireGameRewardMode();
+		return playerService.completeAutoHuntAd(userKey);
+	}
+
+	@PostMapping("/onestore/boost/claim")
+	public PlayerStateResponse claimOneStoreBoost(Principal principal) {
+		String userKey = userKey(principal);
+		requireGameRewardMode();
+		return playerService.completeBoostAd(userKey);
+	}
+
+	@PostMapping("/onestore/skill-point/claim")
+	public PlayerStateResponse claimOneStoreSkillPoint(Principal principal) {
+		String userKey = userKey(principal);
+		requireGameRewardMode();
+		return playerService.completeSkillPointAd(userKey);
+	}
+
+	@PostMapping("/onestore/reward/claim")
+	public PlayerStateResponse claimOneStoreReward(Principal principal) {
+		String userKey = userKey(principal);
+		requireGameRewardMode();
+		return playerService.claimOneStoreGameReward(userKey);
+	}
+
+	@PostMapping("/onestore/friend-invite/claim")
+	public PlayerStateResponse claimOneStoreFriendInviteReward(Principal principal) {
+		String userKey = userKey(principal);
+		requireGameRewardMode();
+		return playerService.claimFriendInviteReward(userKey);
+	}
+
+	@PostMapping("/onestore/shop/companions/unlock")
+	public PlayerStateResponse unlockOneStoreCompanion(Principal principal) {
+		String userKey = userKey(principal);
+		requireGameRewardMode();
+		return playerService.purchaseCompanion(userKey);
+	}
+
+	@PostMapping("/onestore/shop/skill-points/claim")
+	public PlayerStateResponse claimOneStoreSkillPointPack(Principal principal) {
+		String userKey = userKey(principal);
+		requireGameRewardMode();
+		return playerService.purchaseSkillPointPack(userKey);
+	}
+
 	@PostMapping("/notifications/{notificationId}/read")
 	public PlayerStateResponse markNotificationRead(Principal principal, @PathVariable Long notificationId) {
 		return playerService.markNotificationRead(userKey(principal), notificationId);
@@ -115,6 +164,12 @@ public class PlayerController {
 	private void requireMockMonetization() {
 		if (!appProperties.mockMonetizationEnabled()) {
 			throw new IllegalStateException("토스 광고, 결제, 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+		}
+	}
+
+	private void requireGameRewardMode() {
+		if (!appProperties.mockMonetizationEnabled()) {
+			throw new IllegalStateException("게임 내 보상은 심사용 또는 원스토어용 환경에서만 사용할 수 있어요.");
 		}
 	}
 }

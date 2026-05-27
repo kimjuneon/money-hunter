@@ -29,6 +29,12 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
+### Android local ###
+android-onestore/.gradle/
+android-onestore/build/
+android-onestore/app/build/
+android-onestore/local.properties
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

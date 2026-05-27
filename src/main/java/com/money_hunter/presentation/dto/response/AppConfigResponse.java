@@ -9,6 +9,7 @@ public record AppConfigResponse(
 		String environment,
 		String appsInTossAppName,
 		String integrationMode,
+		String distributionTarget,
 		boolean tossReleaseReady,
 		List<String> releaseBlockers,
 		boolean tossLoginEnabled,

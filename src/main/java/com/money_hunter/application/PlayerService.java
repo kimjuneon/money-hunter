@@ -230,6 +230,24 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse claimOneStoreGameReward(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		if (player.getGold() < economy.rewardGoldThreshold()) {
+			throw new IllegalStateException("Reward gauge is not full.");
+		}
+		player.spendGold(economy.rewardGoldThreshold());
+		player.addSkillPoints(economy.friendInviteRewardSkillPoints());
+		adEventRepository.save(new AdEvent(
+				player,
+				AdEventType.REWARD_CLAIM,
+				economy.friendInviteRewardSkillPoints(),
+				clock.instant()));
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse fillRewardGaugeForTest(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);

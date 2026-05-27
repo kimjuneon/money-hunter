@@ -12,6 +12,7 @@ public record AppProperties(
 		boolean mockMonetizationEnabled,
 		String appsInTossAppName,
 		String integrationMode,
+		String distributionTarget,
 		boolean tossLoginEnabled,
 		boolean tossUserKeyEnabled,
 		boolean realRewardAdsEnabled,
@@ -21,6 +22,10 @@ public record AppProperties(
 		boolean realSmartMessageEnabled,
 		boolean realShareRewardEnabled
 ) {
+	public boolean oneStoreTarget() {
+		return "ONESTORE".equalsIgnoreCase(distributionTarget);
+	}
+
 	public boolean tossReleaseReady() {
 		return releaseBlockers().isEmpty();
 	}

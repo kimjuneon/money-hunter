@@ -29,7 +29,7 @@
             <span></span><span></span><span></span><span></span><span></span>
           </div>
 
-          <div class="speech-bubble" id="battleTip">광고를 보고 자동사냥을 시작하세요</div>
+          <div class="speech-bubble" id="battleTip">보상으로 자동사냥을 시작하세요</div>
 
           <div class="hunter-wrap">
             <div id="mainHero" class="hero-sprite warrior" aria-hidden="true">
@@ -63,18 +63,18 @@
       </section>
 
       <section class="scroll-panel">
-        <section class="action-row" aria-label="광고 액션">
+        <section class="action-row" aria-label="보상 액션">
           <button id="autoHuntAd" type="button">
             <span>자동사냥</span>
-            <b id="huntTime">광고 시청 · 1시간</b>
+            <b id="huntTime">보상 · 1시간</b>
           </button>
           <button id="boostAd" type="button">
             <span>공속버프</span>
-            <b id="boostTime">광고 시청 · 1시간</b>
+            <b id="boostTime">보상 · 1시간</b>
           </button>
           <button id="skillAd" type="button">
             <span>스킬포인트</span>
-            <b>광고 시청</b>
+            <b id="skillGateLabel">보상</b>
           </button>
         </section>
 
@@ -182,16 +182,16 @@
             <div>
               <strong>보상 수령</strong>
             </div>
-            <span id="rewardPointEstimate">0P</span>
+            <span id="rewardPointEstimate">게임 보상</span>
           </div>
           <div class="reward-progress">
             <i id="rewardBar"></i>
           </div>
           <div class="reward-meta">
             <span id="rewardNeed">0 / 12,000 골드</span>
-            <b id="rewardClaimAmount">수령 가능 0P</b>
+            <b id="rewardClaimAmount">수령 조건 준비 중</b>
           </div>
-          <button id="claimReward" type="button">광고보고 토스 포인트 받기</button>
+          <button id="claimReward" type="button">보상 받기</button>
 
           <article class="friend-invite-card" aria-label="친구 초대 보상">
             <div class="friend-invite-icon" aria-hidden="true">SP</div>
@@ -327,7 +327,7 @@
           <button id="closeNotificationModal" class="modal-close" type="button" aria-label="닫기">×</button>
           <span class="ad-badge">알림</span>
           <h2 id="notificationTitle">자동사냥이 종료됐어요</h2>
-          <p id="notificationBody">광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.</p>
+          <p id="notificationBody">보상을 받고 자동사냥 시간을 다시 충전할 수 있어요.</p>
           <button id="confirmNotification" type="button" class="ready">확인</button>
         </div>
       </section>

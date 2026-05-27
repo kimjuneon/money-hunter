@@ -26,6 +26,7 @@ money-hunter:
     mock-monetization-enabled: true
     apps-in-toss-app-name: money-hunter
     integration-mode: mock
+    distribution-target: TOSS
     toss-login-enabled: false
     toss-user-key-enabled: false
     real-reward-ads-enabled: false
@@ -61,6 +62,7 @@ money-hunter:
     guest-user-enabled: false
     mock-monetization-enabled: false
     integration-mode: ${MONEY_HUNTER_INTEGRATION_MODE:toss-production}
+    distribution-target: TOSS
     toss-login-enabled: ${TOSS_LOGIN_ENABLED:false}
     toss-user-key-enabled: ${TOSS_USER_KEY_ENABLED:false}
     real-reward-ads-enabled: ${TOSS_REWARD_ADS_ENABLED:false}
@@ -82,3 +84,18 @@ money-hunter:
     guest-user-enabled: true
     mock-monetization-enabled: true
     integration-mode: review-mock
+    distribution-target: TOSS
+
+---
+spring:
+  config:
+    activate:
+      on-profile: onestore
+
+money-hunter:
+  app:
+    review-tools-enabled: false
+    guest-user-enabled: true
+    mock-monetization-enabled: true
+    integration-mode: onestore-review
+    distribution-target: ONESTORE

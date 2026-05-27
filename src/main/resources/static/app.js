@@ -1,3 +1,5 @@
+const distributionTargetOverride = new URLSearchParams(window.location.search).get("target");
+
 const state = {
   player: null,
   displayGold: 0,
@@ -22,6 +24,7 @@ const state = {
   reviewToolsEnabled: false,
   mockMonetizationEnabled: false,
   tossReleaseReady: false,
+  distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
 
 const emptyElement = {
@@ -155,6 +158,32 @@ state.battleBackgroundIndex = initialBattleBackgroundIndex();
 state.lastMonsterSignature = storedValue(monsterSignatureStorageKey) || "";
 state.showDummyBanner = storedValue(dummyBannerStorageKey) !== "false";
 
+function normalizedDistributionTarget(value) {
+  return String(value || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS";
+}
+
+function isOneStoreTarget() {
+  return state.distributionTarget === "ONESTORE";
+}
+
+function rewardGateLabel() {
+  return isOneStoreTarget() ? "게임 내 보상" : "광고 시청";
+}
+
+function runRewardFlow(title, description, action) {
+  if (isOneStoreTarget()) {
+    return run(action.request, action.message);
+  }
+  return showDummyAd(title, description, action);
+}
+
+function runPurchaseFlow(action) {
+  if (isOneStoreTarget()) {
+    return run(action.request, action.message);
+  }
+  return showDummyPayment(action);
+}
+
 function setMessage(message, durationMs = 2400) {
   state.noticeMessage = message;
   state.noticeExpiresAt = Date.now() + durationMs;
@@ -199,14 +228,17 @@ function renderReviewToolsVisibility() {
 async function loadAppConfig() {
   try {
     const config = await api("/api/app/config");
-    state.reviewToolsEnabled = Boolean(config.reviewToolsEnabled);
+    state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride || config.distributionTarget);
+    state.reviewToolsEnabled = Boolean(config.reviewToolsEnabled) && !isOneStoreTarget();
     state.mockMonetizationEnabled = Boolean(config.mockMonetizationEnabled);
     state.tossReleaseReady = Boolean(config.tossReleaseReady);
   } catch {
+    state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride);
     state.reviewToolsEnabled = false;
-    state.mockMonetizationEnabled = false;
+    state.mockMonetizationEnabled = isOneStoreTarget();
     state.tossReleaseReady = false;
   }
+  document.body.classList.toggle("target-onestore", isOneStoreTarget());
   renderReviewToolsVisibility();
 }
 
@@ -223,7 +255,9 @@ function render() {
   $("jobTitle").textContent = onboard ? "첫 헌터를 선택하세요" : "변경할 헌터를 선택하세요";
   $("jobCopy").textContent = onboard
     ? "능력치는 동일해요. 마음에 드는 공격 모션을 고르세요."
-    : "캐릭터 변경은 광고 시청 후 적용돼요. 직업별 성장 차이는 없어요.";
+    : isOneStoreTarget()
+      ? "캐릭터 변경은 게임 내 보상으로 바로 적용돼요. 직업별 성장 차이는 없어요."
+      : "캐릭터 변경은 광고 시청 후 적용돼요. 직업별 성장 차이는 없어요.";
   applyJob(state.selectedJob);
   applyEffectTier(player);
 
@@ -238,8 +272,9 @@ function render() {
   renderRewardPanel(player);
   renderShopPanel(player);
   renderPets(player);
-  $("huntTime").textContent = hunting ? `${remain(player.autoHuntEndsAt)} · 추가 가능` : "광고 시청 · 1시간";
-  $("boostTime").textContent = isActive(player.boostEndsAt) ? `${remain(player.boostEndsAt)} · 추가 가능` : "광고 시청 · 1시간";
+  $("huntTime").textContent = hunting ? `${remain(player.autoHuntEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
+  $("boostTime").textContent = isActive(player.boostEndsAt) ? `${remain(player.boostEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
+  $("skillGateLabel").textContent = rewardGateLabel();
   renderMonster(player);
   renderExperience(player);
   renderDummyBanner();
@@ -251,7 +286,7 @@ function render() {
 }
 
 function renderDummyBanner() {
-  const shouldShowDummyBanner = state.reviewToolsEnabled && state.showDummyBanner;
+  const shouldShowDummyBanner = !isOneStoreTarget() && state.reviewToolsEnabled && state.showDummyBanner;
   $("dummyBannerAd").classList.toggle("hidden", !shouldShowDummyBanner);
   $("devToggleBanner").classList.toggle("is-on", state.showDummyBanner);
   $("devToggleBanner").textContent = state.showDummyBanner ? "배너 숨기기" : "배너 표시";
@@ -263,7 +298,9 @@ function renderBattleTip(hunting = false) {
     ? state.noticeMessage
     : hunting
     ? "자동사냥 진행 중"
-    : "광고를 보고 자동사냥을 시작하세요";
+    : isOneStoreTarget()
+      ? "게임 내 보상으로 자동사냥을 시작하세요"
+      : "광고를 보고 자동사냥을 시작하세요";
   $("battleTip").classList.toggle("has-message", hasMessage);
 }
 
@@ -370,13 +407,19 @@ function renderRewardPanel(player) {
   const inviteReward = player.friendInviteRewardSkillPoints ?? friendInviteRewardSkillPoints;
   $("rewardBar").style.width = `${player.rewardProgressPercent}%`;
   $("rewardNeed").textContent = `${player.gold.toLocaleString("ko-KR")} / ${player.rewardGoldThreshold.toLocaleString("ko-KR")} 골드`;
-  $("rewardPointEstimate").textContent = `≈ ${estimatedPointAmount.toLocaleString("ko-KR")}P`;
+  $("rewardPointEstimate").textContent = isOneStoreTarget()
+    ? "게임 보상"
+    : `≈ ${estimatedPointAmount.toLocaleString("ko-KR")}P`;
   $("rewardClaimAmount").textContent = player.rewardClaimable
-    ? `수령 가능 ${claimPointAmount.toLocaleString("ko-KR")}P`
+    ? isOneStoreTarget()
+      ? `수령 가능 SP ${inviteReward.toLocaleString("ko-KR")}`
+      : `수령 가능 ${claimPointAmount.toLocaleString("ko-KR")}P`
     : "수령 조건 준비 중";
   $("claimReward").disabled = !player.rewardClaimable;
   $("claimReward").textContent = player.rewardClaimable
-    ? "광고보고 토스 포인트 받기"
+    ? isOneStoreTarget()
+      ? "게임 내 보상 받기"
+      : "광고보고 토스 포인트 받기"
     : "골드를 더 모아야 해요";
   $("friendInviteRewardCopy").textContent = `초대 성공 시 SP ${inviteReward.toLocaleString("ko-KR")}개 지급`;
   $("friendInviteRewardStatus").textContent = `${inviteCount.toLocaleString("ko-KR")} / ${inviteLimit.toLocaleString("ko-KR")}명 완료`;
@@ -401,15 +444,23 @@ function renderShopPanel(player) {
     shopCard.classList.toggle("locked", !unlocked);
     status.textContent = unlocked
       ? `동행 중 · ${pet.name} 공격 가능`
-      : `잠김 · ₩${price.toLocaleString("ko-KR")}`;
+      : isOneStoreTarget()
+        ? "잠김 · 심사용 잠금 해제"
+        : `잠김 · ₩${price.toLocaleString("ko-KR")}`;
   });
   $("buyCompanion").disabled = pets >= maxPets;
   $("buyCompanion").textContent = pets >= maxPets
     ? "동료 펫 MAX"
-    : `${petMeta[pets]?.name || "동료 펫"} 구매`;
+    : isOneStoreTarget()
+      ? `${petMeta[pets]?.name || "동료 펫"} 잠금 해제`
+      : `${petMeta[pets]?.name || "동료 펫"} 구매`;
   $("skillPointPackCopy").textContent = `SP ${packAmount.toLocaleString("ko-KR")}개 즉시 지급`;
-  $("skillPointPackStatus").textContent = `₩${packPrice.toLocaleString("ko-KR")}`;
-  $("buySkillPointPack").textContent = `SP ${packAmount.toLocaleString("ko-KR")} 구매`;
+  $("skillPointPackStatus").textContent = isOneStoreTarget()
+    ? "심사용 게임 보상"
+    : `₩${packPrice.toLocaleString("ko-KR")}`;
+  $("buySkillPointPack").textContent = isOneStoreTarget()
+    ? `SP ${packAmount.toLocaleString("ko-KR")} 받기`
+    : `SP ${packAmount.toLocaleString("ko-KR")} 구매`;
 }
 
 function unlockedPetCount(player = state.player) {
@@ -866,9 +917,11 @@ document.querySelectorAll(".job-select").forEach((button) => {
     };
 
     if (isChange) {
-      showDummyAd(
+      runRewardFlow(
         "캐릭터 변경 광고",
-        "완료하면 선택한 헌터로 변경돼요. 성장 수치는 그대로 유지돼요.",
+        isOneStoreTarget()
+          ? "선택한 헌터로 바로 변경돼요. 성장 수치는 그대로 유지돼요."
+          : "완료하면 선택한 헌터로 변경돼요. 성장 수치는 그대로 유지돼요.",
         {
           request,
           message: `${jobMeta[job].change} 변경했어요.`,
@@ -919,29 +972,41 @@ $("showSkillPanel").addEventListener("click", () => showContentPanel("skill"));
 $("showRewardPanel").addEventListener("click", () => showContentPanel("reward"));
 $("showShopPanel").addEventListener("click", () => showContentPanel("shop"));
 
-$("autoHuntAd").addEventListener("click", () => showDummyAd(
+$("autoHuntAd").addEventListener("click", () => runRewardFlow(
   "자동사냥 광고",
-  "완료하면 자동사냥 시간이 1시간 충전돼요.",
+  isOneStoreTarget()
+    ? "게임 내 보상으로 자동사냥 시간이 1시간 충전돼요."
+    : "완료하면 자동사냥 시간이 1시간 충전돼요.",
   {
-    request: () => api("/api/player/ads/auto-hunt/complete", { method: "POST" }),
+    request: () => api(isOneStoreTarget()
+      ? "/api/player/onestore/auto-hunt/claim"
+      : "/api/player/ads/auto-hunt/complete", { method: "POST" }),
     message: "자동사냥 시간이 1시간 충전됐어요.",
   }
 ));
 
-$("boostAd").addEventListener("click", () => showDummyAd(
+$("boostAd").addEventListener("click", () => runRewardFlow(
   "공속버프 광고",
-  "완료하면 공격 모션과 골드 획득 속도가 빨라져요.",
+  isOneStoreTarget()
+    ? "게임 내 보상으로 공격 모션과 골드 획득 속도가 빨라져요."
+    : "완료하면 공격 모션과 골드 획득 속도가 빨라져요.",
   {
-    request: () => api("/api/player/ads/boost/complete", { method: "POST" }),
+    request: () => api(isOneStoreTarget()
+      ? "/api/player/onestore/boost/claim"
+      : "/api/player/ads/boost/complete", { method: "POST" }),
     message: "공격 속도 부스터가 1시간 충전됐어요.",
   }
 ));
 
-$("skillAd").addEventListener("click", () => showDummyAd(
+$("skillAd").addEventListener("click", () => runRewardFlow(
   "스킬포인트 광고",
-  "완료하면 헌터와 동료 펫 강화에 쓰는 SP를 받아요.",
+  isOneStoreTarget()
+    ? "게임 내 보상으로 헌터와 동료 펫 강화에 쓰는 SP를 받아요."
+    : "완료하면 헌터와 동료 펫 강화에 쓰는 SP를 받아요.",
   {
-    request: () => api("/api/player/ads/skill-point/complete", { method: "POST" }),
+    request: () => api(isOneStoreTarget()
+      ? "/api/player/onestore/skill-point/claim"
+      : "/api/player/ads/skill-point/complete", { method: "POST" }),
     message: "스킬 포인트를 받았어요.",
   }
 ));
@@ -959,41 +1024,61 @@ document.querySelectorAll(".upgrade-skill").forEach((button) => {
   });
 });
 
-$("claimReward").addEventListener("click", () => showDummyAd(
+$("claimReward").addEventListener("click", () => runRewardFlow(
   "리워드 수령 광고",
-  "완료하면 토스 포인트 지급 대기 기록이 생성돼요.",
+  isOneStoreTarget()
+    ? "게임 내 보상으로 SP가 지급돼요."
+    : "완료하면 토스 포인트 지급 대기 기록이 생성돼요.",
   {
-    request: () => api("/api/player/reward/claim-after-ad", {
+    request: () => api(isOneStoreTarget()
+      ? "/api/player/onestore/reward/claim"
+      : "/api/player/reward/claim-after-ad", {
       method: "POST",
-      body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+      body: isOneStoreTarget()
+        ? undefined
+        : JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
     }),
-    message: "리워드 수령을 완료했어요.",
+    message: isOneStoreTarget() ? "게임 내 보상을 받았어요." : "리워드 수령을 완료했어요.",
   }
 ));
 
 $("claimFriendInviteReward").addEventListener("click", () => run(
   () => {
-    if (!state.mockMonetizationEnabled) {
+    if (!state.mockMonetizationEnabled && !isOneStoreTarget()) {
       throw new Error("토스 공유 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
     }
-    return api("/api/player/reward/friend-invite/claim", { method: "POST" });
+    return api(isOneStoreTarget()
+      ? "/api/player/onestore/friend-invite/claim"
+      : "/api/player/reward/friend-invite/claim", { method: "POST" });
   },
   `친구 초대 보상으로 SP ${(state.player?.friendInviteRewardSkillPoints || friendInviteRewardSkillPoints).toLocaleString("ko-KR")}개를 받았어요.`
 ));
 
 $("adSkip").addEventListener("click", () => finishDummyAd());
-$("buyCompanion").addEventListener("click", () => showDummyPayment({
+$("buyCompanion").addEventListener("click", () => runPurchaseFlow({
   title: "동료 펫 입양",
-  description: "결제를 완료하면 동료 펫이 1마리 추가돼요.",
-  amountText: `₩${(state.player?.companionPriceWon || companionPriceWon).toLocaleString("ko-KR")}`,
-  request: () => api("/api/player/shop/companions/purchase", { method: "POST" }),
+  description: isOneStoreTarget()
+    ? "심사용 게임 내 보상으로 동료 펫이 1마리 추가돼요."
+    : "결제를 완료하면 동료 펫이 1마리 추가돼요.",
+  amountText: isOneStoreTarget()
+    ? "심사용 잠금 해제"
+    : `₩${(state.player?.companionPriceWon || companionPriceWon).toLocaleString("ko-KR")}`,
+  request: () => api(isOneStoreTarget()
+    ? "/api/player/onestore/shop/companions/unlock"
+    : "/api/player/shop/companions/purchase", { method: "POST" }),
   message: "동료 펫을 데려왔어요.",
 }));
-$("buySkillPointPack").addEventListener("click", () => showDummyPayment({
+$("buySkillPointPack").addEventListener("click", () => runPurchaseFlow({
   title: "스킬 포인트 팩",
-  description: `결제를 완료하면 SP ${(state.player?.skillPointPackAmount || skillPointPackAmount).toLocaleString("ko-KR")}개가 지급돼요.`,
-  amountText: `₩${(state.player?.skillPointPackPriceWon || skillPointPackPriceWon).toLocaleString("ko-KR")}`,
-  request: () => api("/api/player/shop/skill-points/purchase", { method: "POST" }),
+  description: isOneStoreTarget()
+    ? `게임 내 보상으로 SP ${(state.player?.skillPointPackAmount || skillPointPackAmount).toLocaleString("ko-KR")}개가 지급돼요.`
+    : `결제를 완료하면 SP ${(state.player?.skillPointPackAmount || skillPointPackAmount).toLocaleString("ko-KR")}개가 지급돼요.`,
+  amountText: isOneStoreTarget()
+    ? "심사용 게임 보상"
+    : `₩${(state.player?.skillPointPackPriceWon || skillPointPackPriceWon).toLocaleString("ko-KR")}`,
+  request: () => api(isOneStoreTarget()
+    ? "/api/player/onestore/shop/skill-points/claim"
+    : "/api/player/shop/skill-points/purchase", { method: "POST" }),
   message: `SP ${(state.player?.skillPointPackAmount || skillPointPackAmount).toLocaleString("ko-KR")}개를 구매했어요.`,
 }));
 $("confirmPayment").addEventListener("click", () => finishDummyPayment());

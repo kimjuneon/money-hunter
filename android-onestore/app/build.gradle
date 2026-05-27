@@ -1,0 +1,34 @@
+plugins {
+    id 'com.android.application'
+}
+
+def defaultGameUrl = 'https://money-hunter-review-4qddpaimyq-du.a.run.app/?target=onestore'
+def gameUrl = providers.gradleProperty('onestoreGameUrl').getOrElse(defaultGameUrl)
+def escapedGameUrl = gameUrl.replace('\\', '\\\\').replace('"', '\\"')
+
+android {
+    namespace 'com.juneonsoft.moneyhunter'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.juneonsoft.moneyhunter'
+        minSdk 23
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+        buildConfigField 'String', 'GAME_URL', "\"${escapedGameUrl}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

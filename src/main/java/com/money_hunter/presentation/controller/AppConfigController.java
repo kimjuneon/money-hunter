@@ -29,6 +29,7 @@ public class AppConfigController {
 				String.join(",", Arrays.asList(environment.getActiveProfiles())),
 				appProperties.appsInTossAppName(),
 				appProperties.integrationMode(),
+				appProperties.distributionTarget(),
 				appProperties.tossReleaseReady(),
 				appProperties.releaseBlockers(),
 				appProperties.tossLoginEnabled(),
