@@ -100,6 +100,7 @@ const battleBackgroundExpTextThemes = ["dark", "light", "light", "light"];
 const battleBackgroundStorageKey = "moneyHunterBattleBackgroundIndex";
 const monsterSignatureStorageKey = "moneyHunterMonsterSignature";
 const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
+const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 
 const statSkillByJob = {
   WARRIOR: "STRENGTH",
@@ -142,6 +143,22 @@ function storeValue(key, value) {
   } catch {
     // Local storage can be unavailable in embedded test environments.
   }
+}
+
+function createGuestUserKey() {
+  const randomValue = window.crypto?.randomUUID?.()
+    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `guest-${randomValue}`;
+}
+
+function guestUserKey() {
+  const saved = storedValue(guestUserKeyStorageKey);
+  if (saved) {
+    return saved;
+  }
+  const next = createGuestUserKey();
+  storeValue(guestUserKeyStorageKey, next);
+  return next;
 }
 
 function initialBattleBackgroundIndex() {
@@ -202,6 +219,7 @@ async function api(path, options = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      "X-Money-Hunter-Guest-Key": guestUserKey(),
       ...(options.headers || {}),
     },
   });

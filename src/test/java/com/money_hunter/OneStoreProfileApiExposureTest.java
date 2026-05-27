@@ -49,6 +49,31 @@ class OneStoreProfileApiExposureTest {
 	}
 
 	@Test
+	void oneStoreGuestHeaderSeparatesPlayerStateByDevice() throws Exception {
+		mockMvc.perform(post("/api/player/job")
+						.header("X-Money-Hunter-Guest-Key", "guest-onestore-device-a")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.header("X-Money-Hunter-Guest-Key", "guest-onestore-device-b")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"MAGE\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/player")
+						.header("X-Money-Hunter-Guest-Key", "guest-onestore-device-a"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.userKey", is("guest-onestore-device-a")))
+				.andExpect(jsonPath("$.job", is("WARRIOR")));
+		mockMvc.perform(get("/api/player")
+						.header("X-Money-Hunter-Guest-Key", "guest-onestore-device-b"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.userKey", is("guest-onestore-device-b")))
+				.andExpect(jsonPath("$.job", is("MAGE")));
+	}
+
+	@Test
 	void reviewTestApiIsNotShownInOneStoreProfile() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isNotFound());
