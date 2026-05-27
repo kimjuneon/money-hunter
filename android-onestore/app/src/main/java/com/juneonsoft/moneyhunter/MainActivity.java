@@ -3,12 +3,15 @@ package com.juneonsoft.moneyhunter;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -32,8 +35,36 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT));
         webView.setBackgroundColor(Color.rgb(15, 23, 42));
         setContentView(webView);
+        configureSystemBars();
         configureWebView();
         loadGame();
+    }
+
+    private void configureSystemBars() {
+        getWindow().setStatusBarColor(Color.rgb(15, 23, 42));
+        getWindow().setNavigationBarColor(Color.rgb(15, 23, 42));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+        }
+        webView.setOnApplyWindowInsetsListener((view, insets) -> {
+            applySystemBarPadding(view, insets);
+            return insets;
+        });
+        webView.post(webView::requestApplyInsets);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applySystemBarPadding(View view, WindowInsets insets) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Insets systemBars = insets.getInsets(WindowInsets.Type.systemBars());
+            view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return;
+        }
+        view.setPadding(
+                insets.getSystemWindowInsetLeft(),
+                insets.getSystemWindowInsetTop(),
+                insets.getSystemWindowInsetRight(),
+                insets.getSystemWindowInsetBottom());
     }
 
     @SuppressLint("SetJavaScriptEnabled")

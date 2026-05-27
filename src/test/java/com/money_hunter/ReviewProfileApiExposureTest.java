@@ -53,4 +53,12 @@ class ReviewProfileApiExposureTest {
 		mockMvc.perform(post("/api/player/shop/skill-points/purchase"))
 				.andExpect(status().isOk());
 	}
+
+	@Test
+	void guestHeaderWithoutOneStoreTargetDoesNotChangeAppsInTossReviewPlayer() throws Exception {
+		mockMvc.perform(get("/api/player")
+						.header("X-Money-Hunter-Guest-Key", "guest-onestore-only"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.userKey", is("test-player")));
+	}
 }

@@ -161,6 +161,16 @@ function guestUserKey() {
   return next;
 }
 
+function guestRequestHeaders() {
+  if (!isOneStoreTarget()) {
+    return {};
+  }
+  return {
+    "X-Money-Hunter-Distribution-Target": "ONESTORE",
+    "X-Money-Hunter-Guest-Key": guestUserKey(),
+  };
+}
+
 function initialBattleBackgroundIndex() {
   const saved = Number(storedValue(battleBackgroundStorageKey));
   if (Number.isInteger(saved) && saved >= 0 && saved < battleBackgrounds.length) {
@@ -219,7 +229,7 @@ async function api(path, options = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-Money-Hunter-Guest-Key": guestUserKey(),
+      ...guestRequestHeaders(),
       ...(options.headers || {}),
     },
   });

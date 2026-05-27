@@ -16,6 +16,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class UserKeyResolver {
 	private static final String GUEST_USER_KEY = "test-player";
 	private static final String GUEST_USER_KEY_HEADER = "X-Money-Hunter-Guest-Key";
+	private static final String DISTRIBUTION_TARGET_HEADER = "X-Money-Hunter-Distribution-Target";
+	private static final String ONESTORE_DISTRIBUTION_TARGET = "ONESTORE";
 	private static final Pattern GUEST_USER_KEY_PATTERN = Pattern.compile("[A-Za-z0-9._:-]{8,120}");
 
 	private final AppProperties appProperties;
@@ -39,6 +41,9 @@ public class UserKeyResolver {
 	}
 
 	private Optional<String> guestUserKeyFromHeader() {
+		if (!appProperties.oneStoreTarget() && !isOneStoreRequest()) {
+			return Optional.empty();
+		}
 		if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
 			return Optional.empty();
 		}
@@ -52,5 +57,13 @@ public class UserKeyResolver {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid guest user key.");
 		}
 		return Optional.of(guestUserKey);
+	}
+
+	private boolean isOneStoreRequest() {
+		if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
+			return false;
+		}
+		String distributionTarget = attributes.getRequest().getHeader(DISTRIBUTION_TARGET_HEADER);
+		return ONESTORE_DISTRIBUTION_TARGET.equalsIgnoreCase(distributionTarget);
 	}
 }
