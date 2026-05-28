@@ -23,7 +23,7 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("skillPointPackAmount", "스킬 포인트 팩 지급량", "SP", 1, 1_000),
 			new PolicyDefinition("friendInviteRewardSkillPoints", "친구 초대 보상", "SP", 0, 1_000),
 			new PolicyDefinition("friendInviteLimit", "친구 초대 보상 제한", "명", 0, 100),
-			new PolicyDefinition("maxCharacterSlots", "최대 캐릭터 슬롯", "개", 1, 10),
+			new PolicyDefinition("maxCharacterSlots", "최대 캐릭터 슬롯", "개", 1, 3),
 			new PolicyDefinition("autoHuntAdSeconds", "자동사냥 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("boostAdSeconds", "공속버프 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("maxAdSeconds", "광고 보상 최대 누적 시간", "초", 3_600, 86_400),

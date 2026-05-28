@@ -70,8 +70,8 @@ class ProdProfileApiExposureTest {
 	@Test
 	void mockMonetizationApisAreBlockedInProdProfile() throws Exception {
 		mockMvc.perform(post("/api/player/ads/auto-hunt/complete").with(user("reviewer")))
-				.andExpect(status().isConflict());
+				.andExpect(status().isForbidden());
 		mockMvc.perform(post("/api/player/shop/companions/purchase").with(user("reviewer")))
-				.andExpect(status().isConflict());
+				.andExpect(status().isForbidden());
 	}
 }

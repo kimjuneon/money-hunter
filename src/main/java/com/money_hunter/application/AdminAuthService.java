@@ -26,23 +26,33 @@ public class AdminAuthService {
 
 	private final AdminProperties properties;
 	private final AdminSessionRepository adminSessionRepository;
+	private final AdminLoginAttemptLimiter loginAttemptLimiter;
 	private final Clock clock = Clock.systemUTC();
 	private final SecureRandom secureRandom = new SecureRandom();
 	private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-	public AdminAuthService(AdminProperties properties, AdminSessionRepository adminSessionRepository) {
+	public AdminAuthService(
+			AdminProperties properties,
+			AdminSessionRepository adminSessionRepository,
+			AdminLoginAttemptLimiter loginAttemptLimiter
+	) {
 		this.properties = properties;
 		this.adminSessionRepository = adminSessionRepository;
+		this.loginAttemptLimiter = loginAttemptLimiter;
 	}
 
 	@Transactional
-	public IssuedAdminSession login(String loginId, String password) {
+	public IssuedAdminSession login(String loginId, String password, String clientFingerprint) {
 		if (!properties.hasCredential()) {
 			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "관리자 계정이 아직 설정되지 않았어요.");
 		}
+		String attemptKey = attemptKey(loginId, clientFingerprint);
+		loginAttemptLimiter.requireAllowed(attemptKey);
 		if (!matchesUsername(loginId) || !matchesPassword(password)) {
+			loginAttemptLimiter.recordFailure(attemptKey);
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않아요.");
 		}
+		loginAttemptLimiter.recordSuccess(attemptKey);
 		Instant now = clock.instant();
 		Instant expiresAt = now.plus(SESSION_HOURS, ChronoUnit.HOURS);
 		String token = newToken();
@@ -83,6 +93,14 @@ public class AdminAuthService {
 		return MessageDigest.isEqual(
 				properties.username().trim().getBytes(StandardCharsets.UTF_8),
 				loginId.trim().getBytes(StandardCharsets.UTF_8));
+	}
+
+	private String attemptKey(String loginId, String clientFingerprint) {
+		String normalizedLoginId = loginId == null ? "" : loginId.trim().toLowerCase();
+		String normalizedClient = clientFingerprint == null || clientFingerprint.isBlank()
+				? "unknown"
+				: clientFingerprint.trim();
+		return normalizedClient + "|" + normalizedLoginId;
 	}
 
 	private boolean matchesPassword(String password) {

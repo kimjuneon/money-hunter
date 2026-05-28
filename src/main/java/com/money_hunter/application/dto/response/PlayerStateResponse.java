@@ -1,4 +1,4 @@
-package com.money_hunter.presentation.dto.response;
+package com.money_hunter.application.dto.response;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,11 +27,12 @@ public record PlayerStateResponse(
 		int friendInviteLimit,
 		int friendInviteRewardSkillPoints,
 		int level,
-		long experience,
-		int nextLevelExperience,
-		long goldPerHour,
-		Instant autoHuntEndsAt,
-		Instant boostEndsAt,
+			long experience,
+			int nextLevelExperience,
+			long goldPerHour,
+			int attackIntervalMillis,
+			Instant autoHuntEndsAt,
+			Instant boostEndsAt,
 		MonsterResponse monster,
 		List<SkillResponse> skills,
 		NotificationResponse latestNotification

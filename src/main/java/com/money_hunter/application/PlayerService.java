@@ -23,11 +23,11 @@ import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
-import com.money_hunter.presentation.dto.response.NotificationResponse;
-import com.money_hunter.presentation.dto.response.PlayerStateResponse;
-import com.money_hunter.presentation.dto.response.MonsterResponse;
-import com.money_hunter.presentation.dto.response.RewardClaimResponse;
-import com.money_hunter.presentation.dto.response.SkillResponse;
+import com.money_hunter.application.dto.response.NotificationResponse;
+import com.money_hunter.application.dto.response.PlayerStateResponse;
+import com.money_hunter.application.dto.response.MonsterResponse;
+import com.money_hunter.application.dto.response.RewardClaimResponse;
+import com.money_hunter.application.dto.response.SkillResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +44,10 @@ public class PlayerService {
 			- MAX_SKILL_PAYOUT_RATE
 			- PET_UNLOCK_PAYOUT_RATE * 2) / 2;
 	private static final int HIT_REWARD_PERCENT = 75;
+	private static final int BASE_ATTACK_INTERVAL_MILLIS = 3_000;
+	private static final int BOOSTED_ATTACK_INTERVAL_MILLIS = 1_500;
+	private static final int MIN_ATTACK_INTERVAL_MILLIS = 900;
+	private static final int RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS = 45;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Map<String, Integer> MONSTER_BASE_HP = Map.of(
 			"BOSS_ROCK", 120,
@@ -136,29 +140,8 @@ public class PlayerService {
 	public PlayerStateResponse hitMonster(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
-		if (!isActive(player.getAutoHuntEndsAt())) {
-			Instant now = clock.instant();
-			settle(player);
-			publishAutoHuntEndNotificationIfDue(player, now);
-			return toState(player);
-		}
-
-		Instant now = clock.instant();
-		collectHitCombatReward(player, now);
-		int rapidLevel = player.getOrCreateSkill(SkillType.RAPID_ATTACK).getLevel();
-		int statLevel = currentJobStatLevel(player);
-		int damage = 16 + player.getLevel() * 2 + rapidLevel * 2 + statLevel * 3 + petDamage(player);
-		if (isActive(player.getBoostEndsAt())) {
-			damage = Math.round(damage * 1.35f);
-		}
-
-		player.damageMonster(damage);
-		if (player.getCurrentMonsterHp() <= 0) {
-			player.collectDefeatGold();
-			player.recordMonsterDefeat(defeatExperience(player));
-			String nextMonsterKey = nextMonsterKey(player.getCurrentMonsterKey());
-			player.replaceMonster(nextMonsterKey, maxMonsterHp(player.getDefeatedMonsters(), nextMonsterKey));
-		}
+		settle(player);
+		publishAutoHuntEndNotificationIfDue(player, clock.instant());
 		return toState(player);
 	}
 
@@ -335,27 +318,56 @@ public class PlayerService {
 			return;
 		}
 
-		long millis = Duration.between(player.getLastSettledAt(), settlementEnd).toMillis();
-		long boostedMillis = boostedMillis(player, player.getLastSettledAt(), settlementEnd);
+		resolveAutoCombat(player, settlementEnd);
+		if (!huntEnd.isAfter(now) && player.getLastSettledAt().isBefore(settlementEnd)) {
+			player.setLastSettledAt(settlementEnd);
+		}
+	}
+
+	private void resolveAutoCombat(Player player, Instant settlementEnd) {
+		Instant settlementStart = player.getLastSettledAt();
+		long millis = Duration.between(settlementStart, settlementEnd).toMillis();
+		long boostedMillis = boostedMillis(player, settlementStart, settlementEnd);
 		long normalMillis = millis - boostedMillis;
+		AttackCounts attackCounts = attackCounts(player, normalMillis, boostedMillis);
+		long totalAttacks = attackCounts.total();
+		if (totalAttacks <= 0) {
+			return;
+		}
+
 		long rewardMicros = combatRewardMicros(player, normalMillis, boostedMillis);
-		player.collectCombatGold(hitRewardMicros(rewardMicros), defeatRewardMicros(rewardMicros));
+		player.reserveDefeatGold(defeatRewardMicros(rewardMicros));
+		player.collectHitGold(hitRewardMicros(rewardMicros));
+		resolveAggregateDamage(player, attackCounts);
 		player.setLastSettledAt(settlementEnd);
 	}
 
-	private long collectHitCombatReward(Player player, Instant now) {
-		Instant huntEnd = player.getAutoHuntEndsAt();
-		Instant settlementEnd = min(now, huntEnd);
-		if (!settlementEnd.isAfter(player.getLastSettledAt())) {
-			return 0;
+	private void resolveAggregateDamage(Player player, AttackCounts attackCounts) {
+		long totalDamage = attackCounts.normal() * damage(player, false)
+				+ attackCounts.boosted() * damage(player, true);
+		while (totalDamage > 0) {
+			int currentHp = player.getCurrentMonsterHp();
+			if (totalDamage < currentHp) {
+				player.damageMonster((int) totalDamage);
+				return;
+			}
+			totalDamage -= currentHp;
+			player.damageMonster(currentHp);
+			player.collectDefeatGold();
+			player.recordMonsterDefeat(defeatExperience(player));
+			String nextMonsterKey = nextMonsterKey(player.getCurrentMonsterKey());
+			player.replaceMonster(nextMonsterKey, maxMonsterHp(player.getDefeatedMonsters(), nextMonsterKey));
 		}
-		long millis = Duration.between(player.getLastSettledAt(), settlementEnd).toMillis();
-		long boostedMillis = boostedMillis(player, player.getLastSettledAt(), settlementEnd);
-		long rewardMicros = combatRewardMicros(player, millis - boostedMillis, boostedMillis);
-		player.reserveDefeatGold(defeatRewardMicros(rewardMicros));
-		long hitGold = player.collectHitGold(hitRewardMicros(rewardMicros));
-		player.setLastSettledAt(settlementEnd);
-		return hitGold;
+	}
+
+	private int damage(Player player, boolean boosted) {
+		int rapidLevel = player.getOrCreateSkill(SkillType.RAPID_ATTACK).getLevel();
+		int statLevel = currentJobStatLevel(player);
+		int damage = 16 + player.getLevel() * 2 + rapidLevel * 2 + statLevel * 3 + petDamage(player);
+		if (boosted) {
+			damage = Math.round(damage * 1.35f);
+		}
+		return damage;
 	}
 
 	private long combatRewardMicros(Player player, long normalMillis, long boostedMillis) {
@@ -428,6 +440,7 @@ public class PlayerService {
 				player.getExperience(),
 				player.getNextLevelExperience(),
 				currentGoldPerHour(player),
+				attackIntervalMillis(player),
 				player.getAutoHuntEndsAt(),
 				player.getBoostEndsAt(),
 				monsterResponse(player),
@@ -484,6 +497,31 @@ public class PlayerService {
 
 	private long boostedGoldPerHour(Player player) {
 		return Math.min(maxGoldPerHour(), Math.round(baseGoldPerHour(player) * BOOST_REWARD_MULTIPLIER));
+	}
+
+	private int attackIntervalMillis(Player player) {
+		return isActive(player.getBoostEndsAt()) ? boostedAttackIntervalMillis(player) : normalAttackIntervalMillis(player);
+	}
+
+	private int boostedAttackIntervalMillis(Player player) {
+		return attackIntervalMillis(player, BOOSTED_ATTACK_INTERVAL_MILLIS);
+	}
+
+	private int normalAttackIntervalMillis(Player player) {
+		return attackIntervalMillis(player, BASE_ATTACK_INTERVAL_MILLIS);
+	}
+
+	private int attackIntervalMillis(Player player, int baseIntervalMillis) {
+		int rapidLevel = player.getOrCreateSkill(SkillType.RAPID_ATTACK).getLevel();
+		return Math.max(
+				MIN_ATTACK_INTERVAL_MILLIS,
+				baseIntervalMillis - rapidLevel * RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS);
+	}
+
+	private AttackCounts attackCounts(Player player, long normalMillis, long boostedMillis) {
+		return new AttackCounts(
+				normalMillis / normalAttackIntervalMillis(player),
+				boostedMillis / boostedAttackIntervalMillis(player));
 	}
 
 	private long maxGoldPerHour() {
@@ -648,6 +686,16 @@ public class PlayerService {
 	}
 
 	private boolean isActive(Instant value) {
-		return value != null && value.isAfter(clock.instant());
+		return isActiveAt(value, clock.instant());
+	}
+
+	private boolean isActiveAt(Instant value, Instant at) {
+		return value != null && value.isAfter(at);
+	}
+
+	private record AttackCounts(long normal, long boosted) {
+		long total() {
+			return normal + boosted;
+		}
 	}
 }

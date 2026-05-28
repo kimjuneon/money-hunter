@@ -253,13 +253,15 @@ nav {
 }
 
 .policy-list,
-.audit-list {
+.audit-list,
+.anomaly-list {
   display: grid;
   gap: 10px;
 }
 
 .policy-row,
-.audit-row {
+.audit-row,
+.anomaly-row {
   display: grid;
   align-items: center;
   gap: 12px;
@@ -301,13 +303,91 @@ nav {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.anomaly-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.anomaly-count {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.anomaly-count span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.anomaly-count strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+}
+
+.anomaly-count.critical strong,
+.anomaly-row.critical .severity-chip {
+  color: var(--red);
+}
+
+.anomaly-count.warning strong,
+.anomaly-row.warning .severity-chip {
+  color: var(--gold);
+}
+
+.anomaly-count.info strong,
+.anomaly-row.info .severity-chip {
+  color: var(--blue);
+}
+
+.anomaly-row {
+  grid-template-columns: minmax(0, 1fr) minmax(150px, auto);
+  border-left-width: 5px;
+}
+
+.anomaly-row.critical {
+  border-left-color: var(--red);
+}
+
+.anomaly-row.warning {
+  border-left-color: var(--gold);
+}
+
+.anomaly-row.info {
+  border-left-color: var(--blue);
+}
+
+.anomaly-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.severity-chip {
+  display: inline-grid;
+  min-height: 24px;
+  place-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: white;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
 .audit-row p,
-.audit-row small {
+.audit-row small,
+.anomaly-row p,
+.anomaly-row small {
   margin: 4px 0 0;
   color: var(--muted);
 }
 
-.audit-meta {
+.audit-meta,
+.anomaly-meta {
   display: grid;
   gap: 4px;
   color: var(--muted);
@@ -365,8 +445,13 @@ nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .anomaly-summary {
+    grid-template-columns: 1fr;
+  }
+
   .policy-row,
-  .audit-row {
+  .audit-row,
+  .anomaly-row {
     grid-template-columns: 1fr;
   }
 }

@@ -16,10 +16,8 @@ public class SecurityConfig {
 						.requestMatchers("/", "/index.html", "/styles.css", "/app.js", "/actuator/health").permitAll()
 						.requestMatchers("/api/**").permitAll()
 						.anyRequest().permitAll())
-				.httpBasic(httpBasic -> {
-				})
-				.formLogin(formLogin -> {
-				})
+				.httpBasic(AbstractHttpConfigurer::disable)
+				.formLogin(AbstractHttpConfigurer::disable)
 				.build();
 	}
 }

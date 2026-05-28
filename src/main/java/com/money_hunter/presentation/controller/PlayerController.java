@@ -6,15 +6,17 @@ import com.money_hunter.application.PlayerService;
 import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
-import com.money_hunter.presentation.dto.response.PlayerStateResponse;
-import com.money_hunter.presentation.dto.response.RewardClaimResponse;
+import com.money_hunter.application.dto.response.PlayerStateResponse;
+import com.money_hunter.application.dto.response.RewardClaimResponse;
 import com.money_hunter.presentation.dto.request.UpgradeSkillRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
 
@@ -163,13 +165,13 @@ public class PlayerController {
 
 	private void requireMockMonetization() {
 		if (!appProperties.mockMonetizationEnabled()) {
-			throw new IllegalStateException("토스 광고, 결제, 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "토스 광고, 결제, 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
 		}
 	}
 
 	private void requireGameRewardMode() {
 		if (!appProperties.mockMonetizationEnabled()) {
-			throw new IllegalStateException("게임 내 보상은 심사용 또는 원스토어용 환경에서만 사용할 수 있어요.");
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "게임 내 보상은 심사용 또는 원스토어용 환경에서만 사용할 수 있어요.");
 		}
 	}
 }

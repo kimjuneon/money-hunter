@@ -3,7 +3,7 @@ package com.money_hunter.presentation.controller;
 import com.money_hunter.application.LoginSessionService.IssuedLoginSession;
 import com.money_hunter.application.TossLoginService;
 import com.money_hunter.presentation.dto.request.TossLoginRequest;
-import com.money_hunter.presentation.dto.response.LoginSessionResponse;
+import com.money_hunter.application.dto.response.LoginSessionResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

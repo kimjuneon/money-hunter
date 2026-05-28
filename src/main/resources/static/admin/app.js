@@ -111,6 +111,7 @@ function switchView(viewId) {
   });
   $("pageTitle").textContent = {
     dashboardView: "대시보드",
+    anomalyView: "이상징후",
     policyView: "정책값",
     auditView: "감사 로그",
   }[viewId] || "대시보드";
@@ -122,6 +123,8 @@ function refreshCurrentView() {
     loadPolicies();
   } else if (state.view === "auditView") {
     loadAudits();
+  } else if (state.view === "anomalyView") {
+    loadAnomalies();
   } else {
     loadOverview();
   }
@@ -165,6 +168,46 @@ function renderMetrics(data) {
       <strong>${formatNumber(value)}${escapeHtml(unit)}</strong>
     </article>
   `).join("");
+}
+
+async function loadAnomalies() {
+  const data = await request("/api/admin/anomalies");
+  $("anomalyUpdatedAt").textContent = new Date(data.generatedAt).toLocaleString("ko-KR");
+  renderAnomalySummary(data);
+  renderAnomalyList(data.anomalies || []);
+}
+
+function renderAnomalySummary(data) {
+  const summary = [
+    ["CRITICAL", data.criticalCount, "즉시 확인"],
+    ["WARNING", data.warningCount, "주의"],
+    ["INFO", data.infoCount, "관찰"],
+  ];
+  $("anomalySummary").innerHTML = summary.map(([severity, count, label]) => `
+    <article class="anomaly-count ${severity.toLowerCase()}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${formatNumber(count)}</strong>
+    </article>
+  `).join("");
+}
+
+function renderAnomalyList(anomalies) {
+  $("anomalyList").innerHTML = anomalies.map((anomaly) => `
+    <article class="anomaly-row ${escapeHtml(anomaly.severity.toLowerCase())}">
+      <div>
+        <div class="anomaly-title">
+          <span class="severity-chip">${escapeHtml(severityLabel(anomaly.severity))}</span>
+          <strong>${escapeHtml(anomaly.title)}</strong>
+        </div>
+        <p>${escapeHtml(anomaly.detail)}</p>
+        <small>${escapeHtml(anomaly.category)} · 기준 ${formatNumber(anomaly.thresholdValue)} / 감지 ${formatNumber(anomaly.observedValue)}</small>
+      </div>
+      <div class="anomaly-meta">
+        <strong>${escapeHtml(anomaly.userKey)}</strong>
+        <span>${new Date(anomaly.detectedAt).toLocaleString("ko-KR")}</span>
+      </div>
+    </article>
+  `).join("") || `<p class="empty">현재 감지된 이상징후가 없어요.</p>`;
 }
 
 async function loadPolicies() {
@@ -265,6 +308,14 @@ async function send(url, options = {}) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("ko-KR");
+}
+
+function severityLabel(severity) {
+  return {
+    CRITICAL: "위험",
+    WARNING: "주의",
+    INFO: "관찰",
+  }[severity] || severity;
 }
 
 function escapeHtml(value) {

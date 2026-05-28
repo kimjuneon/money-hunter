@@ -25,6 +25,47 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	long totalGold();
 
 	@Query("""
+			select p.userKey as userKey,
+				p.gold as gold,
+				p.level as level,
+				p.skillPoints as skillPoints,
+				p.updatedAt as updatedAt
+			from Player p
+			where p.gold >= :minimumGold
+			order by p.gold desc, p.updatedAt desc
+			""")
+	List<PlayerGoldSnapshot> findPlayersWithGoldAtLeast(@Param("minimumGold") long minimumGold, org.springframework.data.domain.Pageable pageable);
+
+	@Query("""
+			select p.userKey as userKey,
+				p.gold as gold,
+				p.level as level,
+				p.skillPoints as skillPoints,
+				p.updatedAt as updatedAt
+			from Player p
+			where p.skillPoints >= :minimumSkillPoints
+			order by p.skillPoints desc, p.updatedAt desc
+			""")
+	List<PlayerGoldSnapshot> findPlayersWithSkillPointsAtLeast(
+			@Param("minimumSkillPoints") int minimumSkillPoints,
+			org.springframework.data.domain.Pageable pageable);
+
+	@Query("""
+			select p.userKey as userKey,
+				p.autoHuntEndsAt as autoHuntEndsAt,
+				p.boostEndsAt as boostEndsAt,
+				p.updatedAt as updatedAt
+			from Player p
+			where (p.autoHuntEndsAt is not null and p.autoHuntEndsAt > :maxAutoHuntEnd)
+				or (p.boostEndsAt is not null and p.boostEndsAt > :maxBoostEnd)
+			order by p.updatedAt desc
+			""")
+	List<PlayerTimerSnapshot> findPlayersWithTimersBeyond(
+			@Param("maxAutoHuntEnd") Instant maxAutoHuntEnd,
+			@Param("maxBoostEnd") Instant maxBoostEnd,
+			org.springframework.data.domain.Pageable pageable);
+
+	@Query("""
 			select p
 			from Player p
 			where p.autoHuntEndsAt is not null
@@ -45,4 +86,26 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 			on conflict (user_key) do nothing
 			""", nativeQuery = true)
 	void insertIfAbsent(@Param("userKey") String userKey, @Param("now") Instant now);
+
+	interface PlayerGoldSnapshot {
+		String getUserKey();
+
+		long getGold();
+
+		int getLevel();
+
+		int getSkillPoints();
+
+		Instant getUpdatedAt();
+	}
+
+	interface PlayerTimerSnapshot {
+		String getUserKey();
+
+		Instant getAutoHuntEndsAt();
+
+		Instant getBoostEndsAt();
+
+		Instant getUpdatedAt();
+	}
 }

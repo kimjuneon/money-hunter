@@ -3,7 +3,7 @@ package com.money_hunter.presentation.controller;
 import java.security.Principal;
 
 import com.money_hunter.application.PlayerService;
-import com.money_hunter.presentation.dto.response.PlayerStateResponse;
+import com.money_hunter.application.dto.response.PlayerStateResponse;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

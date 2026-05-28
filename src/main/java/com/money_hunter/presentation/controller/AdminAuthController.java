@@ -3,8 +3,8 @@ package com.money_hunter.presentation.controller;
 import com.money_hunter.application.AdminAccessGuard;
 import com.money_hunter.application.AdminAuthService;
 import com.money_hunter.presentation.dto.request.AdminLoginRequest;
-import com.money_hunter.presentation.dto.response.AdminLoginResponse;
-import com.money_hunter.presentation.dto.response.AdminMeResponse;
+import com.money_hunter.application.dto.response.AdminLoginResponse;
+import com.money_hunter.application.dto.response.AdminMeResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -27,8 +27,8 @@ public class AdminAuthController {
 	}
 
 	@PostMapping("/login")
-	public AdminLoginResponse login(@Valid @RequestBody AdminLoginRequest request) {
-		return AdminLoginResponse.from(adminAuthService.login(request.loginId(), request.password()));
+	public AdminLoginResponse login(@Valid @RequestBody AdminLoginRequest request, HttpServletRequest httpRequest) {
+		return AdminLoginResponse.from(adminAuthService.login(request.loginId(), request.password(), clientIp(httpRequest)));
 	}
 
 	@GetMapping("/me")
@@ -40,5 +40,13 @@ public class AdminAuthController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void logout(HttpServletRequest request) {
 		adminAuthService.logout(adminAccessGuard.tokenFrom(request));
+	}
+
+	private String clientIp(HttpServletRequest request) {
+		String forwardedFor = request.getHeader("X-Forwarded-For");
+		if (forwardedFor != null && !forwardedFor.isBlank()) {
+			return forwardedFor.split(",")[0].trim();
+		}
+		return request.getRemoteAddr();
 	}
 }

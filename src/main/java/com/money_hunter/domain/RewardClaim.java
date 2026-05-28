@@ -35,7 +35,7 @@ public class RewardClaim {
 	@Column(nullable = false, length = 30)
 	private RewardClaimStatus status;
 
-	@Column(nullable = false, unique = true, length = 120)
+	@Column(nullable = false, length = 120)
 	private String idempotencyKey;
 
 	@Column(nullable = false)

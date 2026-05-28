@@ -23,7 +23,7 @@ public record EconomyPolicySnapshot(
 		range(skillPointPackAmount, 1, 1_000, "스킬 포인트 팩 지급량");
 		range(friendInviteRewardSkillPoints, 0, 1_000, "친구 초대 SP 보상");
 		range(friendInviteLimit, 0, 100, "친구 초대 보상 제한");
-		range(maxCharacterSlots, 1, 10, "최대 캐릭터 슬롯");
+			range(maxCharacterSlots, 1, 3, "최대 캐릭터 슬롯");
 		range(autoHuntAdSeconds, 60, 86_400, "자동사냥 광고 보상 시간");
 		range(boostAdSeconds, 60, 86_400, "공속버프 광고 보상 시간");
 		range(maxAdSeconds, 3_600, 86_400, "광고 보상 최대 누적 시간");

@@ -86,7 +86,6 @@ const petMeta = [
 
 const effectAssetVersion = "20260525-02";
 const goldPerTossPoint = 100;
-const adRevenuePerRewardAdWon = 60;
 const companionPriceWon = 4900;
 const skillPointPackPriceWon = 999;
 const skillPointPackAmount = 10;
@@ -517,6 +516,14 @@ function renderExperience(player) {
   $("expText").textContent = `EXP ${player.experience.toLocaleString("ko-KR")} / ${player.nextLevelExperience.toLocaleString("ko-KR")}`;
 }
 
+function attackIntervalMillis(player = state.player) {
+  if (player?.attackIntervalMillis) {
+    return player.attackIntervalMillis;
+  }
+  const rapidBonus = Math.min(900, skillLevel("RAPID_ATTACK") * 45);
+  return Math.max(900, (isActive(player?.boostEndsAt) ? 1500 : 3000) - rapidBonus);
+}
+
 function renderRewardPanel(player) {
   const pointGoldRate = player.goldPerTossPoint || goldPerTossPoint;
   const claimPointAmount = player.rewardPointAmount || Math.floor(player.rewardGoldThreshold / pointGoldRate);
@@ -899,8 +906,7 @@ async function simulateHit() {
     return;
   }
   const now = Date.now();
-  const rapidBonus = Math.min(900, skillLevel("RAPID_ATTACK") * 45);
-  const interval = Math.max(900, (isActive(player.boostEndsAt) ? 1500 : 3000) - rapidBonus);
+  const interval = attackIntervalMillis(player);
   if (now - state.lastHitAt < interval) {
     return;
   }

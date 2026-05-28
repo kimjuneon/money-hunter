@@ -10,9 +10,9 @@ import com.money_hunter.application.RuntimeEconomyService.PolicyChangeResult;
 import com.money_hunter.application.RuntimeEconomyService.PolicyDefinition;
 import com.money_hunter.domain.AdminAuditLog;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
-import com.money_hunter.presentation.dto.response.AdminAuditLogResponse;
-import com.money_hunter.presentation.dto.response.AdminAuditPageResponse;
-import com.money_hunter.presentation.dto.response.AdminPolicyResponse;
+import com.money_hunter.application.dto.response.AdminAuditLogResponse;
+import com.money_hunter.application.dto.response.AdminAuditPageResponse;
+import com.money_hunter.application.dto.response.AdminPolicyResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -49,6 +49,12 @@ public class AdminController {
 	public AdminMonitoringService.AdminOverview overview(HttpServletRequest request) {
 		adminAccessGuard.require(request);
 		return monitoringService.overview();
+	}
+
+	@GetMapping("/anomalies")
+	public AdminMonitoringService.AdminAnomalyReport anomalies(HttpServletRequest request) {
+		adminAccessGuard.require(request);
+		return monitoringService.anomalies();
 	}
 
 	@GetMapping("/policies")

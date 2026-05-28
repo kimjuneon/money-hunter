@@ -1,4 +1,4 @@
-package com.money_hunter.presentation.dto.response;
+package com.money_hunter.application.dto.response;
 
 import com.money_hunter.domain.RewardClaimStatus;
 

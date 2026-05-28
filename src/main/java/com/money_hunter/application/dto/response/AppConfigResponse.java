@@ -1,13 +1,12 @@
-package com.money_hunter.presentation.dto.response;
+package com.money_hunter.application.dto.response;
 
 import java.util.List;
 
 public record AppConfigResponse(
-		boolean reviewToolsEnabled,
-		boolean guestUserEnabled,
-		boolean mockMonetizationEnabled,
-		String environment,
-		String appsInTossAppName,
+			boolean reviewToolsEnabled,
+			boolean guestUserEnabled,
+			boolean mockMonetizationEnabled,
+			String appsInTossAppName,
 		String integrationMode,
 		String distributionTarget,
 		boolean tossReleaseReady,
