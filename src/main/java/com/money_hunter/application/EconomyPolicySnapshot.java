@@ -1,0 +1,42 @@
+package com.money_hunter.application;
+
+public record EconomyPolicySnapshot(
+		int adRevenuePerRewardAdWon,
+		int goldPerTossPoint,
+		int companionPriceWon,
+		int skillPointPackPriceWon,
+		int skillPointPackAmount,
+		int friendInviteRewardSkillPoints,
+		int friendInviteLimit,
+		int maxCharacterSlots,
+		long autoHuntAdSeconds,
+		long boostAdSeconds,
+		long maxAdSeconds,
+		long rewardGoldThreshold,
+		int rewardPointAmount
+) {
+	public void validate() {
+		range(adRevenuePerRewardAdWon, 1, 10_000, "리워드 광고 1회 매출");
+		range(goldPerTossPoint, 1, 1_000_000, "토스포인트 1P당 골드");
+		range(companionPriceWon, 0, 1_000_000, "동료 펫 가격");
+		range(skillPointPackPriceWon, 0, 1_000_000, "스킬 포인트 팩 가격");
+		range(skillPointPackAmount, 1, 1_000, "스킬 포인트 팩 지급량");
+		range(friendInviteRewardSkillPoints, 0, 1_000, "친구 초대 SP 보상");
+		range(friendInviteLimit, 0, 100, "친구 초대 보상 제한");
+		range(maxCharacterSlots, 1, 10, "최대 캐릭터 슬롯");
+		range(autoHuntAdSeconds, 60, 86_400, "자동사냥 광고 보상 시간");
+		range(boostAdSeconds, 60, 86_400, "공속버프 광고 보상 시간");
+		range(maxAdSeconds, 3_600, 86_400, "광고 보상 최대 누적 시간");
+		range(rewardGoldThreshold, 1, 10_000_000_000L, "보상 수령 골드 기준");
+		range(rewardPointAmount, 1, 1_000_000, "보상 수령 토스포인트");
+		if (maxAdSeconds < autoHuntAdSeconds || maxAdSeconds < boostAdSeconds) {
+			throw new IllegalArgumentException("광고 보상 최대 누적 시간은 개별 보상 시간보다 작을 수 없어요.");
+		}
+	}
+
+	private static void range(long value, long min, long max, String label) {
+		if (value < min || value > max) {
+			throw new IllegalArgumentException(label + " 값은 " + min + " 이상 " + max + " 이하여야 해요.");
+		}
+	}
+}

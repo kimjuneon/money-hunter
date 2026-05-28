@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260525-38" />
+    <link rel="stylesheet" href="/styles.css?v=20260527-01" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR">
@@ -257,6 +257,16 @@
         </section>
       </section>
 
+      <section id="loginModal" class="login-modal hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+        <div class="login-card">
+          <p class="modal-kicker">Money Hunter</p>
+          <h1 id="loginTitle">토스 로그인이 필요해요</h1>
+          <p class="modal-copy">게임 기록과 보상 수령 내역을 안전하게 저장하기 위해 로그인 후 시작할 수 있어요.</p>
+          <button id="loginButton" class="login-button" type="button">토스로 로그인</button>
+          <p id="loginError" class="login-error" aria-live="polite"></p>
+        </div>
+      </section>
+
       <section id="jobModal" class="job-modal" role="dialog" aria-modal="true" aria-labelledby="jobTitle">
         <div class="job-sheet">
           <button id="closeJobModal" class="modal-close hidden" type="button" aria-label="닫기">×</button>
@@ -369,6 +379,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260525-38"></script>
+    <script src="/app.js?v=20260527-01"></script>
   </body>
 </html>

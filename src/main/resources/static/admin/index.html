@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <title>머니헌터 관리자</title>
+    <link rel="stylesheet" href="/admin/styles.css?v=20260528-02" />
+  </head>
+  <body>
+    <main id="loginView" class="login-shell">
+      <section class="login-panel">
+        <p class="eyebrow">MONEY HUNTER ADMIN</p>
+        <h1>관리자 인증</h1>
+        <form id="loginForm">
+          <label>
+            <span>아이디</span>
+            <input id="adminLoginIdInput" type="text" autocomplete="username" required />
+          </label>
+          <label>
+            <span>비밀번호</span>
+            <input id="adminPasswordInput" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">접속</button>
+          <p id="loginError" class="error-text"></p>
+        </form>
+      </section>
+    </main>
+
+    <main id="adminView" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="brand">
+          <strong>머니헌터</strong>
+          <span id="adminName">Admin</span>
+        </div>
+        <nav>
+          <button class="nav-item active" data-view="dashboardView">대시보드</button>
+          <button class="nav-item" data-view="policyView">정책값</button>
+          <button class="nav-item" data-view="auditView">감사 로그</button>
+        </nav>
+        <button id="logoutButton" class="ghost">로그아웃</button>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">LIVE OPS</p>
+            <h2 id="pageTitle">대시보드</h2>
+          </div>
+          <button id="refreshButton" class="secondary">새로고침</button>
+        </header>
+
+        <section id="dashboardView" class="view">
+          <div id="statusBand" class="status-band"></div>
+          <div id="metricGrid" class="metric-grid"></div>
+        </section>
+
+        <section id="policyView" class="view hidden">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>운영 정책값</h3>
+                <p>저장 즉시 서버 캐시에 반영돼요.</p>
+              </div>
+              <span id="policyCount" class="muted"></span>
+            </div>
+            <div id="policyList" class="policy-list"></div>
+            <p id="policyResult" class="feedback"></p>
+          </section>
+        </section>
+
+        <section id="auditView" class="view hidden">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>감사 로그</h3>
+                <p>정책값 변경과 초기화 기록이 남아요.</p>
+              </div>
+              <span id="auditPageInfo" class="muted"></span>
+            </div>
+            <div id="auditList" class="audit-list"></div>
+            <div class="pager">
+              <button id="prevAuditButton" class="ghost">이전</button>
+              <button id="nextAuditButton" class="ghost">다음</button>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="/admin/app.js?v=20260528-02"></script>
+  </body>
+</html>

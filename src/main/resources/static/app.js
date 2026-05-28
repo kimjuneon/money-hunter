@@ -21,9 +21,11 @@ const state = {
   noticeExpiresAt: 0,
   noticeTimer: null,
   showDummyBanner: true,
+  authToken: "",
   reviewToolsEnabled: false,
   mockMonetizationEnabled: false,
   tossReleaseReady: false,
+  loginInFlight: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
 
@@ -101,6 +103,8 @@ const battleBackgroundStorageKey = "moneyHunterBattleBackgroundIndex";
 const monsterSignatureStorageKey = "moneyHunterMonsterSignature";
 const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
+const authTokenStorageKey = "moneyHunterAuthToken";
+const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@latest/+esm";
 
 const statSkillByJob = {
   WARRIOR: "STRENGTH",
@@ -171,6 +175,18 @@ function guestRequestHeaders() {
   };
 }
 
+function authRequestHeaders(skipAuth = false) {
+  if (skipAuth || isOneStoreTarget()) {
+    return {};
+  }
+  if (!state.authToken) {
+    return {};
+  }
+  return {
+    Authorization: `Bearer ${state.authToken}`,
+  };
+}
+
 function initialBattleBackgroundIndex() {
   const saved = Number(storedValue(battleBackgroundStorageKey));
   if (Number.isInteger(saved) && saved >= 0 && saved < battleBackgrounds.length) {
@@ -184,6 +200,7 @@ function initialBattleBackgroundIndex() {
 state.battleBackgroundIndex = initialBattleBackgroundIndex();
 state.lastMonsterSignature = storedValue(monsterSignatureStorageKey) || "";
 state.showDummyBanner = storedValue(dummyBannerStorageKey) !== "false";
+state.authToken = storedValue(authTokenStorageKey) || "";
 
 function normalizedDistributionTarget(value) {
   return String(value || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS";
@@ -225,16 +242,22 @@ function setMessage(message, durationMs = 2400) {
 }
 
 async function api(path, options = {}) {
+  const { skipAuth = false, ...fetchOptions } = options;
   const response = await fetch(path, {
-    ...options,
+    ...fetchOptions,
     headers: {
       "Content-Type": "application/json",
       ...guestRequestHeaders(),
-      ...(options.headers || {}),
+      ...authRequestHeaders(skipAuth),
+      ...(fetchOptions.headers || {}),
     },
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ message: "요청에 실패했어요." }));
+    if (response.status === 401 && !isOneStoreTarget()) {
+      clearAuthToken();
+      showLoginGate(body.message || "로그인이 필요해요.");
+    }
     throw new Error(body.message || "요청에 실패했어요.");
   }
   return response.json();
@@ -242,11 +265,79 @@ async function api(path, options = {}) {
 
 async function refresh() {
   state.player = await api("/api/player");
+  hideLoginGate();
   state.displayGold = Math.max(state.displayGold, state.player.gold);
   if (state.player.job) {
     state.selectedJob = state.player.job;
   }
   render();
+}
+
+function setAuthToken(token) {
+  state.authToken = token || "";
+  if (state.authToken) {
+    storeValue(authTokenStorageKey, state.authToken);
+  }
+}
+
+function clearAuthToken() {
+  state.authToken = "";
+  try {
+    window.localStorage.removeItem(authTokenStorageKey);
+  } catch {
+    // Ignore storage failures in embedded environments.
+  }
+}
+
+function showLoginGate(message = "") {
+  if (isOneStoreTarget()) {
+    return;
+  }
+  $("loginModal").classList.remove("hidden");
+  $("loginError").textContent = message;
+}
+
+function hideLoginGate() {
+  $("loginModal").classList.add("hidden");
+  $("loginError").textContent = "";
+}
+
+async function requestTossAuthorization() {
+  if (window.MoneyHunterTossLogin?.appLogin) {
+    return window.MoneyHunterTossLogin.appLogin();
+  }
+  const sdk = await import(appsInTossSdkUrl);
+  if (typeof sdk.appLogin !== "function") {
+    throw new Error("토스 로그인 SDK를 찾지 못했어요.");
+  }
+  return sdk.appLogin();
+}
+
+async function startTossLogin() {
+  if (state.loginInFlight) {
+    return;
+  }
+  state.loginInFlight = true;
+  $("loginButton").disabled = true;
+  $("loginButton").textContent = "로그인 중...";
+  $("loginError").textContent = "";
+  try {
+    const { authorizationCode, referrer } = await requestTossAuthorization();
+    const session = await api("/api/auth/toss/login", {
+      method: "POST",
+      skipAuth: true,
+      body: JSON.stringify({ authorizationCode, referrer }),
+    });
+    setAuthToken(session.accessToken);
+    await refresh();
+    setMessage("토스 로그인이 완료됐어요.");
+  } catch (error) {
+    $("loginError").textContent = error.message || "토스 로그인에 실패했어요.";
+  } finally {
+    state.loginInFlight = false;
+    $("loginButton").disabled = false;
+    $("loginButton").textContent = "토스로 로그인";
+  }
 }
 
 function renderReviewToolsVisibility() {
@@ -995,6 +1086,7 @@ $("closeLevelUpModal").addEventListener("click", () => closeLevelUpModal());
 $("confirmLevelUp").addEventListener("click", () => closeLevelUpModal());
 $("closeNotificationModal").addEventListener("click", () => closeNotificationModal());
 $("confirmNotification").addEventListener("click", () => closeNotificationModal());
+$("loginButton").addEventListener("click", () => startTossLogin());
 
 $("showSkillPanel").addEventListener("click", () => showContentPanel("skill"));
 $("showRewardPanel").addEventListener("click", () => showContentPanel("reward"));

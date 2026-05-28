@@ -38,6 +38,12 @@ env:
   PROD_MAX_INSTANCES: ${{ vars.GCP_PROD_MAX_INSTANCES || '3' }}
   PROD_CONCURRENCY: ${{ vars.GCP_PROD_CONCURRENCY || '40' }}
   PROD_TIMEOUT: ${{ vars.GCP_PROD_TIMEOUT || '30s' }}
+  TOSS_LOGIN_ENABLED: ${{ vars.TOSS_LOGIN_ENABLED || 'false' }}
+  TOSS_USER_KEY_ENABLED: ${{ vars.TOSS_USER_KEY_ENABLED || vars.TOSS_LOGIN_ENABLED || 'false' }}
+  TOSS_API_MTLS_CERTIFICATE_SECRET: ${{ vars.TOSS_API_MTLS_CERTIFICATE_SECRET || '' }}
+  TOSS_API_MTLS_PRIVATE_KEY_SECRET: ${{ vars.TOSS_API_MTLS_PRIVATE_KEY_SECRET || '' }}
+  ADMIN_USERNAME: ${{ vars.MONEY_HUNTER_ADMIN_USERNAME || '' }}
+  ADMIN_PASSWORD_BCRYPT_SECRET: ${{ vars.GCP_ADMIN_PASSWORD_BCRYPT_SECRET || '' }}
 
 jobs:
   deploy:
@@ -77,6 +83,8 @@ jobs:
           test -n "$PROJECT_ID"
           test -n "$CLOUD_SQL_INSTANCE"
           test -n "$RUNTIME_SERVICE_ACCOUNT"
+          test -n "$ADMIN_USERNAME"
+          test -n "$ADMIN_PASSWORD_BCRYPT_SECRET"
           test -n "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
           test -n "${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}"
 
@@ -94,6 +102,11 @@ jobs:
         if: github.event_name == 'push' || github.event.inputs.target == 'review' || github.event.inputs.target == 'all'
         run: |
           REVIEW_DATASOURCE_URL="jdbc:postgresql://google/${REVIEW_DB_NAME}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
+          REVIEW_ENV_VARS="SPRING_PROFILES_ACTIVE=review,SPRING_DATASOURCE_URL=${REVIEW_DATASOURCE_URL},SPRING_DATASOURCE_USERNAME=${DB_USER},SPRING_DATASOURCE_MAX_POOL_SIZE=5,MONEY_HUNTER_ADMIN_USERNAME=${ADMIN_USERNAME}"
+          REVIEW_SECRETS="SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD_SECRET}:latest"
+          if [ -n "$ADMIN_PASSWORD_BCRYPT_SECRET" ]; then
+            REVIEW_SECRETS="${REVIEW_SECRETS},MONEY_HUNTER_ADMIN_PASSWORD_BCRYPT=${ADMIN_PASSWORD_BCRYPT_SECRET}:latest"
+          fi
           gcloud run deploy "$REVIEW_SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
@@ -102,8 +115,8 @@ jobs:
             --allow-unauthenticated \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --add-cloudsql-instances "$CLOUD_SQL_INSTANCE" \
-            --set-env-vars "SPRING_PROFILES_ACTIVE=review,SPRING_DATASOURCE_URL=${REVIEW_DATASOURCE_URL},SPRING_DATASOURCE_USERNAME=${DB_USER},SPRING_DATASOURCE_MAX_POOL_SIZE=5" \
-            --set-secrets "SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD_SECRET}:latest"
+            --set-env-vars "$REVIEW_ENV_VARS" \
+            --set-secrets "$REVIEW_SECRETS"
           gcloud run services describe "$REVIEW_SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
@@ -113,6 +126,14 @@ jobs:
         if: github.event.inputs.target == 'prod' || github.event.inputs.target == 'all'
         run: |
           PROD_DATASOURCE_URL="jdbc:postgresql://google/${PROD_DB_NAME}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
+          PROD_ENV_VARS="SPRING_PROFILES_ACTIVE=prod,SPRING_DATASOURCE_URL=${PROD_DATASOURCE_URL},SPRING_DATASOURCE_USERNAME=${DB_USER},SPRING_DATASOURCE_MAX_POOL_SIZE=5,TOSS_LOGIN_ENABLED=${TOSS_LOGIN_ENABLED},TOSS_USER_KEY_ENABLED=${TOSS_USER_KEY_ENABLED},MONEY_HUNTER_ADMIN_USERNAME=${ADMIN_USERNAME}"
+          PROD_SECRETS="SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD_SECRET}:latest"
+          if [ -n "$ADMIN_PASSWORD_BCRYPT_SECRET" ]; then
+            PROD_SECRETS="${PROD_SECRETS},MONEY_HUNTER_ADMIN_PASSWORD_BCRYPT=${ADMIN_PASSWORD_BCRYPT_SECRET}:latest"
+          fi
+          if [ -n "$TOSS_API_MTLS_CERTIFICATE_SECRET" ] && [ -n "$TOSS_API_MTLS_PRIVATE_KEY_SECRET" ]; then
+            PROD_SECRETS="${PROD_SECRETS},TOSS_API_MTLS_CERTIFICATE_PEM=${TOSS_API_MTLS_CERTIFICATE_SECRET}:latest,TOSS_API_MTLS_PRIVATE_KEY_PEM=${TOSS_API_MTLS_PRIVATE_KEY_SECRET}:latest"
+          fi
           gcloud run deploy "$PROD_SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
@@ -127,8 +148,8 @@ jobs:
             --max-instances "$PROD_MAX_INSTANCES" \
             --concurrency "$PROD_CONCURRENCY" \
             --timeout "$PROD_TIMEOUT" \
-            --set-env-vars "SPRING_PROFILES_ACTIVE=prod,SPRING_DATASOURCE_URL=${PROD_DATASOURCE_URL},SPRING_DATASOURCE_USERNAME=${DB_USER},SPRING_DATASOURCE_MAX_POOL_SIZE=5" \
-            --set-secrets "SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD_SECRET}:latest"
+            --set-env-vars "$PROD_ENV_VARS" \
+            --set-secrets "$PROD_SECRETS"
           gcloud run services describe "$PROD_SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \

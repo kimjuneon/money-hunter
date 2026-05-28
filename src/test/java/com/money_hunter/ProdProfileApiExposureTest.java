@@ -53,6 +53,21 @@ class ProdProfileApiExposureTest {
 	}
 
 	@Test
+	void invalidLoginSessionIsRejectedInProdProfile() throws Exception {
+		mockMvc.perform(get("/api/player")
+						.header("Authorization", "Bearer invalid-token"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void tossLoginRequiresFeatureFlagInProdProfile() throws Exception {
+		mockMvc.perform(post("/api/auth/toss/login")
+						.contentType("application/json")
+						.content("{\"authorizationCode\":\"code\",\"referrer\":\"DEFAULT\"}"))
+				.andExpect(status().isConflict());
+	}
+
+	@Test
 	void mockMonetizationApisAreBlockedInProdProfile() throws Exception {
 		mockMvc.perform(post("/api/player/ads/auto-hunt/complete").with(user("reviewer")))
 				.andExpect(status().isConflict());

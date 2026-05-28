@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -52,6 +53,25 @@ class ReviewProfileApiExposureTest {
 				.andExpect(status().isOk());
 		mockMvc.perform(post("/api/player/shop/skill-points/purchase"))
 				.andExpect(status().isOk());
+	}
+
+	@Test
+	void tossLoginCreatesSessionTokenInReviewProfile() throws Exception {
+		String response = mockMvc.perform(post("/api/auth/toss/login")
+						.contentType(APPLICATION_JSON)
+						.content("{\"authorizationCode\":\"mock-code\",\"referrer\":\"SANDBOX\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tokenType", is("Bearer")))
+				.andExpect(jsonPath("$.userKey", is("test-player")))
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		String token = JsonPath.read(response, "$.accessToken");
+
+		mockMvc.perform(get("/api/player")
+						.header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.userKey", is("test-player")));
 	}
 
 	@Test

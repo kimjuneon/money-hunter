@@ -19,7 +19,6 @@ import com.money_hunter.domain.Player;
 import com.money_hunter.domain.PlayerSkill;
 import com.money_hunter.domain.RewardClaim;
 import com.money_hunter.domain.SkillType;
-import com.money_hunter.infrastructure.config.EconomyProperties;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
@@ -62,7 +61,7 @@ public class PlayerService {
 	private final AdEventRepository adEventRepository;
 	private final NotificationEventRepository notificationEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
-	private final EconomyProperties economy;
+	private final RuntimeEconomyService economy;
 	private final Clock clock;
 
 	public PlayerService(
@@ -70,7 +69,7 @@ public class PlayerService {
 			AdEventRepository adEventRepository,
 			NotificationEventRepository notificationEventRepository,
 			RewardClaimRepository rewardClaimRepository,
-			EconomyProperties economy
+			RuntimeEconomyService economy
 	) {
 		this.playerRepository = playerRepository;
 		this.adEventRepository = adEventRepository;

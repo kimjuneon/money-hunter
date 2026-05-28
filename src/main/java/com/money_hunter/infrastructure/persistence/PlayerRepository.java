@@ -13,6 +13,17 @@ import org.springframework.data.repository.query.Param;
 public interface PlayerRepository extends JpaRepository<Player, Long> {
 	Optional<Player> findByUserKey(String userKey);
 
+	long countByJobIsNotNull();
+
+	long countByCreatedAtAfter(Instant createdAt);
+
+	long countByAutoHuntEndsAtAfter(Instant now);
+
+	long countByBoostEndsAtAfter(Instant now);
+
+	@Query("select coalesce(sum(p.gold), 0) from Player p")
+	long totalGold();
+
 	@Query("""
 			select p
 			from Player p

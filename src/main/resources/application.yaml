@@ -35,6 +35,19 @@ money-hunter:
     real-toss-point-rewards-enabled: false
     real-smart-message-enabled: false
     real-share-reward-enabled: false
+  admin:
+    username: ${MONEY_HUNTER_ADMIN_USERNAME:}
+    password-bcrypt: ${MONEY_HUNTER_ADMIN_PASSWORD_BCRYPT:}
+    password: ${MONEY_HUNTER_ADMIN_PASSWORD:}
+    allow-plain-password: ${MONEY_HUNTER_ADMIN_ALLOW_PLAIN_PASSWORD:false}
+  toss-api:
+    base-url: ${TOSS_API_BASE_URL:https://apps-in-toss-api.toss.im}
+    mtls-certificate-pem: ${TOSS_API_MTLS_CERTIFICATE_PEM:}
+    mtls-private-key-pem: ${TOSS_API_MTLS_PRIVATE_KEY_PEM:}
+    mtls-certificate-path: ${TOSS_API_MTLS_CERTIFICATE_PATH:}
+    mtls-private-key-path: ${TOSS_API_MTLS_PRIVATE_KEY_PATH:}
+    connect-timeout: 3s
+    request-timeout: 5s
   economy:
     ad-revenue-per-reward-ad-won: 60
     gold-per-toss-point: 100
@@ -49,6 +62,16 @@ money-hunter:
     max-ad-seconds: 14400
     reward-gold-threshold: 12000
     reward-point-amount: 120
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/money_hunter_local}
+    username: ${SPRING_DATASOURCE_USERNAME:money_hunter}
+    password: ${SPRING_DATASOURCE_PASSWORD:money_hunter}
 
 ---
 spring:
