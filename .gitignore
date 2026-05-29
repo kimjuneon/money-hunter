@@ -48,6 +48,7 @@ apps-in-toss/dist/
 apps-in-toss/.granite/
 apps-in-toss/node_modules/
 apps-in-toss/*.ait
+apps-in-toss/versions/
 
 ### VS Code ###
 .vscode/

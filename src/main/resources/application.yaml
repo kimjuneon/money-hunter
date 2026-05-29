@@ -48,6 +48,15 @@ money-hunter:
     mtls-private-key-path: ${TOSS_API_MTLS_PRIVATE_KEY_PATH:}
     connect-timeout: 3s
     request-timeout: 5s
+  security:
+    cors:
+      allowed-origin-patterns:
+        - https://gold-hunter.apps.tossmini.com
+        - https://gold-hunter.private-apps.tossmini.com
+        - https://money-hunter-prod-*.a.run.app
+        - https://money-hunter-review-*.a.run.app
+        - http://localhost:*
+        - http://127.0.0.1:*
   economy:
     ad-revenue-per-reward-ad-won: 60
     gold-per-toss-point: 100
@@ -94,6 +103,12 @@ money-hunter:
     real-toss-point-rewards-enabled: ${TOSS_POINT_REWARDS_ENABLED:false}
     real-smart-message-enabled: ${TOSS_SMART_MESSAGE_ENABLED:false}
     real-share-reward-enabled: ${TOSS_SHARE_REWARD_ENABLED:false}
+  security:
+    cors:
+      allowed-origin-patterns:
+        - https://gold-hunter.apps.tossmini.com
+        - https://gold-hunter.private-apps.tossmini.com
+        - https://money-hunter-prod-*.a.run.app
 
 ---
 spring:
@@ -108,6 +123,14 @@ money-hunter:
     mock-monetization-enabled: true
     integration-mode: review-mock
     distribution-target: TOSS
+  security:
+    cors:
+      allowed-origin-patterns:
+        - https://gold-hunter.apps.tossmini.com
+        - https://gold-hunter.private-apps.tossmini.com
+        - https://money-hunter-review-*.a.run.app
+        - http://localhost:*
+        - http://127.0.0.1:*
 
 ---
 spring:

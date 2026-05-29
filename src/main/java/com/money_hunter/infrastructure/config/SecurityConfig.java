@@ -13,6 +13,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
+	private final CorsProperties corsProperties;
+
+	public SecurityConfig(CorsProperties corsProperties) {
+		this.corsProperties = corsProperties;
+	}
+
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		return http
@@ -30,10 +36,7 @@ public class SecurityConfig {
 	@Bean
 	CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
-		configuration.setAllowedOrigins(List.of(
-				"https://gold-hunter.apps.tossmini.com",
-				"https://gold-hunter.private-apps.tossmini.com"
-		));
+		configuration.setAllowedOriginPatterns(corsProperties.allowedOriginPatterns());
 		configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of(
 				"Authorization",
