@@ -14,6 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import com.money_hunter.domain.AdEvent;
 import com.money_hunter.domain.AdEventType;
 import com.money_hunter.domain.AdRewardSession;
+import com.money_hunter.domain.IapOrder;
 import com.money_hunter.domain.JobType;
 import com.money_hunter.domain.NotificationEvent;
 import com.money_hunter.domain.NotificationType;
@@ -23,9 +24,13 @@ import com.money_hunter.domain.RewardClaim;
 import com.money_hunter.domain.SkillType;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.AdRewardSessionRepository;
+import com.money_hunter.infrastructure.persistence.IapOrderRepository;
 import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
+import com.money_hunter.infrastructure.config.AppProperties;
+import com.money_hunter.infrastructure.config.IapProperties;
+import com.money_hunter.infrastructure.config.SmartMessageProperties;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
 import com.money_hunter.application.dto.response.NotificationResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
@@ -90,7 +95,13 @@ public class PlayerService {
 	private final AdRewardSessionRepository adRewardSessionRepository;
 	private final NotificationEventRepository notificationEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
+	private final IapOrderRepository iapOrderRepository;
 	private final RuntimeEconomyService economy;
+	private final AppProperties appProperties;
+	private final IapProperties iapProperties;
+	private final SmartMessageProperties smartMessageProperties;
+	private final TossIapClient tossIapClient;
+	private final TossSmartMessageClient tossSmartMessageClient;
 	private final Clock clock;
 
 	public PlayerService(
@@ -99,14 +110,26 @@ public class PlayerService {
 			AdRewardSessionRepository adRewardSessionRepository,
 			NotificationEventRepository notificationEventRepository,
 			RewardClaimRepository rewardClaimRepository,
-			RuntimeEconomyService economy
+			IapOrderRepository iapOrderRepository,
+			RuntimeEconomyService economy,
+			AppProperties appProperties,
+			IapProperties iapProperties,
+			SmartMessageProperties smartMessageProperties,
+			TossIapClient tossIapClient,
+			TossSmartMessageClient tossSmartMessageClient
 	) {
 		this.playerRepository = playerRepository;
 		this.adEventRepository = adEventRepository;
 		this.adRewardSessionRepository = adRewardSessionRepository;
 		this.notificationEventRepository = notificationEventRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
+		this.iapOrderRepository = iapOrderRepository;
 		this.economy = economy;
+		this.appProperties = appProperties;
+		this.iapProperties = iapProperties;
+		this.smartMessageProperties = smartMessageProperties;
+		this.tossIapClient = tossIapClient;
+		this.tossSmartMessageClient = tossSmartMessageClient;
 		this.clock = Clock.systemUTC();
 	}
 
@@ -284,6 +307,48 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse grantIapProduct(String userKey, String orderId, String productId) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		Instant now = clock.instant();
+		String normalizedProductId = normalize(productId);
+		String normalizedOrderId = normalize(orderId);
+		String productType = iapProperties.productType(normalizedProductId);
+		if (productType.isBlank()) {
+			throw new IllegalArgumentException("지원하지 않는 인앱 상품이에요.");
+		}
+
+		IapOrder order = iapOrderRepository.findByOrderId(normalizedOrderId)
+				.orElseGet(() -> {
+					verifyIapOrderIfRequired(userKey, normalizedOrderId, normalizedProductId);
+					return iapOrderRepository.save(new IapOrder(
+							normalizedOrderId,
+							userKey,
+							normalizedProductId,
+							productType,
+							now));
+				});
+		if (!order.getUserKey().equals(userKey) || !order.getProductId().equals(normalizedProductId)) {
+			throw new IllegalStateException("인앱 결제 주문 정보가 일치하지 않아요.");
+		}
+		if (order.isGranted()) {
+			return toState(player);
+		}
+
+		switch (productType) {
+			case "FLARE_PET", "AQUA_PET" -> player.purchaseCharacterSlot(economy.maxCharacterSlots());
+			case "SKILL_POINT_PACK" -> {
+				requireSkillPointRewardAvailable(player);
+				player.addSkillPoints(economy.skillPointPackAmount());
+			}
+			default -> throw new IllegalArgumentException("지원하지 않는 인앱 상품이에요.");
+		}
+		order.markGranted(now);
+		return toState(player);
+	}
+
+	@Transactional
 	public RewardClaimResponse claimRewardAfterAd(String userKey, String idempotencyKey) {
 		return claimRewardAfterAd(userKey, idempotencyKey, null, false);
 	}
@@ -408,6 +473,23 @@ public class PlayerService {
 				});
 		requireActivePlayer(player);
 		return player;
+	}
+
+	private void verifyIapOrderIfRequired(String userKey, String orderId, String productId) {
+		if (appProperties.mockMonetizationEnabled()) {
+			return;
+		}
+		TossIapOrderStatus status = tossIapClient.getOrderStatus(userKey, orderId);
+		if (!orderId.equals(status.orderId()) || !productId.equals(status.productId())) {
+			throw new IllegalStateException("토스 인앱결제 주문과 상품 정보가 일치하지 않아요.");
+		}
+		if (!status.isPaymentCompletedForGrant()) {
+			throw new IllegalStateException("토스 인앱결제가 완료된 주문이 아니에요.");
+		}
+	}
+
+	private String normalize(String value) {
+		return value == null ? "" : value.trim();
 	}
 
 	private void requireActivePlayer(Player player) {
@@ -649,7 +731,23 @@ public class PlayerService {
 				"자동사냥이 종료됐어요",
 				"광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.",
 				now));
+		sendAutoHuntEndedSmartMessage(player);
 		player.markAutoHuntEndNotified(now);
+	}
+
+	private void sendAutoHuntEndedSmartMessage(Player player) {
+		String templateSetCode = smartMessageProperties.normalizedAutoHuntEndedTemplateSetCode();
+		if (!appProperties.realSmartMessageEnabled() || templateSetCode.isBlank()) {
+			return;
+		}
+		try {
+			tossSmartMessageClient.sendMessage(
+					player.getUserKey(),
+					templateSetCode,
+					smartMessageProperties.autoHuntEndedContext());
+		} catch (RuntimeException ignored) {
+			// The in-app notification is still persisted; the scheduler will not spam retries for this hunt session.
+		}
 	}
 
 	private void clearUnreadAutoHuntEndNotifications(Player player, Instant now) {

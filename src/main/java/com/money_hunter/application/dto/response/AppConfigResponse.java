@@ -21,6 +21,9 @@ public record AppConfigResponse(
 		boolean realSmartMessageEnabled,
 		boolean realShareRewardEnabled,
 		String adMode,
-		Map<String, String> adGroupIds
+		Map<String, String> adGroupIds,
+		Map<String, String> iapProductIds,
+		String shareRewardModuleId,
+		String shareRewardMessage
 ) {
 }

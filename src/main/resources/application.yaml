@@ -56,6 +56,16 @@ money-hunter:
     reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:}
     job-change-interstitial-ad-group-id: ${TOSS_AD_GROUP_JOB_CHANGE_ID:}
     banner-ad-group-id: ${TOSS_AD_GROUP_BANNER_ID:}
+  iap:
+    flare-pet-product-id: ${TOSS_IAP_FLARE_PET_PRODUCT_ID:ait.0000036679.fce5f961.7495b5547b.0055752729}
+    aqua-pet-product-id: ${TOSS_IAP_AQUA_PET_PRODUCT_ID:ait.0000036679.979b9313.997baa9d6e.0055860556}
+    skill-point-pack-product-id: ${TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID:ait.0000036679.5d254d7f.73c4076553.0056169217}
+  share-reward:
+    module-id: ${TOSS_SHARE_REWARD_MODULE_ID:2060c79f-606b-4839-9a86-32294fa74d86}
+    message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 5개를 받아요}
+  smart-message:
+    auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:money_hunter_auto_hunt_ended}
+    landing-url: ${TOSS_AUTO_HUNT_ENDED_LANDING_URL:intoss://gold-hunter}
   security:
     cors:
       allowed-origin-patterns:

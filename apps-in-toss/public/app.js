@@ -36,9 +36,16 @@ const state = {
   tossLoginEnabled: false,
   realRewardAdsEnabled: false,
   realBannerAdsEnabled: false,
+  realPaymentsEnabled: false,
+  realShareRewardEnabled: false,
   adMode: "test",
   adGroupIds: {},
+  iapProductIds: {},
+  shareRewardModuleId: "",
+  shareRewardMessage: "친구에게 공유하고 SP 5개를 받아요",
   realAdInFlight: false,
+  realPaymentInFlight: false,
+  shareRewardInFlight: false,
   loginInFlight: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
@@ -120,8 +127,10 @@ const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@latest/+esm";
+const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.4.1/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
 let tossSdkPromise = null;
+let tossBridgePromise = null;
 let bannerAdHandle = null;
 let bannerAdLoading = false;
 
@@ -305,8 +314,20 @@ function shouldUseRealBannerAd() {
   return !isOneStoreTarget() && state.realBannerAdsEnabled && !state.mockMonetizationEnabled;
 }
 
+function shouldUseRealPayments() {
+  return !isOneStoreTarget() && state.realPaymentsEnabled && !state.mockMonetizationEnabled;
+}
+
+function shouldUseRealShareReward() {
+  return !isOneStoreTarget() && state.realShareRewardEnabled && !state.mockMonetizationEnabled;
+}
+
 function adGroupId(key) {
   return String(state.adGroupIds?.[key] || "").trim();
+}
+
+function iapProductId(key) {
+  return String(state.iapProductIds?.[key] || "").trim();
 }
 
 function runRewardFlow(title, description, action) {
@@ -322,6 +343,9 @@ function runRewardFlow(title, description, action) {
 function runPurchaseFlow(action) {
   if (isOneStoreTarget()) {
     return run(action.request, action.message);
+  }
+  if (shouldUseRealPayments()) {
+    return runRealIapPurchase(action);
   }
   return showDummyPayment(action);
 }
@@ -664,6 +688,13 @@ async function loadTossSdk() {
   return tossSdkPromise;
 }
 
+async function loadTossBridge() {
+  if (!tossBridgePromise) {
+    tossBridgePromise = import(appsInTossBridgeUrl);
+  }
+  return tossBridgePromise;
+}
+
 async function startTossLogin(options = {}) {
   if (state.loginInFlight) {
     return false;
@@ -712,8 +743,13 @@ async function loadAppConfig() {
     state.tossLoginEnabled = Boolean(config.tossLoginEnabled);
     state.realRewardAdsEnabled = Boolean(config.realRewardAdsEnabled);
     state.realBannerAdsEnabled = Boolean(config.realBannerAdsEnabled);
+    state.realPaymentsEnabled = Boolean(config.realPaymentsEnabled);
+    state.realShareRewardEnabled = Boolean(config.realShareRewardEnabled);
     state.adMode = config.adMode || "test";
     state.adGroupIds = config.adGroupIds || {};
+    state.iapProductIds = config.iapProductIds || {};
+    state.shareRewardModuleId = config.shareRewardModuleId || "";
+    state.shareRewardMessage = config.shareRewardMessage || state.shareRewardMessage;
   } catch {
     state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride);
     state.reviewToolsEnabled = false;
@@ -722,8 +758,12 @@ async function loadAppConfig() {
     state.tossLoginEnabled = false;
     state.realRewardAdsEnabled = false;
     state.realBannerAdsEnabled = false;
+    state.realPaymentsEnabled = false;
+    state.realShareRewardEnabled = false;
     state.adMode = "test";
     state.adGroupIds = {};
+    state.iapProductIds = {};
+    state.shareRewardModuleId = "";
   }
   document.body.classList.toggle("target-onestore", isOneStoreTarget());
   renderReviewToolsVisibility();
@@ -973,11 +1013,11 @@ function renderRewardPanel(player) {
       : `수령 가능 ${claimPointAmount.toLocaleString("ko-KR")}P`
     : `${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요`;
   $("claimReward").disabled = !player.rewardClaimable;
-  $("claimReward").textContent = player.rewardClaimable
+  $("claimReward").innerHTML = player.rewardClaimable
     ? isOneStoreTarget()
-      ? "게임 내 보상 받기"
-      : "광고보고 토스 포인트 받기"
-    : "포인트를 더 모아야 해요";
+      ? "<span>게임 내 보상 받기</span><small>심사용 보상 지급</small>"
+      : `<span>토스 포인트 받기</span><small>광고 확인 후 ${claimPointAmount.toLocaleString("ko-KR")}P 신청</small>`
+    : `<span>포인트를 더 모아야 해요</span><small>${remainingPointAmount.toLocaleString("ko-KR")}P 남음</small>`;
   $("friendInviteRewardCopy").textContent = `초대 성공 시 SP ${inviteReward.toLocaleString("ko-KR")}개 지급`;
   $("friendInviteRewardStatus").textContent = `${inviteCount.toLocaleString("ko-KR")} / ${inviteLimit.toLocaleString("ko-KR")}명 완료`;
   $("claimFriendInviteReward").disabled = inviteCount >= inviteLimit;
@@ -1006,11 +1046,11 @@ function renderShopPanel(player) {
         : `잠김 · ₩${price.toLocaleString("ko-KR")}`;
   });
   $("buyCompanion").disabled = pets >= maxPets;
-  $("buyCompanion").textContent = pets >= maxPets
-    ? "동료 펫 MAX"
+  $("buyCompanion").innerHTML = pets >= maxPets
+    ? "<span>동료 펫 MAX</span><small>모든 펫 동행 중</small>"
     : isOneStoreTarget()
-      ? `${petMeta[pets]?.name || "동료 펫"} 잠금 해제`
-      : `${petMeta[pets]?.name || "동료 펫"} 구매`;
+      ? `<span>${petMeta[pets]?.name || "동료 펫"} 잠금 해제</span><small>심사용 게임 보상</small>`
+      : `<span>${petMeta[pets]?.name || "동료 펫"} 구매</span><small>₩${price.toLocaleString("ko-KR")}</small>`;
   $("skillPointPackCopy").textContent = `SP ${packAmount.toLocaleString("ko-KR")}개 즉시 지급`;
   const spAvailable = skillPointRewardsAvailable(player);
   $("skillPointPackStatus").textContent = spAvailable
@@ -1019,11 +1059,11 @@ function renderShopPanel(player) {
       : `₩${packPrice.toLocaleString("ko-KR")}`
     : "모든 스킬 MAX";
   $("buySkillPointPack").disabled = !spAvailable;
-  $("buySkillPointPack").textContent = spAvailable
+  $("buySkillPointPack").innerHTML = spAvailable
     ? isOneStoreTarget()
-      ? `SP ${packAmount.toLocaleString("ko-KR")} 받기`
-      : `SP ${packAmount.toLocaleString("ko-KR")} 구매`
-    : "SP 구매 비활성";
+      ? `<span>SP ${packAmount.toLocaleString("ko-KR")} 받기</span><small>심사용 게임 보상</small>`
+      : `<span>SP ${packAmount.toLocaleString("ko-KR")} 구매</span><small>₩${packPrice.toLocaleString("ko-KR")}</small>`
+    : "<span>SP 구매 비활성</span><small>모든 스킬 MAX</small>";
 }
 
 function unlockedPetCount(player = state.player) {
@@ -1143,7 +1183,11 @@ function renderSkills(player) {
     const locked = isPetSkillLocked(button.dataset.skill, player);
     const isMaxed = !skill || skill.level >= maxLevel;
     button.disabled = locked || player.skillPoints < 1 || isMaxed;
-    button.innerHTML = locked ? "잠금" : isMaxed ? "MAX" : "강화<br />SP 1";
+    button.innerHTML = locked
+      ? "<span>잠금</span><small>펫 필요</small>"
+      : isMaxed
+        ? "<span>MAX</span><small>완료</small>"
+        : "<span>강화</span><small>SP 1</small>";
   });
 }
 
@@ -1313,6 +1357,144 @@ async function showRealFullScreenAd(groupId, requiresReward) {
       },
     });
   });
+}
+
+async function runRealIapPurchase(action) {
+  if (state.realPaymentInFlight) {
+    setMessage("이미 결제를 진행하고 있어요.");
+    return;
+  }
+  const productId = action.productId?.();
+  if (!productId) {
+    setMessage("인앱 상품 ID가 아직 설정되지 않았어요.");
+    return;
+  }
+  state.realPaymentInFlight = true;
+  setMessage(`${action.title || "상품"} 결제 준비 중...`);
+  try {
+    const result = await createIapOrder(productId, action);
+    if (!result?.state) {
+      throw new Error("상품 지급 결과를 확인하지 못했어요.");
+    }
+    state.player = result.state;
+    state.displayGold = Math.max(state.displayGold, state.player.gold);
+    setMessage(action.message || "상품이 지급됐어요.");
+    render();
+  } catch (error) {
+    setMessage(iapErrorMessage(error));
+  } finally {
+    state.realPaymentInFlight = false;
+  }
+}
+
+function createIapOrder(productId, action) {
+  return new Promise(async (resolve, reject) => {
+    const sdk = await loadTossSdk().catch(reject);
+    if (!sdk?.IAP?.createOneTimePurchaseOrder) {
+      reject(new Error("현재 토스 앱에서 인앱 결제를 사용할 수 없어요."));
+      return;
+    }
+    let cleanup = null;
+    cleanup = sdk.IAP.createOneTimePurchaseOrder({
+      options: {
+        sku: productId,
+        processProductGrant: async ({ orderId }) => {
+          try {
+            const stateAfterGrant = await requestWithLoginRetry(() => api("/api/player/shop/iap/grant", {
+              method: "POST",
+              body: JSON.stringify({ orderId, productId }),
+            }));
+            resolve({ state: stateAfterGrant, orderId });
+            return true;
+          } catch (error) {
+            reject(error);
+            return false;
+          }
+        },
+      },
+      onEvent: (event) => {
+        if (event.type === "success") {
+          cleanup?.();
+        }
+      },
+      onError: (error) => {
+        cleanup?.();
+        reject(error instanceof Error ? error : new Error(error?.message || "인앱 결제가 취소되었거나 실패했어요."));
+      },
+    });
+  });
+}
+
+function iapErrorMessage(error) {
+  const code = error?.code || error?.errorCode;
+  if (code === "USER_CANCELED") {
+    return "결제가 취소됐어요.";
+  }
+  if (code === "ITEM_ALREADY_OWNED") {
+    return "이미 보유한 상품이에요.";
+  }
+  return error?.message || "인앱 결제에 실패했어요.";
+}
+
+async function runFriendInviteRewardFlow() {
+  if (isOneStoreTarget()) {
+    return api("/api/player/onestore/friend-invite/claim", { method: "POST" });
+  }
+  if (state.mockMonetizationEnabled) {
+    return api("/api/player/reward/friend-invite/claim", { method: "POST" });
+  }
+  if (!shouldUseRealShareReward()) {
+    throw new Error("공유 리워드 설정이 아직 완료되지 않았어요.");
+  }
+  if (!state.shareRewardModuleId) {
+    throw new Error("공유 리워드 모듈 ID가 아직 설정되지 않았어요.");
+  }
+  if (state.shareRewardInFlight) {
+    throw new Error("이미 공유 리워드를 준비하고 있어요.");
+  }
+  state.shareRewardInFlight = true;
+  try {
+    await requestTossShareReward();
+    return api("/api/player/reward/friend-invite/claim", { method: "POST" });
+  } finally {
+    state.shareRewardInFlight = false;
+  }
+}
+
+async function requestTossShareReward() {
+  const sdk = await loadTossSdk();
+  const bridge = typeof sdk.contactsViral === "function" ? sdk : await loadTossBridge();
+  if (typeof bridge.contactsViral === "function") {
+    await new Promise((resolve, reject) => {
+      let cleanup = null;
+      cleanup = bridge.contactsViral({
+        options: { moduleId: state.shareRewardModuleId },
+        onEvent: (event) => {
+          if (event.type === "sendViral") {
+            cleanup?.();
+            resolve(event);
+            return;
+          }
+          if (event.type === "close" && event.data?.closeReason === "noReward") {
+            cleanup?.();
+            reject(new Error("받을 수 있는 공유 리워드가 없어요."));
+          }
+        },
+        onError: (error) => {
+          cleanup?.();
+          reject(error instanceof Error ? error : new Error("공유 리워드가 완료되지 않았어요."));
+        },
+      });
+    });
+    return;
+  }
+  const shareLink = typeof sdk.getTossShareLink === "function"
+    ? await sdk.getTossShareLink("intoss://gold-hunter")
+    : "intoss://gold-hunter";
+  if (typeof sdk.share !== "function") {
+    throw new Error("현재 토스 앱에서 공유 기능을 사용할 수 없어요.");
+  }
+  await sdk.share({ message: `${state.shareRewardMessage}\n${shareLink}` });
 }
 
 async function finishDummyAd() {
@@ -1792,14 +1974,7 @@ $("claimReward").addEventListener("click", () => runRewardFlow(
 ));
 
 $("claimFriendInviteReward").addEventListener("click", () => run(
-  () => {
-    if (!state.mockMonetizationEnabled && !isOneStoreTarget()) {
-      throw new Error("토스 공유 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
-    }
-    return api(isOneStoreTarget()
-      ? "/api/player/onestore/friend-invite/claim"
-      : "/api/player/reward/friend-invite/claim", { method: "POST" });
-  },
+  () => runFriendInviteRewardFlow(),
   `친구 초대 보상으로 SP ${(state.player?.friendInviteRewardSkillPoints || friendInviteRewardSkillPoints).toLocaleString("ko-KR")}개를 받았어요.`
 ));
 
@@ -1812,6 +1987,10 @@ $("buyCompanion").addEventListener("click", () => runPurchaseFlow({
   amountText: isOneStoreTarget()
     ? "심사용 잠금 해제"
     : `₩${(state.player?.companionPriceWon || companionPriceWon).toLocaleString("ko-KR")}`,
+  productId: () => {
+    const pets = unlockedPetCount();
+    return pets === 0 ? iapProductId("flarePet") : iapProductId("aquaPet");
+  },
   request: () => api(isOneStoreTarget()
     ? "/api/player/onestore/shop/companions/unlock"
     : "/api/player/shop/companions/purchase", { method: "POST" }),
@@ -1830,6 +2009,7 @@ $("buySkillPointPack").addEventListener("click", () => {
   amountText: isOneStoreTarget()
     ? "심사용 게임 보상"
     : `₩${(state.player?.skillPointPackPriceWon || skillPointPackPriceWon).toLocaleString("ko-KR")}`,
+  productId: () => iapProductId("skillPointPack"),
   request: () => api(isOneStoreTarget()
     ? "/api/player/onestore/shop/skill-points/claim"
     : "/api/player/shop/skill-points/purchase", { method: "POST" }),

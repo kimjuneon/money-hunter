@@ -7,6 +7,7 @@ import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.presentation.dto.request.AdCompletionRequest;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
+import com.money_hunter.presentation.dto.request.IapGrantRequest;
 import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
@@ -121,6 +122,13 @@ public class PlayerController {
 		return playerService.purchaseSkillPointPack(userKey);
 	}
 
+	@PostMapping("/shop/iap/grant")
+	public PlayerStateResponse grantIapProduct(Principal principal, @Valid @RequestBody IapGrantRequest request) {
+		String userKey = userKey(principal);
+		requirePaymentMode();
+		return playerService.grantIapProduct(userKey, request.orderId(), request.productId());
+	}
+
 	@PostMapping("/reward/claim-after-ad")
 	public RewardClaimResponse claimRewardAfterAd(
 			Principal principal,
@@ -136,7 +144,7 @@ public class PlayerController {
 	@PostMapping("/reward/friend-invite/claim")
 	public PlayerStateResponse claimFriendInviteReward(Principal principal) {
 		String userKey = userKey(principal);
-		requireMockMonetization();
+		requireShareRewardMode();
 		return playerService.claimFriendInviteReward(userKey);
 	}
 
@@ -201,6 +209,18 @@ public class PlayerController {
 	private void requireMockMonetization() {
 		if (!appProperties.mockMonetizationEnabled()) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "토스 광고, 결제, 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+		}
+	}
+
+	private void requirePaymentMode() {
+		if (!appProperties.mockMonetizationEnabled() && !appProperties.realPaymentsEnabled()) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "인앱 결제 연동이 활성화되어 있지 않아요.");
+		}
+	}
+
+	private void requireShareRewardMode() {
+		if (!appProperties.mockMonetizationEnabled() && !appProperties.realShareRewardEnabled()) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공유 리워드 연동이 활성화되어 있지 않아요.");
 		}
 	}
 
