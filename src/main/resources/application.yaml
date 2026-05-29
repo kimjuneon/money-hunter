@@ -24,7 +24,7 @@ money-hunter:
     review-tools-enabled: true
     guest-user-enabled: true
     mock-monetization-enabled: true
-    apps-in-toss-app-name: money-hunter
+    apps-in-toss-app-name: gold-hunter
     integration-mode: mock
     distribution-target: TOSS
     toss-login-enabled: false

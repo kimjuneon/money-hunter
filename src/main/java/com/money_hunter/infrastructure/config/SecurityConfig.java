@@ -31,8 +31,8 @@ public class SecurityConfig {
 	CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
 		configuration.setAllowedOrigins(List.of(
-				"https://money-hunter.apps.tossmini.com",
-				"https://money-hunter.private-apps.tossmini.com"
+				"https://gold-hunter.apps.tossmini.com",
+				"https://gold-hunter.private-apps.tossmini.com"
 		));
 		configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of(

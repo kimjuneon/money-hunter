@@ -1,7 +1,7 @@
 import { defineConfig } from '@apps-in-toss/web-framework/config';
 
 export default defineConfig({
-  appName: 'money-hunter',
+  appName: 'gold-hunter',
   brand: {
     displayName: '머니헌터',
     primaryColor: '#2563EB',
