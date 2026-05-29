@@ -77,8 +77,8 @@ money-hunter:
     auto-hunt-ad-seconds: 3600
     boost-ad-seconds: 3600
     max-ad-seconds: 14400
-    reward-gold-threshold: 12000
-    reward-point-amount: 120
+    reward-gold-threshold: 1000
+    reward-point-amount: 10
 
 ---
 spring:

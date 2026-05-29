@@ -20,7 +20,9 @@ const state = {
   noticeMessage: "",
   noticeExpiresAt: 0,
   noticeTimer: null,
-  showDummyBanner: true,
+  showDummyBanner: false,
+  bgmMuted: false,
+  bgmStarted: false,
   authToken: "",
   reviewToolsEnabled: false,
   mockMonetizationEnabled: false,
@@ -108,6 +110,7 @@ const battleBackgroundExpTextThemes = ["dark", "light", "light", "light"];
 const battleBackgroundStorageKey = "moneyHunterBattleBackgroundIndex";
 const monsterSignatureStorageKey = "moneyHunterMonsterSignature";
 const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
+const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@latest/+esm";
@@ -227,7 +230,8 @@ function initialBattleBackgroundIndex() {
 
 state.battleBackgroundIndex = initialBattleBackgroundIndex();
 state.lastMonsterSignature = storedValue(monsterSignatureStorageKey) || "";
-state.showDummyBanner = storedValue(dummyBannerStorageKey) !== "false";
+state.showDummyBanner = storedValue(dummyBannerStorageKey) === "true";
+state.bgmMuted = storedValue(bgmMutedStorageKey) === "true";
 state.authToken = storedValue(authTokenStorageKey) || "";
 
 function normalizedDistributionTarget(value) {
@@ -286,6 +290,41 @@ function setMessage(message, durationMs = 2400) {
       renderBattleTip(isActive(state.player?.autoHuntEndsAt));
     }
   }, durationMs + 80);
+}
+
+function syncBgmState() {
+  const audio = $("bgmAudio");
+  audio.volume = 0.35;
+  audio.muted = state.bgmMuted;
+  $("muteToggle").classList.toggle("is-muted", state.bgmMuted);
+  $("muteToggle").textContent = state.bgmMuted ? "♪" : "♫";
+  $("muteToggle").setAttribute("aria-label", state.bgmMuted ? "BGM 켜기" : "BGM 음소거");
+}
+
+function startBgm() {
+  syncBgmState();
+  if (state.bgmMuted || state.bgmStarted) {
+    return;
+  }
+  const audio = $("bgmAudio");
+  const playPromise = audio.play?.();
+  if (playPromise?.then) {
+    playPromise
+      .then(() => {
+        state.bgmStarted = true;
+      })
+      .catch(() => {});
+  }
+}
+
+function toggleBgmMute() {
+  state.bgmMuted = !state.bgmMuted;
+  storeValue(bgmMutedStorageKey, String(state.bgmMuted));
+  syncBgmState();
+  if (!state.bgmMuted) {
+    state.bgmStarted = false;
+    startBgm();
+  }
 }
 
 function authErrorMessage(message = "") {
@@ -454,6 +493,7 @@ function render() {
   $("jobModal").classList.toggle("hidden", state.dismissedJobModal || (!onboard && !state.forceJobModal));
   $("jobModal").classList.toggle("is-onboarding", onboard);
   $("closeJobModal").classList.toggle("hidden", onboard);
+  $("tutorialReward").classList.toggle("hidden", !onboard);
   $("jobTitle").textContent = onboard ? "첫 헌터를 선택하세요" : "변경할 헌터를 선택하세요";
   $("jobCopy").textContent = onboard
     ? "능력치는 동일해요. 마음에 드는 공격 모션을 고르세요."
@@ -476,7 +516,9 @@ function render() {
   renderPets(player);
   $("huntTime").textContent = hunting ? `${remain(player.autoHuntEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
   $("boostTime").textContent = isActive(player.boostEndsAt) ? `${remain(player.boostEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
-  $("skillGateLabel").textContent = rewardGateLabel();
+  const spAvailable = skillPointRewardsAvailable(player);
+  $("skillAd").disabled = !spAvailable;
+  $("skillGateLabel").textContent = spAvailable ? rewardGateLabel() : "스킬 MAX";
   renderMonster(player);
   renderExperience(player);
   renderDummyBanner();
@@ -484,6 +526,7 @@ function render() {
   $("goldRateTop").textContent = `${player.goldPerHour.toLocaleString("ko-KR")}/시간`;
   renderSkills(player);
   renderNotification(player);
+  syncBgmState();
   refreshWhenAutoHuntEnds(hunting);
 }
 
@@ -721,12 +764,18 @@ function renderShopPanel(player) {
       ? `${petMeta[pets]?.name || "동료 펫"} 잠금 해제`
       : `${petMeta[pets]?.name || "동료 펫"} 구매`;
   $("skillPointPackCopy").textContent = `SP ${packAmount.toLocaleString("ko-KR")}개 즉시 지급`;
-  $("skillPointPackStatus").textContent = isOneStoreTarget()
-    ? "심사용 게임 보상"
-    : `₩${packPrice.toLocaleString("ko-KR")}`;
-  $("buySkillPointPack").textContent = isOneStoreTarget()
-    ? `SP ${packAmount.toLocaleString("ko-KR")} 받기`
-    : `SP ${packAmount.toLocaleString("ko-KR")} 구매`;
+  const spAvailable = skillPointRewardsAvailable(player);
+  $("skillPointPackStatus").textContent = spAvailable
+    ? isOneStoreTarget()
+      ? "심사용 게임 보상"
+      : `₩${packPrice.toLocaleString("ko-KR")}`
+    : "모든 스킬 MAX";
+  $("buySkillPointPack").disabled = !spAvailable;
+  $("buySkillPointPack").textContent = spAvailable
+    ? isOneStoreTarget()
+      ? `SP ${packAmount.toLocaleString("ko-KR")} 받기`
+      : `SP ${packAmount.toLocaleString("ko-KR")} 구매`
+    : "SP 구매 비활성";
 }
 
 function unlockedPetCount(player = state.player) {
@@ -737,6 +786,19 @@ function renderPets(player) {
   const pets = unlockedPetCount(player);
   $("petFlare").classList.toggle("hidden", pets < 1);
   $("petAqua").classList.toggle("hidden", pets < 2);
+}
+
+function skillPointRewardsAvailable(player = state.player) {
+  if (!player) {
+    return true;
+  }
+  if (player.skillPointRewardsAvailable === false) {
+    return false;
+  }
+  const spendableTypes = new Set(Object.keys(skillMeta));
+  return !player.skills
+    ?.filter((skill) => spendableTypes.has(skill.type))
+    .every((skill) => skill.level >= 20);
 }
 
 function showContentPanel(panel) {
@@ -914,10 +976,16 @@ async function runRealFullScreenAd(title, description, action) {
   state.realAdInFlight = true;
   setMessage(`${title} 준비 중...`);
   try {
+    const adSession = action.requiresReward === false
+      ? null
+      : await api("/api/player/ads/sessions", {
+          method: "POST",
+          body: JSON.stringify({ type: action.adEventType }),
+        });
     await loadRealFullScreenAd(groupId);
     await showRealFullScreenAd(groupId, action.requiresReward !== false);
     setMessage("광고 시청 완료, 보상을 지급하는 중이에요.");
-    await run(action.request, action.message);
+    await run(() => action.request(adSession?.sessionToken), action.message);
   } catch (error) {
     const message = error?.message || "광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
     setMessage(message);
@@ -1295,13 +1363,17 @@ function pulseMonsterHp(defeated = false) {
 
 document.querySelectorAll(".job-select").forEach((button) => {
   button.addEventListener("click", async () => {
+    startBgm();
     const job = button.dataset.job;
     const isChange = state.player && !state.player.onboardingRequired && state.player.job !== job;
+    const firstPick = state.player?.onboardingRequired;
     const request = () => api("/api/player/job", { method: "POST", body: JSON.stringify({ job }) });
     const applySelectedJob = async () => {
       state.selectedJob = job;
       applyJob(job);
-      await run(request, `${jobMeta[job].pick} 선택했어요.`);
+      await run(request, firstPick
+        ? `${jobMeta[job].pick} 선택했어요. 자동사냥 1시간과 공속버프 1시간이 지급됐어요.`
+        : `${jobMeta[job].pick} 선택했어요.`);
     };
 
     if (isChange) {
@@ -1358,6 +1430,7 @@ $("confirmLevelUp").addEventListener("click", () => closeLevelUpModal());
 $("closeNotificationModal").addEventListener("click", () => closeNotificationModal());
 $("confirmNotification").addEventListener("click", () => closeNotificationModal());
 $("loginButton").addEventListener("click", () => startTossLogin());
+$("muteToggle").addEventListener("click", () => toggleBgmMute());
 
 $("showSkillPanel").addEventListener("click", () => showContentPanel("skill"));
 $("showRewardPanel").addEventListener("click", () => showContentPanel("reward"));
@@ -1370,10 +1443,14 @@ $("autoHuntAd").addEventListener("click", () => runRewardFlow(
     : "완료하면 자동사냥 시간이 1시간 충전돼요.",
   {
     adGroupKey: "autoHunt",
+    adEventType: "AUTO_HUNT",
     requiresReward: true,
-    request: () => api(isOneStoreTarget()
+    request: (adSessionToken) => api(isOneStoreTarget()
       ? "/api/player/onestore/auto-hunt/claim"
-      : "/api/player/ads/auto-hunt/complete", { method: "POST" }),
+      : "/api/player/ads/auto-hunt/complete", {
+      method: "POST",
+      body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
+    }),
     message: "자동사냥 시간이 1시간 충전됐어요.",
   }
 ));
@@ -1385,28 +1462,42 @@ $("boostAd").addEventListener("click", () => runRewardFlow(
     : "완료하면 공격 모션과 골드 획득 속도가 빨라져요.",
   {
     adGroupKey: "boost",
+    adEventType: "BOOST",
     requiresReward: true,
-    request: () => api(isOneStoreTarget()
+    request: (adSessionToken) => api(isOneStoreTarget()
       ? "/api/player/onestore/boost/claim"
-      : "/api/player/ads/boost/complete", { method: "POST" }),
+      : "/api/player/ads/boost/complete", {
+      method: "POST",
+      body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
+    }),
     message: "공격 속도 부스터가 1시간 충전됐어요.",
   }
 ));
 
-$("skillAd").addEventListener("click", () => runRewardFlow(
-  "스킬포인트 광고",
-  isOneStoreTarget()
-    ? "게임 내 보상으로 헌터와 동료 펫 강화에 쓰는 SP를 받아요."
-    : "완료하면 헌터와 동료 펫 강화에 쓰는 SP를 받아요.",
-  {
-    adGroupKey: "skillPoint",
-    requiresReward: true,
-    request: () => api(isOneStoreTarget()
-      ? "/api/player/onestore/skill-point/claim"
-      : "/api/player/ads/skill-point/complete", { method: "POST" }),
-    message: "스킬 포인트를 받았어요.",
+$("skillAd").addEventListener("click", () => {
+  if (!skillPointRewardsAvailable()) {
+    setMessage("모든 스킬 강화가 완료되어 SP를 더 받을 수 없어요.");
+    return;
   }
-));
+  runRewardFlow(
+    "스킬포인트 광고",
+    isOneStoreTarget()
+      ? "게임 내 보상으로 헌터와 동료 펫 강화에 쓰는 SP를 받아요."
+      : "완료하면 헌터와 동료 펫 강화에 쓰는 SP를 받아요.",
+    {
+      adGroupKey: "skillPoint",
+      adEventType: "SKILL_POINT",
+      requiresReward: true,
+      request: (adSessionToken) => api(isOneStoreTarget()
+        ? "/api/player/onestore/skill-point/claim"
+        : "/api/player/ads/skill-point/complete", {
+        method: "POST",
+        body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
+      }),
+      message: "스킬 포인트를 받았어요.",
+    }
+  );
+});
 
 document.querySelectorAll(".upgrade-skill").forEach((button) => {
   button.addEventListener("click", () => {
@@ -1428,14 +1519,15 @@ $("claimReward").addEventListener("click", () => runRewardFlow(
     : "완료하면 토스 포인트 지급 대기 기록이 생성돼요.",
   {
     adGroupKey: "rewardClaim",
+    adEventType: "REWARD_CLAIM",
     requiresReward: true,
-    request: () => api(isOneStoreTarget()
+    request: (adSessionToken) => api(isOneStoreTarget()
       ? "/api/player/onestore/reward/claim"
       : "/api/player/reward/claim-after-ad", {
       method: "POST",
       body: isOneStoreTarget()
         ? undefined
-        : JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+        : JSON.stringify({ idempotencyKey: crypto.randomUUID(), adSessionToken }),
     }),
     message: isOneStoreTarget() ? "게임 내 보상을 받았어요." : "리워드 수령을 완료했어요.",
   }
@@ -1467,7 +1559,12 @@ $("buyCompanion").addEventListener("click", () => runPurchaseFlow({
     : "/api/player/shop/companions/purchase", { method: "POST" }),
   message: "동료 펫을 데려왔어요.",
 }));
-$("buySkillPointPack").addEventListener("click", () => runPurchaseFlow({
+$("buySkillPointPack").addEventListener("click", () => {
+  if (!skillPointRewardsAvailable()) {
+    setMessage("모든 스킬 강화가 완료되어 SP 구매가 비활성화됐어요.");
+    return;
+  }
+  runPurchaseFlow({
   title: "스킬 포인트 팩",
   description: isOneStoreTarget()
     ? `게임 내 보상으로 SP ${(state.player?.skillPointPackAmount || skillPointPackAmount).toLocaleString("ko-KR")}개가 지급돼요.`
@@ -1479,7 +1576,8 @@ $("buySkillPointPack").addEventListener("click", () => runPurchaseFlow({
     ? "/api/player/onestore/shop/skill-points/claim"
     : "/api/player/shop/skill-points/purchase", { method: "POST" }),
   message: `SP ${(state.player?.skillPointPackAmount || skillPointPackAmount).toLocaleString("ko-KR")}개를 구매했어요.`,
-}));
+  });
+});
 $("confirmPayment").addEventListener("click", () => finishDummyPayment());
 
 function initializeDevPanel() {
@@ -1595,6 +1693,8 @@ function initializeDevPanel() {
 }
 
 initializeDevPanel();
+syncBgmState();
+document.addEventListener("pointerdown", () => startBgm(), { once: true, passive: true });
 
 setInterval(() => {
   if (state.player) {

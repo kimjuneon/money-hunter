@@ -4,8 +4,11 @@ import java.security.Principal;
 
 import com.money_hunter.application.PlayerService;
 import com.money_hunter.infrastructure.config.AppProperties;
+import com.money_hunter.presentation.dto.request.AdCompletionRequest;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
+import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
+import com.money_hunter.application.dto.response.AdRewardSessionResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.RewardClaimResponse;
 import com.money_hunter.presentation.dto.request.UpgradeSkillRequest;
@@ -43,25 +46,50 @@ public class PlayerController {
 		return playerService.chooseJob(userKey(principal), request.job());
 	}
 
-	@PostMapping("/ads/auto-hunt/complete")
-	public PlayerStateResponse completeAutoHuntAd(Principal principal) {
+	@PostMapping("/ads/sessions")
+	public AdRewardSessionResponse startAdRewardSession(
+			Principal principal,
+			@Valid @RequestBody StartAdRewardSessionRequest request
+	) {
 		String userKey = userKey(principal);
 		requireRewardAdMode();
-		return playerService.completeAutoHuntAd(userKey);
+		return playerService.startRewardAdSession(userKey, request.type());
+	}
+
+	@PostMapping("/ads/auto-hunt/complete")
+	public PlayerStateResponse completeAutoHuntAd(
+			Principal principal,
+			@RequestBody(required = false) AdCompletionRequest request
+	) {
+		String userKey = userKey(principal);
+		requireRewardAdMode();
+		return requiresRealRewardSession()
+				? playerService.completeAutoHuntAd(userKey, adSessionToken(request))
+				: playerService.completeAutoHuntAd(userKey);
 	}
 
 	@PostMapping("/ads/boost/complete")
-	public PlayerStateResponse completeBoostAd(Principal principal) {
+	public PlayerStateResponse completeBoostAd(
+			Principal principal,
+			@RequestBody(required = false) AdCompletionRequest request
+	) {
 		String userKey = userKey(principal);
 		requireRewardAdMode();
-		return playerService.completeBoostAd(userKey);
+		return requiresRealRewardSession()
+				? playerService.completeBoostAd(userKey, adSessionToken(request))
+				: playerService.completeBoostAd(userKey);
 	}
 
 	@PostMapping("/ads/skill-point/complete")
-	public PlayerStateResponse completeSkillPointAd(Principal principal) {
+	public PlayerStateResponse completeSkillPointAd(
+			Principal principal,
+			@RequestBody(required = false) AdCompletionRequest request
+	) {
 		String userKey = userKey(principal);
 		requireRewardAdMode();
-		return playerService.completeSkillPointAd(userKey);
+		return requiresRealRewardSession()
+				? playerService.completeSkillPointAd(userKey, adSessionToken(request))
+				: playerService.completeSkillPointAd(userKey);
 	}
 
 	@PostMapping("/combat/hit")
@@ -95,7 +123,9 @@ public class PlayerController {
 	) {
 		String userKey = userKey(principal);
 		requireRewardAdMode();
-		return playerService.claimRewardAfterAd(userKey, request.idempotencyKey());
+		return requiresRealRewardSession()
+				? playerService.claimRewardAfterAd(userKey, request.idempotencyKey(), request.adSessionToken())
+				: playerService.claimRewardAfterAd(userKey, request.idempotencyKey());
 	}
 
 	@PostMapping("/reward/friend-invite/claim")
@@ -173,6 +203,14 @@ public class PlayerController {
 		if (!appProperties.mockMonetizationEnabled() && !appProperties.realRewardAdsEnabled()) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "리워드 광고 연동이 활성화되어 있지 않아요.");
 		}
+	}
+
+	private boolean requiresRealRewardSession() {
+		return !appProperties.mockMonetizationEnabled() && appProperties.realRewardAdsEnabled();
+	}
+
+	private String adSessionToken(AdCompletionRequest request) {
+		return request == null ? null : request.adSessionToken();
 	}
 
 	private void requireGameRewardMode() {

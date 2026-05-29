@@ -68,7 +68,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   min-height: 62px;
   padding: 10px 13px;
   background: var(--navy);
@@ -128,8 +128,30 @@ button {
 }
 
 .rate-box {
+  margin-left: auto;
   text-align: right;
   white-space: nowrap;
+}
+
+.mute-toggle {
+  display: grid;
+  flex: 0 0 auto;
+  width: 34px;
+  min-height: 34px;
+  place-items: center;
+  border: 2px solid rgba(226, 232, 240, 0.72);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.28);
+  color: #f8fafc;
+  font-size: 17px;
+  font-weight: 1000;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.mute-toggle.is-muted {
+  border-color: rgba(148, 163, 184, 0.5);
+  background: rgba(15, 23, 42, 0.48);
+  color: #94a3b8;
 }
 
 .battle-screen {
@@ -765,6 +787,12 @@ button {
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
 }
 
+.action-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  filter: grayscale(1);
+}
+
 .action-row span,
 .action-row b {
   display: block;
@@ -1352,6 +1380,30 @@ button {
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
+}
+
+.tutorial-reward {
+  display: grid;
+  gap: 3px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(34, 199, 238, 0.3);
+  border-radius: 8px;
+  background: linear-gradient(90deg, #ecfeff, #fef9c3);
+  color: #0f172a;
+}
+
+.tutorial-reward strong {
+  color: #075565;
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.tutorial-reward span {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
 }
 
 .app-subtitle {

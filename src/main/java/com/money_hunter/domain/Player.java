@@ -72,6 +72,8 @@ public class Player {
 
     private Instant boostEndsAt;
 
+	private Instant tutorialRewardClaimedAt;
+
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
@@ -244,6 +246,15 @@ public class Player {
 		touch();
 	}
 
+	public boolean hasClaimedTutorialReward() {
+		return tutorialRewardClaimedAt != null;
+	}
+
+	public void claimTutorialReward(Instant claimedAt) {
+		this.tutorialRewardClaimedAt = claimedAt;
+		touch();
+	}
+
     public void setLastSettledAt(Instant lastSettledAt) {
 		this.lastSettledAt = lastSettledAt;
 		touch();
@@ -280,6 +291,7 @@ public class Player {
 		this.autoHuntEndsAt = null;
 		this.autoHuntEndNotifiedAt = null;
 		this.boostEndsAt = null;
+		this.tutorialRewardClaimedAt = null;
 		this.lastSettledAt = now;
 		this.skills.forEach(PlayerSkill::resetLevel);
 		touch();

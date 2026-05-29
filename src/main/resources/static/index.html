@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260529-06" />
+    <link rel="stylesheet" href="/styles.css?v=20260529-07" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -22,6 +22,7 @@
             <strong id="goldRateTop">0/시간</strong>
             <p id="huntMode">대기중</p>
           </div>
+          <button id="muteToggle" class="mute-toggle" type="button" aria-label="BGM 음소거">♪</button>
         </header>
 
         <section class="battle-screen" aria-label="자동 전투 화면">
@@ -243,7 +244,7 @@
           </section>
         </div>
 
-        <section id="dummyBannerAd" class="dummy-banner-ad" aria-label="배너 광고">
+        <section id="dummyBannerAd" class="dummy-banner-ad hidden" aria-label="배너 광고">
           <span>AD</span>
           <strong>배너 광고</strong>
           <small>골드 보너스 이벤트</small>
@@ -275,6 +276,10 @@
           <p class="app-subtitle">캐릭터를 키우고, 돈을 벌어보세요</p>
           <h1 id="jobTitle">첫 헌터를 선택하세요</h1>
           <p id="jobCopy" class="modal-copy">능력치는 동일해요. 마음에 드는 공격 모션을 고르세요.</p>
+          <div id="tutorialReward" class="tutorial-reward">
+            <strong>시작 보상</strong>
+            <span>선택 즉시 자동사냥 1시간과 공속버프 1시간이 지급돼요.</span>
+          </div>
           <div class="job-select-grid">
             <button class="job-select warrior" type="button" data-job="WARRIOR">
               <span class="mini-sprite"></span>
@@ -342,6 +347,8 @@
           <button id="confirmNotification" type="button" class="ready">확인</button>
         </div>
       </section>
+
+      <audio id="bgmAudio" src="/assets/audio/bgm-corporate-timeline.mp3?v=20260529-01" preload="auto" loop></audio>
     </main>
 
     <aside id="devPanel" class="dev-panel" aria-label="테스트 도구">
@@ -380,6 +387,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260529-06"></script>
+    <script src="/app.js?v=20260529-07"></script>
   </body>
 </html>

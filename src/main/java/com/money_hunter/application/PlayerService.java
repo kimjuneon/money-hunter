@@ -8,10 +8,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.money_hunter.domain.AdEvent;
 import com.money_hunter.domain.AdEventType;
+import com.money_hunter.domain.AdRewardSession;
 import com.money_hunter.domain.JobType;
 import com.money_hunter.domain.NotificationEvent;
 import com.money_hunter.domain.NotificationType;
@@ -20,9 +22,11 @@ import com.money_hunter.domain.PlayerSkill;
 import com.money_hunter.domain.RewardClaim;
 import com.money_hunter.domain.SkillType;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
+import com.money_hunter.infrastructure.persistence.AdRewardSessionRepository;
 import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
+import com.money_hunter.application.dto.response.AdRewardSessionResponse;
 import com.money_hunter.application.dto.response.NotificationResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.MonsterResponse;
@@ -48,6 +52,7 @@ public class PlayerService {
 	private static final int BOOSTED_ATTACK_INTERVAL_MILLIS = 1_500;
 	private static final int MIN_ATTACK_INTERVAL_MILLIS = 900;
 	private static final int RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS = 45;
+	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Map<String, Integer> MONSTER_BASE_HP = Map.of(
 			"BOSS_ROCK", 120,
@@ -60,9 +65,27 @@ public class PlayerService {
 			SkillType.INTELLIGENCE,
 			SkillType.LUCK
 	);
+	private static final Set<SkillType> SP_SPENDABLE_SKILLS = EnumSet.of(
+			SkillType.STRENGTH,
+			SkillType.DEXTERITY,
+			SkillType.INTELLIGENCE,
+			SkillType.LUCK,
+			SkillType.MINING_MASTERY,
+			SkillType.RAPID_ATTACK,
+			SkillType.REWARD_AMPLIFIER,
+			SkillType.PET_FLARE_ATTACK,
+			SkillType.PET_AQUA_ATTACK
+	);
+	private static final Set<AdEventType> REWARD_AD_TYPES = EnumSet.of(
+			AdEventType.AUTO_HUNT,
+			AdEventType.BOOST,
+			AdEventType.SKILL_POINT,
+			AdEventType.REWARD_CLAIM
+	);
 
 	private final PlayerRepository playerRepository;
 	private final AdEventRepository adEventRepository;
+	private final AdRewardSessionRepository adRewardSessionRepository;
 	private final NotificationEventRepository notificationEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
 	private final RuntimeEconomyService economy;
@@ -71,12 +94,14 @@ public class PlayerService {
 	public PlayerService(
 			PlayerRepository playerRepository,
 			AdEventRepository adEventRepository,
+			AdRewardSessionRepository adRewardSessionRepository,
 			NotificationEventRepository notificationEventRepository,
 			RewardClaimRepository rewardClaimRepository,
 			RuntimeEconomyService economy
 	) {
 		this.playerRepository = playerRepository;
 		this.adEventRepository = adEventRepository;
+		this.adRewardSessionRepository = adRewardSessionRepository;
 		this.notificationEventRepository = notificationEventRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
 		this.economy = economy;
@@ -94,19 +119,50 @@ public class PlayerService {
 	@Transactional
 	public PlayerStateResponse chooseJob(String userKey, JobType job) {
 		Player player = getOrCreatePlayer(userKey);
+		boolean firstJob = !player.hasChosenJob();
 		player.chooseJob(job);
 		for (SkillType type : SkillType.values()) {
 			player.getOrCreateSkill(type);
+		}
+		if (firstJob) {
+			claimTutorialStarterReward(player, clock.instant());
 		}
 		return toState(player);
 	}
 
 	@Transactional
+	public AdRewardSessionResponse startRewardAdSession(String userKey, AdEventType type) {
+		requireRewardAdType(type);
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		requireRewardAvailable(player, type);
+		Instant now = clock.instant();
+		AdRewardSession session = adRewardSessionRepository.save(new AdRewardSession(
+				player,
+				type,
+				UUID.randomUUID().toString(),
+				now,
+				now.plus(AD_SESSION_TTL)));
+		return new AdRewardSessionResponse(type, session.getSessionToken(), now.plus(AD_SESSION_TTL));
+	}
+
+	@Transactional
 	public PlayerStateResponse completeAutoHuntAd(String userKey) {
+		return completeAutoHuntAd(userKey, null, false);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeAutoHuntAd(String userKey, String adSessionToken) {
+		return completeAutoHuntAd(userKey, adSessionToken, true);
+	}
+
+	private PlayerStateResponse completeAutoHuntAd(String userKey, String adSessionToken, boolean requireAdSession) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
 		Instant now = clock.instant();
+		completeRewardAdSessionIfRequired(player, AdEventType.AUTO_HUNT, adSessionToken, requireAdSession, now);
 		player.setAutoHuntEndsAt(addCappedTime(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
 		player.clearAutoHuntEndNotification();
 		clearUnreadAutoHuntEndNotifications(player, now);
@@ -116,10 +172,20 @@ public class PlayerService {
 
 	@Transactional
 	public PlayerStateResponse completeBoostAd(String userKey) {
+		return completeBoostAd(userKey, null, false);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeBoostAd(String userKey, String adSessionToken) {
+		return completeBoostAd(userKey, adSessionToken, true);
+	}
+
+	private PlayerStateResponse completeBoostAd(String userKey, String adSessionToken, boolean requireAdSession) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
 		Instant now = clock.instant();
+		completeRewardAdSessionIfRequired(player, AdEventType.BOOST, adSessionToken, requireAdSession, now);
 		player.setBoostEndsAt(addCappedTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
 		adEventRepository.save(new AdEvent(player, AdEventType.BOOST, (int) economy.boostAdSeconds(), now));
 		return toState(player);
@@ -127,10 +193,21 @@ public class PlayerService {
 
 	@Transactional
 	public PlayerStateResponse completeSkillPointAd(String userKey) {
+		return completeSkillPointAd(userKey, null, false);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeSkillPointAd(String userKey, String adSessionToken) {
+		return completeSkillPointAd(userKey, adSessionToken, true);
+	}
+
+	private PlayerStateResponse completeSkillPointAd(String userKey, String adSessionToken, boolean requireAdSession) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
 		Instant now = clock.instant();
+		requireSkillPointRewardAvailable(player);
+		completeRewardAdSessionIfRequired(player, AdEventType.SKILL_POINT, adSessionToken, requireAdSession, now);
 		player.addSkillPoint();
 		adEventRepository.save(new AdEvent(player, AdEventType.SKILL_POINT, 1, now));
 		return toState(player);
@@ -177,6 +254,7 @@ public class PlayerService {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
+		requireSkillPointRewardAvailable(player);
 		player.addSkillPoints(economy.skillPointPackAmount());
 		return toState(player);
 	}
@@ -197,9 +275,24 @@ public class PlayerService {
 
 	@Transactional
 	public RewardClaimResponse claimRewardAfterAd(String userKey, String idempotencyKey) {
+		return claimRewardAfterAd(userKey, idempotencyKey, null, false);
+	}
+
+	@Transactional
+	public RewardClaimResponse claimRewardAfterAd(String userKey, String idempotencyKey, String adSessionToken) {
+		return claimRewardAfterAd(userKey, idempotencyKey, adSessionToken, true);
+	}
+
+	private RewardClaimResponse claimRewardAfterAd(
+			String userKey,
+			String idempotencyKey,
+			String adSessionToken,
+			boolean requireAdSession
+	) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
+		completeRewardAdSessionIfRequired(player, AdEventType.REWARD_CLAIM, adSessionToken, requireAdSession, clock.instant());
 		RewardClaim claim = rewardClaimRepository.findByPlayerAndIdempotencyKey(player, idempotencyKey)
 				.orElseGet(() -> createRewardClaim(player, idempotencyKey));
 		adEventRepository.save(new AdEvent(player, AdEventType.REWARD_CLAIM, economy.rewardPointAmount(), clock.instant()));
@@ -400,6 +493,71 @@ public class PlayerService {
 		return Math.max(0, Duration.between(from, boostedTo).toMillis());
 	}
 
+	private void claimTutorialStarterReward(Player player, Instant now) {
+		if (player.hasClaimedTutorialReward()) {
+			return;
+		}
+		player.setAutoHuntEndsAt(addCappedTime(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
+		player.setBoostEndsAt(addCappedTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
+		player.clearAutoHuntEndNotification();
+		clearUnreadAutoHuntEndNotifications(player, now);
+		player.claimTutorialReward(now);
+	}
+
+	private void requireRewardAdType(AdEventType type) {
+		if (!REWARD_AD_TYPES.contains(type)) {
+			throw new IllegalArgumentException("지원하지 않는 광고 보상 타입이에요.");
+		}
+	}
+
+	private void requireRewardAvailable(Player player, AdEventType type) {
+		if (type == AdEventType.SKILL_POINT) {
+			requireSkillPointRewardAvailable(player);
+		}
+		if (type == AdEventType.REWARD_CLAIM && player.getGold() < economy.rewardGoldThreshold()) {
+			throw new IllegalStateException("Reward gauge is not full.");
+		}
+	}
+
+	private void requireSkillPointRewardAvailable(Player player) {
+		if (allSkillsMaxed(player)) {
+			throw new IllegalStateException("모든 스킬 강화가 완료되어 SP를 더 받을 수 없어요.");
+		}
+	}
+
+	private boolean allSkillsMaxed(Player player) {
+		return SP_SPENDABLE_SKILLS.stream()
+				.map(player::getOrCreateSkill)
+				.allMatch(PlayerSkill::isMaxLevel);
+	}
+
+	private void completeRewardAdSessionIfRequired(
+			Player player,
+			AdEventType type,
+			String adSessionToken,
+			boolean requireAdSession,
+			Instant now
+	) {
+		if (!requireAdSession) {
+			return;
+		}
+		if (adSessionToken == null || adSessionToken.isBlank()) {
+			throw new IllegalArgumentException("광고 세션이 필요해요.");
+		}
+		AdRewardSession session = adRewardSessionRepository.findBySessionToken(adSessionToken.trim())
+				.orElseThrow(() -> new IllegalStateException("광고 세션을 찾을 수 없어요."));
+		if (!session.getPlayer().getId().equals(player.getId()) || session.getType() != type) {
+			throw new IllegalStateException("광고 세션 정보가 일치하지 않아요.");
+		}
+		if (session.isCompleted()) {
+			throw new IllegalStateException("이미 사용한 광고 세션이에요.");
+		}
+		if (session.isExpired(now)) {
+			throw new IllegalStateException("광고 세션이 만료됐어요. 다시 시청해 주세요.");
+		}
+		session.complete(now);
+	}
+
 	private Instant addCappedTime(Instant currentEnd, long secondsToAdd, Instant now) {
 		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
 		Instant cappedEnd = now.plusSeconds(economy.maxAdSeconds());
@@ -419,6 +577,7 @@ public class PlayerService {
 				player.getUserKey(),
 				player.getJob(),
 				!player.hasChosenJob(),
+				player.hasClaimedTutorialReward(),
 				player.getCharacterSlots(),
 				economy.maxCharacterSlots(),
 				economy.companionPriceWon(),
@@ -433,6 +592,7 @@ public class PlayerService {
 				(int) Math.min(100, player.getGold() * 100 / threshold),
 				player.getGold() >= threshold,
 				player.getSkillPoints(),
+				!allSkillsMaxed(player),
 				player.getFriendInviteRewardCount(),
 				economy.friendInviteLimit(),
 				economy.friendInviteRewardSkillPoints(),

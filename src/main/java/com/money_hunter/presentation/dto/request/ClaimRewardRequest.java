@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record ClaimRewardRequest(
-		@NotBlank @Size(max = 120) String idempotencyKey
+		@NotBlank @Size(max = 120) String idempotencyKey,
+		@Size(max = 120) String adSessionToken
 ) {
 }
