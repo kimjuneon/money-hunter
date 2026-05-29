@@ -188,7 +188,7 @@ const featureTutorialSteps = [
     target: "#skillPanel .upgrade-row:not(.hidden)",
     panel: "skill",
     title: "헌터 성장",
-    body: "SP로 능력치를 강화해요. 직업별 핵심 능력치는 공유되고, 현재 직업에 맞는 스탯만 먼저 보여줘요.",
+    body: "SP로 능력치를 강화해요. 직업별 핵심 능력치는 공유되고, 전용 스킬을 올리면 공격 이펙트도 더 화려해져요.",
   },
   {
     target: "#shopPanel",
@@ -1054,34 +1054,34 @@ function attackIntervalMillis(player = state.player) {
 
 function renderRewardPanel(player) {
   const pointGoldRate = player.goldPerTossPoint || goldPerTossPoint;
-  const claimPointAmount = player.rewardPointAmount || Math.floor(player.rewardGoldThreshold / pointGoldRate);
-  const estimatedPointAmount = Math.floor(player.gold / pointGoldRate);
-  const remainingPointAmount = Math.max(0, claimPointAmount - estimatedPointAmount);
+  const minimumClaimPointAmount = player.rewardPointAmount || Math.floor(player.rewardGoldThreshold / pointGoldRate);
+  const availablePointAmount = Math.floor(player.gold / pointGoldRate);
+  const remainingPointAmount = Math.max(0, minimumClaimPointAmount - availablePointAmount);
   const inviteCount = player.friendInviteRewardCount ?? 0;
   const inviteLimit = player.friendInviteLimit ?? friendInviteLimit;
   const inviteReward = player.friendInviteRewardSkillPoints ?? friendInviteRewardSkillPoints;
-  $("rewardBar").style.width = `${Math.min(100, estimatedPointAmount * 100 / claimPointAmount)}%`;
-  $("rewardNeed").textContent = `${estimatedPointAmount.toLocaleString("ko-KR")} / ${claimPointAmount.toLocaleString("ko-KR")}P`;
+  $("rewardBar").style.width = `${Math.min(100, availablePointAmount * 100 / minimumClaimPointAmount)}%`;
+  $("rewardNeed").textContent = `${availablePointAmount.toLocaleString("ko-KR")} / ${minimumClaimPointAmount.toLocaleString("ko-KR")}P`;
   $("rewardPointEstimate").textContent = isOneStoreTarget()
     ? "게임 보상"
-    : `현재 ${estimatedPointAmount.toLocaleString("ko-KR")}P`;
+    : `현재 ${availablePointAmount.toLocaleString("ko-KR")}P`;
   $("rewardClaimAmount").textContent = player.rewardClaimable
     ? isOneStoreTarget()
       ? `수령 가능 SP ${inviteReward.toLocaleString("ko-KR")}`
-      : `수령 가능 ${claimPointAmount.toLocaleString("ko-KR")}P`
+      : `수령 가능 ${availablePointAmount.toLocaleString("ko-KR")}P`
     : `${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요`;
   $("claimReward").disabled = !player.rewardClaimable;
   $("claimReward").innerHTML = player.rewardClaimable
     ? isOneStoreTarget()
       ? "<span>게임 보상 수령</span><small>심사용 즉시 지급</small>"
-      : `<span>토스포인트 받기</span><small>${claimPointAmount.toLocaleString("ko-KR")}P 수령 가능</small>`
+      : `<span>토스포인트 받기</span><small>${availablePointAmount.toLocaleString("ko-KR")}P 수령 가능</small>`
     : `<span>${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요</span><small>조건 달성 후 수령 가능</small>`;
   $("friendInviteRewardCopy").textContent = `초대 성공 시 SP ${inviteReward.toLocaleString("ko-KR")}개 지급`;
   $("friendInviteRewardStatus").textContent = `${inviteCount.toLocaleString("ko-KR")} / ${inviteLimit.toLocaleString("ko-KR")}명 완료`;
   $("claimFriendInviteReward").disabled = inviteCount >= inviteLimit;
   $("claimFriendInviteReward").innerHTML = inviteCount >= inviteLimit
     ? "<span>초대 보상 MAX</span>"
-    : `<span>친구 초대하기</span><small>${inviteLimit - inviteCount}명 남음</small>`;
+    : `<span>친구 초대하기 · ${inviteLimit - inviteCount}명 남음</span>`;
 }
 
 function renderShopPanel(player) {
@@ -1105,10 +1105,10 @@ function renderShopPanel(player) {
   });
   $("buyCompanion").disabled = pets >= maxPets;
   $("buyCompanion").innerHTML = pets >= maxPets
-    ? "<span>동료 펫 MAX</span><small>모든 펫 동행 중</small>"
+    ? "<span>동료 펫 MAX · 모든 펫 동행 중</span>"
     : isOneStoreTarget()
-      ? `<span>${petMeta[pets]?.name || "동료 펫"} 잠금 해제</span><small>심사용 게임 보상</small>`
-      : `<span>${petMeta[pets]?.name || "동료 펫"} 구매</span><small>${iapDisplayAmount(pets === 0 ? "flarePet" : "aquaPet", price)}</small>`;
+      ? `<span>${petMeta[pets]?.name || "동료 펫"} 잠금 해제 · 심사용</span>`
+      : `<span>${petMeta[pets]?.name || "동료 펫"} 구매 · ${iapDisplayAmount(pets === 0 ? "flarePet" : "aquaPet", price)}</span>`;
   $("skillPointPackCopy").textContent = `SP ${packAmount.toLocaleString("ko-KR")}개 즉시 지급`;
   const spAvailable = skillPointRewardsAvailable(player);
   $("skillPointPackStatus").textContent = spAvailable
@@ -1119,9 +1119,9 @@ function renderShopPanel(player) {
   $("buySkillPointPack").disabled = !spAvailable;
   $("buySkillPointPack").innerHTML = spAvailable
     ? isOneStoreTarget()
-      ? `<span>SP ${packAmount.toLocaleString("ko-KR")} 받기</span><small>심사용 게임 보상</small>`
-      : `<span>SP ${packAmount.toLocaleString("ko-KR")} 구매</span><small>${iapDisplayAmount("skillPointPack", packPrice)}</small>`
-    : "<span>SP 구매 비활성</span><small>모든 스킬 MAX</small>";
+      ? `<span>SP ${packAmount.toLocaleString("ko-KR")} 받기 · 심사용</span>`
+      : `<span>SP ${packAmount.toLocaleString("ko-KR")} 구매 · ${iapDisplayAmount("skillPointPack", packPrice)}</span>`
+    : "<span>SP 구매 비활성 · 모든 스킬 MAX</span>";
 }
 
 function iapProduct(productKey) {

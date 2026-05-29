@@ -370,7 +370,7 @@ public class PlayerService {
 		completeRewardAdSessionIfRequired(player, AdEventType.REWARD_CLAIM, adSessionToken, requireAdSession, clock.instant());
 		RewardClaim claim = rewardClaimRepository.findByPlayerAndIdempotencyKey(player, idempotencyKey)
 				.orElseGet(() -> createRewardClaim(player, idempotencyKey));
-		adEventRepository.save(new AdEvent(player, AdEventType.REWARD_CLAIM, economy.rewardPointAmount(), clock.instant()));
+		adEventRepository.save(new AdEvent(player, AdEventType.REWARD_CLAIM, claim.getPointAmount(), clock.instant()));
 		return new RewardClaimResponse(
 				claim.getId(),
 				claim.getPointAmount(),
@@ -456,13 +456,23 @@ public class PlayerService {
 		if (player.getGold() < economy.rewardGoldThreshold()) {
 			throw new IllegalStateException("Reward gauge is not full.");
 		}
-		player.spendGold(economy.rewardGoldThreshold());
+		int claimPointAmount = availableRewardPointAmount(player);
+		long claimGoldAmount = rewardGoldAmount(claimPointAmount);
+		player.spendGold(claimGoldAmount);
 		return rewardClaimRepository.save(new RewardClaim(
 				player,
-				economy.rewardGoldThreshold(),
-				economy.rewardPointAmount(),
+				claimGoldAmount,
+				claimPointAmount,
 				idempotencyKey,
 				clock.instant()));
+	}
+
+	private int availableRewardPointAmount(Player player) {
+		return (int) Math.min(Integer.MAX_VALUE, player.getGold() / economy.goldPerTossPoint());
+	}
+
+	private long rewardGoldAmount(int pointAmount) {
+		return (long) pointAmount * economy.goldPerTossPoint();
 	}
 
 	private Player getOrCreatePlayer(String userKey) {

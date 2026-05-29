@@ -1030,6 +1030,11 @@ button {
   line-height: 1.08;
 }
 
+.shop-buy-button span,
+.reward-panel .friend-invite-button span {
+  white-space: nowrap;
+}
+
 .shop-buy-button small,
 .reward-panel button small,
 .upgrade-row button small {

@@ -201,6 +201,31 @@ class ReviewProfileApiExposureTest {
 	}
 
 	@Test
+	void rewardClaimUsesAllAvailableConvertedPoints() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"MAGE\"}"))
+				.andExpect(status().isOk());
+
+		Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+		Instant now = Instant.now();
+		player.setAutoHuntEndsAt(null);
+		player.setBoostEndsAt(null);
+		player.setLastSettledAt(now);
+		player.addGold(1_800);
+		playerRepository.saveAndFlush(player);
+
+		mockMvc.perform(post("/api/player/reward/claim-after-ad")
+						.contentType(APPLICATION_JSON)
+						.content("{\"idempotencyKey\":\"claim-all-available-points\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.pointAmount", is(18)))
+				.andExpect(jsonPath("$.state.gold", is(0)));
+	}
+
+	@Test
 	void adminAnomalyReportFlagsExcessiveAdRewardEvents() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());
