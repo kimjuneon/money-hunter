@@ -50,8 +50,8 @@ public class PlayerService {
 			- MAX_SKILL_PAYOUT_RATE
 			- PET_UNLOCK_PAYOUT_RATE * 2) / 2;
 	private static final int HIT_REWARD_PERCENT = 75;
-	private static final int BASE_ATTACK_INTERVAL_MILLIS = 3_000;
-	private static final int BOOSTED_ATTACK_INTERVAL_MILLIS = 1_500;
+	private static final int BASE_ATTACK_INTERVAL_MILLIS = 2_400;
+	private static final int BOOSTED_ATTACK_INTERVAL_MILLIS = 1_200;
 	private static final int MIN_ATTACK_INTERVAL_MILLIS = 900;
 	private static final int RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS = 45;
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);

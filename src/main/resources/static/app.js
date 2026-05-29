@@ -23,6 +23,11 @@ const state = {
   showDummyBanner: false,
   bgmMuted: false,
   bgmStarted: false,
+  soundContext: null,
+  featureTutorialStarted: false,
+  featureTutorialActive: false,
+  featureTutorialIndex: 0,
+  featureTutorialPositionTimer: null,
   authToken: "",
   reviewToolsEnabled: false,
   mockMonetizationEnabled: false,
@@ -113,6 +118,7 @@ const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
 const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
+const featureTutorialStorageKey = "moneyHunterFeatureTutorialV2";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@latest/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
 let tossSdkPromise = null;
@@ -156,6 +162,47 @@ const skillMeta = {
   PET_AQUA_ATTACK: { label: "물방울토 공격", short: "물방울토 공격력", max: 20, petIndex: 2, description: "물방울토 공격 피해량이 올라가요" },
 };
 
+const featureTutorialSteps = [
+  {
+    target: ".battle-screen",
+    title: "자동 전투",
+    body: "사냥은 자동으로 진행돼요. 몬스터를 처치하면 골드와 경험치를 얻고, 충전된 자동사냥 시간은 앱을 꺼도 이어져요.",
+  },
+  {
+    target: ".action-row",
+    title: "보상 버튼",
+    body: "자동사냥, 공속버프, 스킬포인트는 여기서 충전해요. 광고 보상은 최대 누적 시간까지 추가로 쌓을 수 있어요.",
+  },
+  {
+    target: "#skillPanel .upgrade-row:not(.hidden)",
+    panel: "skill",
+    title: "헌터 성장",
+    body: "SP로 능력치를 강화해요. 직업별 핵심 능력치는 공유되고, 현재 직업에 맞는 스탯만 먼저 보여줘요.",
+  },
+  {
+    target: "#rewardPanel",
+    panel: "reward",
+    title: "보상 수령",
+    body: "모은 골드는 포인트 기준으로 환산돼요. 조건을 채우면 광고 확인 후 토스 포인트 지급 대기 기록을 만들 수 있어요.",
+  },
+  {
+    target: "#shopPanel",
+    panel: "shop",
+    title: "상점과 동료 펫",
+    body: "동료 펫을 데려오면 함께 공격하고 수익률이 올라가요. 필요한 경우 SP 팩도 이 화면에서 확인해요.",
+  },
+  {
+    target: ".panel-tabs",
+    title: "하단 메뉴",
+    body: "스킬, 보상 수령, 상점, 직업 변경을 아래 메뉴에서 빠르게 오갈 수 있어요.",
+  },
+  {
+    target: "#muteToggle",
+    title: "사운드",
+    body: "BGM이나 타격음이 부담스러우면 오른쪽 위 버튼으로 바로 끌 수 있어요.",
+  },
+];
+
 function activeJob() {
   return state.player?.job || state.selectedJob || "WARRIOR";
 }
@@ -175,6 +222,14 @@ function storedValue(key) {
 function storeValue(key, value) {
   try {
     window.localStorage.setItem(key, value);
+  } catch {
+    // Local storage can be unavailable in embedded test environments.
+  }
+}
+
+function removeStoredValue(key) {
+  try {
+    window.localStorage.removeItem(key);
   } catch {
     // Local storage can be unavailable in embedded test environments.
   }
@@ -292,6 +347,119 @@ function setMessage(message, durationMs = 2400) {
   }, durationMs + 80);
 }
 
+function featureTutorialCompleted() {
+  return storedValue(featureTutorialStorageKey) === "done";
+}
+
+function maybeStartFeatureTutorial() {
+  if (
+    state.featureTutorialStarted
+    || state.featureTutorialActive
+    || featureTutorialCompleted()
+    || !state.player?.job
+    || state.player.onboardingRequired
+  ) {
+    return;
+  }
+  state.featureTutorialStarted = true;
+  window.setTimeout(() => startFeatureTutorial(), 520);
+}
+
+function startFeatureTutorial(index = 0) {
+  if (!state.player?.job || state.player.onboardingRequired || featureTutorialCompleted()) {
+    return;
+  }
+  state.featureTutorialActive = true;
+  state.featureTutorialIndex = index;
+  $("featureTutorial").classList.remove("hidden");
+  document.body.classList.add("feature-tutorial-open");
+  renderFeatureTutorialStep();
+}
+
+function finishFeatureTutorial() {
+  state.featureTutorialActive = false;
+  state.featureTutorialStarted = true;
+  storeValue(featureTutorialStorageKey, "done");
+  window.clearTimeout(state.featureTutorialPositionTimer);
+  $("featureTutorial").classList.add("hidden");
+  document.body.classList.remove("feature-tutorial-open");
+  showContentPanel("skill");
+  setMessage("튜토리얼을 완료했어요. 이제 자유롭게 성장해보세요.");
+}
+
+function nextFeatureTutorialStep() {
+  if (state.featureTutorialIndex >= featureTutorialSteps.length - 1) {
+    finishFeatureTutorial();
+    return;
+  }
+  state.featureTutorialIndex += 1;
+  renderFeatureTutorialStep();
+}
+
+function renderFeatureTutorialStep() {
+  if (!state.featureTutorialActive) {
+    return;
+  }
+  const step = featureTutorialSteps[state.featureTutorialIndex];
+  if (!step) {
+    finishFeatureTutorial();
+    return;
+  }
+  if (step.panel) {
+    showContentPanel(step.panel);
+  }
+  $("tutorialCount").textContent = `${state.featureTutorialIndex + 1} / ${featureTutorialSteps.length}`;
+  $("tutorialTitle").textContent = step.title;
+  $("tutorialBody").textContent = step.body;
+  $("tutorialNext").textContent = state.featureTutorialIndex >= featureTutorialSteps.length - 1 ? "시작하기" : "다음";
+  window.clearTimeout(state.featureTutorialPositionTimer);
+  state.featureTutorialPositionTimer = window.setTimeout(positionFeatureTutorial, 90);
+}
+
+function positionFeatureTutorial() {
+  if (!state.featureTutorialActive) {
+    return;
+  }
+  const step = featureTutorialSteps[state.featureTutorialIndex];
+  const target = document.querySelector(step.target);
+  if (!target) {
+    nextFeatureTutorialStep();
+    return;
+  }
+  target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+  window.clearTimeout(state.featureTutorialPositionTimer);
+  state.featureTutorialPositionTimer = window.setTimeout(() => {
+    const rect = target.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      nextFeatureTutorialStep();
+      return;
+    }
+    const pad = 8;
+    const spotlight = $("tutorialSpotlight");
+    spotlight.style.left = `${Math.max(8, rect.left - pad)}px`;
+    spotlight.style.top = `${Math.max(8, rect.top - pad)}px`;
+    spotlight.style.width = `${Math.min(window.innerWidth - 16, rect.width + pad * 2)}px`;
+    spotlight.style.height = `${Math.min(window.innerHeight - 16, rect.height + pad * 2)}px`;
+
+    const card = $("tutorialCard");
+    const cardWidth = Math.min(360, window.innerWidth - 28);
+    card.style.width = `${cardWidth}px`;
+    const cardHeight = card.offsetHeight || 190;
+    const targetCenter = rect.left + rect.width / 2;
+    const left = Math.min(
+      Math.max(14, targetCenter - cardWidth / 2),
+      Math.max(14, window.innerWidth - cardWidth - 14)
+    );
+    const belowTop = rect.bottom + 14;
+    const aboveTop = rect.top - cardHeight - 14;
+    const top = belowTop + cardHeight < window.innerHeight - 14
+      ? belowTop
+      : Math.max(14, aboveTop);
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+  }, 220);
+}
+
 function syncBgmState() {
   const audio = $("bgmAudio");
   audio.volume = 0.35;
@@ -325,6 +493,63 @@ function toggleBgmMute() {
     state.bgmStarted = false;
     startBgm();
   }
+}
+
+function audioContext() {
+  const AudioContextType = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextType) {
+    return null;
+  }
+  if (!state.soundContext) {
+    state.soundContext = new AudioContextType();
+  }
+  return state.soundContext;
+}
+
+function playMonsterHitSound(defeated = false) {
+  if (state.bgmMuted) {
+    return;
+  }
+  const ctx = audioContext();
+  if (!ctx) {
+    return;
+  }
+  if (ctx.state === "suspended") {
+    ctx.resume?.().catch(() => {});
+  }
+  const now = ctx.currentTime;
+  const duration = defeated ? 0.22 : 0.14;
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.001, now);
+  master.gain.exponentialRampToValueAtTime(defeated ? 0.22 : 0.14, now + 0.012);
+  master.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  master.connect(ctx.destination);
+
+  const thump = ctx.createOscillator();
+  thump.type = "triangle";
+  thump.frequency.setValueAtTime(defeated ? 118 : 176, now);
+  thump.frequency.exponentialRampToValueAtTime(defeated ? 56 : 92, now + duration);
+  thump.connect(master);
+  thump.start(now);
+  thump.stop(now + duration);
+
+  const noiseLength = Math.max(1, Math.floor(ctx.sampleRate * duration));
+  const buffer = ctx.createBuffer(1, noiseLength, ctx.sampleRate);
+  const samples = buffer.getChannelData(0);
+  for (let i = 0; i < noiseLength; i += 1) {
+    samples[i] = (Math.random() * 2 - 1) * (1 - i / noiseLength);
+  }
+  const noise = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(defeated ? 520 : 720, now);
+  filter.Q.setValueAtTime(defeated ? 0.9 : 1.5, now);
+  noise.buffer = buffer;
+  noise.connect(filter);
+  filter.connect(master);
+  noise.start(now);
+  noise.stop(now + duration);
+  window.setTimeout(() => master.disconnect(), (duration + 0.08) * 1000);
 }
 
 function authErrorMessage(message = "") {
@@ -528,6 +753,7 @@ function render() {
   renderNotification(player);
   syncBgmState();
   refreshWhenAutoHuntEnds(hunting);
+  maybeStartFeatureTutorial();
 }
 
 function renderDummyBanner() {
@@ -704,32 +930,33 @@ function attackIntervalMillis(player = state.player) {
     return player.attackIntervalMillis;
   }
   const rapidBonus = Math.min(900, skillLevel("RAPID_ATTACK") * 45);
-  return Math.max(900, (isActive(player?.boostEndsAt) ? 1500 : 3000) - rapidBonus);
+  return Math.max(900, (isActive(player?.boostEndsAt) ? 1200 : 2400) - rapidBonus);
 }
 
 function renderRewardPanel(player) {
   const pointGoldRate = player.goldPerTossPoint || goldPerTossPoint;
   const claimPointAmount = player.rewardPointAmount || Math.floor(player.rewardGoldThreshold / pointGoldRate);
   const estimatedPointAmount = Math.floor(player.gold / pointGoldRate);
+  const remainingPointAmount = Math.max(0, claimPointAmount - estimatedPointAmount);
   const inviteCount = player.friendInviteRewardCount ?? 0;
   const inviteLimit = player.friendInviteLimit ?? friendInviteLimit;
   const inviteReward = player.friendInviteRewardSkillPoints ?? friendInviteRewardSkillPoints;
-  $("rewardBar").style.width = `${player.rewardProgressPercent}%`;
-  $("rewardNeed").textContent = `${player.gold.toLocaleString("ko-KR")} / ${player.rewardGoldThreshold.toLocaleString("ko-KR")} 골드`;
+  $("rewardBar").style.width = `${Math.min(100, estimatedPointAmount * 100 / claimPointAmount)}%`;
+  $("rewardNeed").textContent = `${estimatedPointAmount.toLocaleString("ko-KR")} / ${claimPointAmount.toLocaleString("ko-KR")}P`;
   $("rewardPointEstimate").textContent = isOneStoreTarget()
     ? "게임 보상"
-    : `≈ ${estimatedPointAmount.toLocaleString("ko-KR")}P`;
+    : `현재 ${estimatedPointAmount.toLocaleString("ko-KR")}P`;
   $("rewardClaimAmount").textContent = player.rewardClaimable
     ? isOneStoreTarget()
       ? `수령 가능 SP ${inviteReward.toLocaleString("ko-KR")}`
       : `수령 가능 ${claimPointAmount.toLocaleString("ko-KR")}P`
-    : "수령 조건 준비 중";
+    : `${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요`;
   $("claimReward").disabled = !player.rewardClaimable;
   $("claimReward").textContent = player.rewardClaimable
     ? isOneStoreTarget()
       ? "게임 내 보상 받기"
       : "광고보고 토스 포인트 받기"
-    : "골드를 더 모아야 해요";
+    : "포인트를 더 모아야 해요";
   $("friendInviteRewardCopy").textContent = `초대 성공 시 SP ${inviteReward.toLocaleString("ko-KR")}개 지급`;
   $("friendInviteRewardStatus").textContent = `${inviteCount.toLocaleString("ko-KR")} / ${inviteLimit.toLocaleString("ko-KR")}명 완료`;
   $("claimFriendInviteReward").disabled = inviteCount >= inviteLimit;
@@ -1358,6 +1585,7 @@ function spawnGoldPop(amount) {
 function pulseMonsterHp(defeated = false) {
   const monster = document.querySelector(".monster-wrap");
   monster.classList.remove("hit", "defeated");
+  playMonsterHitSound(defeated);
   window.requestAnimationFrame(() => monster.classList.add(defeated ? "defeated" : "hit"));
 }
 
@@ -1431,6 +1659,9 @@ $("closeNotificationModal").addEventListener("click", () => closeNotificationMod
 $("confirmNotification").addEventListener("click", () => closeNotificationModal());
 $("loginButton").addEventListener("click", () => startTossLogin());
 $("muteToggle").addEventListener("click", () => toggleBgmMute());
+$("tutorialNext").addEventListener("click", () => nextFeatureTutorialStep());
+$("tutorialSkip").addEventListener("click", () => finishFeatureTutorial());
+window.addEventListener("resize", () => positionFeatureTutorial());
 
 $("showSkillPanel").addEventListener("click", () => showContentPanel("skill"));
 $("showRewardPanel").addEventListener("click", () => showContentPanel("reward"));
@@ -1686,6 +1917,10 @@ function initializeDevPanel() {
       state.selectedJob = "WARRIOR";
       state.forceJobModal = false;
       state.dismissedJobModal = false;
+      state.featureTutorialStarted = false;
+      state.featureTutorialActive = false;
+      removeStoredValue(featureTutorialStorageKey);
+      $("featureTutorial").classList.add("hidden");
       return api("/api/player/test/reset", { method: "POST" });
     },
     "테스트 상태를 초기화했어요. 직업을 다시 선택하세요."

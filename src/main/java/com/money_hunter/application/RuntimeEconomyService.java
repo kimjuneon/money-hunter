@@ -27,8 +27,7 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("autoHuntAdSeconds", "자동사냥 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("boostAdSeconds", "공속버프 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("maxAdSeconds", "광고 보상 최대 누적 시간", "초", 3_600, 86_400),
-			new PolicyDefinition("rewardGoldThreshold", "보상 수령 골드 기준", "골드", 1, 10_000_000_000L),
-			new PolicyDefinition("rewardPointAmount", "보상 수령 토스포인트", "P", 1, 1_000_000)
+			new PolicyDefinition("rewardPointAmount", "보상 수령 포인트 기준", "P", 1, 1_000_000)
 	);
 
 	private final EconomyProperties defaults;
@@ -108,9 +107,11 @@ public class RuntimeEconomyService {
 	}
 
 	private EconomyPolicySnapshot merge(GameEconomyPolicy row) {
+		int goldPerTossPoint = nvl(row.getGoldPerTossPoint(), defaults.goldPerTossPoint());
+		int rewardPointAmount = nvl(row.getRewardPointAmount(), defaults.rewardPointAmount());
 		return new EconomyPolicySnapshot(
 				nvl(row.getAdRevenuePerRewardAdWon(), defaults.adRevenuePerRewardAdWon()),
-				nvl(row.getGoldPerTossPoint(), defaults.goldPerTossPoint()),
+				goldPerTossPoint,
 				nvl(row.getCompanionPriceWon(), defaults.companionPriceWon()),
 				nvl(row.getSkillPointPackPriceWon(), defaults.skillPointPackPriceWon()),
 				nvl(row.getSkillPointPackAmount(), defaults.skillPointPackAmount()),
@@ -120,12 +121,13 @@ public class RuntimeEconomyService {
 				nvl(row.getAutoHuntAdSeconds(), defaults.autoHuntAdSeconds()),
 				nvl(row.getBoostAdSeconds(), defaults.boostAdSeconds()),
 				nvl(row.getMaxAdSeconds(), defaults.maxAdSeconds()),
-				nvl(row.getRewardGoldThreshold(), defaults.rewardGoldThreshold()),
-				nvl(row.getRewardPointAmount(), defaults.rewardPointAmount())
+				rewardGoldThreshold(goldPerTossPoint, rewardPointAmount),
+				rewardPointAmount
 		);
 	}
 
 	private EconomyPolicySnapshot defaultsSnapshot() {
+		long rewardGoldThreshold = rewardGoldThreshold(defaults.goldPerTossPoint(), defaults.rewardPointAmount());
 		return new EconomyPolicySnapshot(
 				defaults.adRevenuePerRewardAdWon(),
 				defaults.goldPerTossPoint(),
@@ -138,9 +140,13 @@ public class RuntimeEconomyService {
 				defaults.autoHuntAdSeconds(),
 				defaults.boostAdSeconds(),
 				defaults.maxAdSeconds(),
-				defaults.rewardGoldThreshold(),
+				rewardGoldThreshold,
 				defaults.rewardPointAmount()
 		);
+	}
+
+	private long rewardGoldThreshold(int goldPerTossPoint, int rewardPointAmount) {
+		return (long) goldPerTossPoint * rewardPointAmount;
 	}
 
 	private int nvl(Integer value, int fallback) {

@@ -27,8 +27,8 @@ public record EconomyPolicySnapshot(
 		range(autoHuntAdSeconds, 60, 86_400, "자동사냥 광고 보상 시간");
 		range(boostAdSeconds, 60, 86_400, "공속버프 광고 보상 시간");
 		range(maxAdSeconds, 3_600, 86_400, "광고 보상 최대 누적 시간");
-		range(rewardGoldThreshold, 1, 10_000_000_000L, "보상 수령 골드 기준");
-		range(rewardPointAmount, 1, 1_000_000, "보상 수령 토스포인트");
+		range(rewardGoldThreshold, 1, 1_000_000_000_000L, "보상 수령 환산 골드");
+		range(rewardPointAmount, 1, 1_000_000, "보상 수령 포인트 기준");
 		if (maxAdSeconds < autoHuntAdSeconds || maxAdSeconds < boostAdSeconds) {
 			throw new IllegalArgumentException("광고 보상 최대 누적 시간은 개별 보상 시간보다 작을 수 없어요.");
 		}

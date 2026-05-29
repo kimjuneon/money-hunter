@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260529-07" />
+    <link rel="stylesheet" href="/styles.css?v=20260529-09" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -189,7 +189,7 @@
             <i id="rewardBar"></i>
           </div>
           <div class="reward-meta">
-            <span id="rewardNeed">0 / 12,000 골드</span>
+            <span id="rewardNeed">0 / 10P</span>
             <b id="rewardClaimAmount">수령 조건 준비 중</b>
           </div>
           <button id="claimReward" type="button">보상 받기</button>
@@ -257,6 +257,19 @@
           <button id="showShopPanel" type="button">상점</button>
           <button id="openJobModal" type="button">직업 변경</button>
         </section>
+      </section>
+
+      <section id="featureTutorial" class="feature-tutorial hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+        <div id="tutorialSpotlight" class="tutorial-spotlight" aria-hidden="true"></div>
+        <article id="tutorialCard" class="tutorial-card">
+          <span id="tutorialCount" class="tutorial-count">1 / 7</span>
+          <h2 id="tutorialTitle">자동 전투</h2>
+          <p id="tutorialBody">전투는 자동으로 진행돼요.</p>
+          <div class="tutorial-actions">
+            <button id="tutorialSkip" type="button">건너뛰기</button>
+            <button id="tutorialNext" type="button">다음</button>
+          </div>
+        </article>
       </section>
 
       <section id="loginModal" class="login-modal hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
