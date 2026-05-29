@@ -341,12 +341,6 @@ async function requestTossAuthorization() {
   if (window.MoneyHunterTossLogin?.appLogin) {
     return window.MoneyHunterTossLogin.appLogin();
   }
-  if (typeof window.MoneyHunterLoadTossLogin === "function") {
-    const sdk = await window.MoneyHunterLoadTossLogin();
-    if (typeof sdk.appLogin === "function") {
-      return sdk.appLogin();
-    }
-  }
   const sdk = await import(appsInTossSdkUrl);
   if (typeof sdk.appLogin !== "function") {
     throw new Error("토스 로그인 SDK를 찾지 못했어요.");
