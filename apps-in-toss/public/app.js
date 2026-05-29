@@ -16,6 +16,7 @@ const state = {
   dismissedJobModal: false,
   autoHuntWasActive: false,
   autoHuntEndRefreshInFlight: false,
+  resumeRefreshInFlight: false,
   shownNotificationId: null,
   noticeMessage: "",
   noticeExpiresAt: 0,
@@ -41,6 +42,7 @@ const state = {
   adMode: "test",
   adGroupIds: {},
   iapProductIds: {},
+  iapProducts: {},
   shareRewardModuleId: "",
   shareRewardMessage: "친구에게 공유하고 SP 5개를 받아요",
   realAdInFlight: false,
@@ -126,7 +128,7 @@ const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
 const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
-const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@latest/+esm";
+const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.4.1/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.4.1/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
 let tossSdkPromise = null;
@@ -189,16 +191,16 @@ const featureTutorialSteps = [
     body: "SP로 능력치를 강화해요. 직업별 핵심 능력치는 공유되고, 현재 직업에 맞는 스탯만 먼저 보여줘요.",
   },
   {
-    target: "#rewardPanel",
-    panel: "reward",
-    title: "보상 수령",
-    body: "모은 골드는 포인트 기준으로 환산돼요. 수령 가능 상태가 되면 광고를 확인하고 토스 포인트 지급을 신청할 수 있어요.",
-  },
-  {
     target: "#shopPanel",
     panel: "shop",
     title: "상점과 동료 펫",
     body: "동료 펫을 데려오면 함께 공격하고 수익률이 올라가요. 필요한 경우 SP 팩도 이 화면에서 확인해요.",
+  },
+  {
+    target: "#rewardPanel",
+    panel: "reward",
+    title: "보상 수령",
+    body: "모은 골드는 포인트 기준으로 환산돼요. 수령 가능 상태가 되면 광고를 확인하고 토스 포인트 지급을 신청할 수 있어요.",
   },
   {
     target: ".panel-tabs",
@@ -497,7 +499,28 @@ function canPlaySound() {
   return !state.bgmMuted && state.pageVisible;
 }
 
-function startBgm() {
+function resumeAudioContext() {
+  state.soundContext?.resume?.().catch(() => {});
+}
+
+function playBgmWithRetry(audio, retry = false) {
+  const playPromise = audio.play?.();
+  if (playPromise?.then) {
+    playPromise
+      .then(() => {
+        state.bgmStarted = true;
+      })
+      .catch(() => {
+        if (retry) {
+          window.setTimeout(() => audio.play?.().catch?.(() => {}), 220);
+        }
+      });
+    return;
+  }
+  state.bgmStarted = true;
+}
+
+function startBgm(options = {}) {
   syncBgmState();
   if (!canPlaySound()) {
     return;
@@ -506,14 +529,8 @@ function startBgm() {
   if (state.bgmStarted && !audio.paused) {
     return;
   }
-  const playPromise = audio.play?.();
-  if (playPromise?.then) {
-    playPromise
-      .then(() => {
-        state.bgmStarted = true;
-      })
-      .catch(() => {});
-  }
+  resumeAudioContext();
+  playBgmWithRetry(audio, Boolean(options.retry));
 }
 
 function toggleBgmMute() {
@@ -531,13 +548,27 @@ function syncPageSoundState(visible = !document.hidden) {
   syncBgmState();
   const audio = $("bgmAudio");
   if (canPlaySound()) {
+    resumeAudioContext();
     if (state.bgmStarted) {
-      startBgm();
+      startBgm({ retry: true });
     }
     return;
   }
   audio.pause?.();
   state.soundContext?.suspend?.().catch(() => {});
+}
+
+function handlePageVisibility(visible = !document.hidden) {
+  syncPageSoundState(visible);
+  if (!visible || !state.player || state.resumeRefreshInFlight) {
+    return;
+  }
+  state.resumeRefreshInFlight = true;
+  refresh()
+    .catch((error) => setMessage(error.message))
+    .finally(() => {
+      state.resumeRefreshInFlight = false;
+    });
 }
 
 function audioContext() {
@@ -763,10 +794,37 @@ async function loadAppConfig() {
     state.adMode = "test";
     state.adGroupIds = {};
     state.iapProductIds = {};
+    state.iapProducts = {};
     state.shareRewardModuleId = "";
   }
   document.body.classList.toggle("target-onestore", isOneStoreTarget());
   renderReviewToolsVisibility();
+}
+
+async function loadIapProductInfo() {
+  if (isOneStoreTarget() || state.mockMonetizationEnabled || !state.realPaymentsEnabled) {
+    return;
+  }
+  try {
+    const sdk = await loadTossSdk();
+    if (typeof sdk?.IAP?.getProductItemList !== "function") {
+      return;
+    }
+    const timeout = new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error("상품 목록 조회 시간이 초과됐어요.")), 3500);
+    });
+    const response = await Promise.race([sdk.IAP.getProductItemList(), timeout]);
+    const products = Array.isArray(response?.products) ? response.products : [];
+    state.iapProducts = products.reduce((acc, product) => {
+      if (product?.sku) {
+        acc[product.sku] = product;
+      }
+      return acc;
+    }, {});
+    render();
+  } catch {
+    state.iapProducts = {};
+  }
 }
 
 function render() {
@@ -1015,15 +1073,15 @@ function renderRewardPanel(player) {
   $("claimReward").disabled = !player.rewardClaimable;
   $("claimReward").innerHTML = player.rewardClaimable
     ? isOneStoreTarget()
-      ? "<span>게임 내 보상 받기</span><small>심사용 보상 지급</small>"
-      : `<span>토스 포인트 받기</span><small>광고 확인 후 ${claimPointAmount.toLocaleString("ko-KR")}P 신청</small>`
-    : `<span>포인트를 더 모아야 해요</span><small>${remainingPointAmount.toLocaleString("ko-KR")}P 남음</small>`;
+      ? "<span>게임 보상 수령</span><small>심사용 즉시 지급</small>"
+      : `<span>광고 보고 ${claimPointAmount.toLocaleString("ko-KR")}P 신청</span><small>토스 포인트 지급 대기 등록</small>`
+    : `<span>${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요</span><small>조건 달성 후 수령 가능</small>`;
   $("friendInviteRewardCopy").textContent = `초대 성공 시 SP ${inviteReward.toLocaleString("ko-KR")}개 지급`;
   $("friendInviteRewardStatus").textContent = `${inviteCount.toLocaleString("ko-KR")} / ${inviteLimit.toLocaleString("ko-KR")}명 완료`;
   $("claimFriendInviteReward").disabled = inviteCount >= inviteLimit;
-  $("claimFriendInviteReward").textContent = inviteCount >= inviteLimit
-    ? "초대 보상 MAX"
-    : `친구 초대하기 (${inviteLimit - inviteCount}명 남음)`;
+  $("claimFriendInviteReward").innerHTML = inviteCount >= inviteLimit
+    ? "<span>초대 보상 MAX</span>"
+    : `<span>친구 초대하기</span><small>${inviteLimit - inviteCount}명 남음</small>`;
 }
 
 function renderShopPanel(player) {
@@ -1043,27 +1101,35 @@ function renderShopPanel(player) {
       ? `동행 중 · ${pet.name} 공격 가능`
       : isOneStoreTarget()
         ? "잠김 · 심사용 잠금 해제"
-        : `잠김 · ₩${price.toLocaleString("ko-KR")}`;
+        : `잠김 · ${iapDisplayAmount(index === 0 ? "flarePet" : "aquaPet", price)}`;
   });
   $("buyCompanion").disabled = pets >= maxPets;
   $("buyCompanion").innerHTML = pets >= maxPets
     ? "<span>동료 펫 MAX</span><small>모든 펫 동행 중</small>"
     : isOneStoreTarget()
       ? `<span>${petMeta[pets]?.name || "동료 펫"} 잠금 해제</span><small>심사용 게임 보상</small>`
-      : `<span>${petMeta[pets]?.name || "동료 펫"} 구매</span><small>₩${price.toLocaleString("ko-KR")}</small>`;
+      : `<span>${petMeta[pets]?.name || "동료 펫"} 구매</span><small>${iapDisplayAmount(pets === 0 ? "flarePet" : "aquaPet", price)}</small>`;
   $("skillPointPackCopy").textContent = `SP ${packAmount.toLocaleString("ko-KR")}개 즉시 지급`;
   const spAvailable = skillPointRewardsAvailable(player);
   $("skillPointPackStatus").textContent = spAvailable
     ? isOneStoreTarget()
       ? "심사용 게임 보상"
-      : `₩${packPrice.toLocaleString("ko-KR")}`
+      : iapDisplayAmount("skillPointPack", packPrice)
     : "모든 스킬 MAX";
   $("buySkillPointPack").disabled = !spAvailable;
   $("buySkillPointPack").innerHTML = spAvailable
     ? isOneStoreTarget()
       ? `<span>SP ${packAmount.toLocaleString("ko-KR")} 받기</span><small>심사용 게임 보상</small>`
-      : `<span>SP ${packAmount.toLocaleString("ko-KR")} 구매</span><small>₩${packPrice.toLocaleString("ko-KR")}</small>`
+      : `<span>SP ${packAmount.toLocaleString("ko-KR")} 구매</span><small>${iapDisplayAmount("skillPointPack", packPrice)}</small>`
     : "<span>SP 구매 비활성</span><small>모든 스킬 MAX</small>";
+}
+
+function iapProduct(productKey) {
+  return state.iapProducts[iapProductId(productKey)] || null;
+}
+
+function iapDisplayAmount(productKey, fallbackWon) {
+  return iapProduct(productKey)?.displayAmount || `₩${Number(fallbackWon || 0).toLocaleString("ko-KR")}`;
 }
 
 function unlockedPetCount(player = state.player) {
@@ -1414,6 +1480,9 @@ function createIapOrder(productId, action) {
       },
       onEvent: (event) => {
         if (event.type === "success") {
+          if (event.data?.sku) {
+            state.iapProducts[event.data.sku] = event.data;
+          }
           cleanup?.();
         }
       },
@@ -1986,7 +2055,7 @@ $("buyCompanion").addEventListener("click", () => runPurchaseFlow({
     : "결제를 완료하면 동료 펫이 1마리 추가돼요.",
   amountText: isOneStoreTarget()
     ? "심사용 잠금 해제"
-    : `₩${(state.player?.companionPriceWon || companionPriceWon).toLocaleString("ko-KR")}`,
+    : iapDisplayAmount(unlockedPetCount() === 0 ? "flarePet" : "aquaPet", state.player?.companionPriceWon || companionPriceWon),
   productId: () => {
     const pets = unlockedPetCount();
     return pets === 0 ? iapProductId("flarePet") : iapProductId("aquaPet");
@@ -2008,7 +2077,7 @@ $("buySkillPointPack").addEventListener("click", () => {
     : `결제를 완료하면 SP ${(state.player?.skillPointPackAmount || skillPointPackAmount).toLocaleString("ko-KR")}개가 지급돼요.`,
   amountText: isOneStoreTarget()
     ? "심사용 게임 보상"
-    : `₩${(state.player?.skillPointPackPriceWon || skillPointPackPriceWon).toLocaleString("ko-KR")}`,
+    : iapDisplayAmount("skillPointPack", state.player?.skillPointPackPriceWon || skillPointPackPriceWon),
   productId: () => iapProductId("skillPointPack"),
   request: () => api(isOneStoreTarget()
     ? "/api/player/onestore/shop/skill-points/claim"
@@ -2136,7 +2205,8 @@ function initializeDevPanel() {
 initializeDevPanel();
 syncBgmState();
 document.addEventListener("pointerdown", () => startBgm(), { once: true, passive: true });
-document.addEventListener("visibilitychange", () => syncPageSoundState(!document.hidden));
+document.addEventListener("visibilitychange", () => handlePageVisibility(!document.hidden));
+window.addEventListener("focus", () => handlePageVisibility(true));
 window.addEventListener("pagehide", () => {
   syncPageSoundState(false);
 });
@@ -2152,5 +2222,8 @@ setInterval(() => {
 }, 250);
 
 loadAppConfig()
-  .then(() => refresh())
+  .then(async () => {
+    await refresh();
+    loadIapProductInfo();
+  })
   .catch((error) => setMessage(error.message));
