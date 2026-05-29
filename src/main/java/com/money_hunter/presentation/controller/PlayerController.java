@@ -97,6 +97,11 @@ public class PlayerController {
 		return playerService.hitMonster(userKey(principal));
 	}
 
+	@PostMapping("/tutorial/feature/complete")
+	public PlayerStateResponse completeFeatureTutorial(Principal principal) {
+		return playerService.completeFeatureTutorial(userKey(principal));
+	}
+
 	@PostMapping("/skills/upgrade")
 	public PlayerStateResponse upgradeSkill(Principal principal, @Valid @RequestBody UpgradeSkillRequest request) {
 		return playerService.upgradeSkill(userKey(principal), request.type());

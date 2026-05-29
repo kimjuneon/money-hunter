@@ -74,6 +74,8 @@ public class Player {
 
 	private Instant tutorialRewardClaimedAt;
 
+	private Instant featureTutorialCompletedAt;
+
 	private Instant suspendedAt;
 
 	@Column(length = 500)
@@ -260,6 +262,15 @@ public class Player {
 		touch();
 	}
 
+	public boolean hasCompletedFeatureTutorial() {
+		return featureTutorialCompletedAt != null;
+	}
+
+	public void completeFeatureTutorial(Instant completedAt) {
+		this.featureTutorialCompletedAt = completedAt;
+		touch();
+	}
+
 	public boolean isSuspended() {
 		return suspendedAt != null;
 	}
@@ -313,6 +324,7 @@ public class Player {
 		this.autoHuntEndNotifiedAt = null;
 		this.boostEndsAt = null;
 		this.tutorialRewardClaimedAt = null;
+		this.featureTutorialCompletedAt = null;
 		this.lastSettledAt = now;
 		this.skills.forEach(PlayerSkill::resetLevel);
 		touch();

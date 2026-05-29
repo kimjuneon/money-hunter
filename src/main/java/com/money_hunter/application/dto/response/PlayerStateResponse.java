@@ -10,6 +10,7 @@ public record PlayerStateResponse(
 		JobType job,
 		boolean onboardingRequired,
 		boolean tutorialRewardClaimed,
+		boolean featureTutorialRequired,
 		int characterSlots,
 		int maxCharacterSlots,
 		int companionPriceWon,

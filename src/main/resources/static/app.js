@@ -118,7 +118,6 @@ const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
 const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
-const featureTutorialStorageKey = "moneyHunterFeatureTutorialV2";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@latest/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
 let tossSdkPromise = null;
@@ -183,7 +182,7 @@ const featureTutorialSteps = [
     target: "#rewardPanel",
     panel: "reward",
     title: "보상 수령",
-    body: "모은 골드는 포인트 기준으로 환산돼요. 조건을 채우면 광고 확인 후 토스 포인트 지급 대기 기록을 만들 수 있어요.",
+    body: "모은 골드는 포인트 기준으로 환산돼요. 수령 가능 상태가 되면 광고를 확인하고 토스 포인트 지급을 신청할 수 있어요.",
   },
   {
     target: "#shopPanel",
@@ -222,14 +221,6 @@ function storedValue(key) {
 function storeValue(key, value) {
   try {
     window.localStorage.setItem(key, value);
-  } catch {
-    // Local storage can be unavailable in embedded test environments.
-  }
-}
-
-function removeStoredValue(key) {
-  try {
-    window.localStorage.removeItem(key);
   } catch {
     // Local storage can be unavailable in embedded test environments.
   }
@@ -347,15 +338,11 @@ function setMessage(message, durationMs = 2400) {
   }, durationMs + 80);
 }
 
-function featureTutorialCompleted() {
-  return storedValue(featureTutorialStorageKey) === "done";
-}
-
 function maybeStartFeatureTutorial() {
   if (
     state.featureTutorialStarted
     || state.featureTutorialActive
-    || featureTutorialCompleted()
+    || state.player?.featureTutorialRequired !== true
     || !state.player?.job
     || state.player.onboardingRequired
   ) {
@@ -366,7 +353,7 @@ function maybeStartFeatureTutorial() {
 }
 
 function startFeatureTutorial(index = 0) {
-  if (!state.player?.job || state.player.onboardingRequired || featureTutorialCompleted()) {
+  if (!state.player?.job || state.player.onboardingRequired || state.player.featureTutorialRequired !== true) {
     return;
   }
   state.featureTutorialActive = true;
@@ -376,15 +363,21 @@ function startFeatureTutorial(index = 0) {
   renderFeatureTutorialStep();
 }
 
-function finishFeatureTutorial() {
+async function finishFeatureTutorial() {
   state.featureTutorialActive = false;
   state.featureTutorialStarted = true;
-  storeValue(featureTutorialStorageKey, "done");
   window.clearTimeout(state.featureTutorialPositionTimer);
   $("featureTutorial").classList.add("hidden");
+  $("featureTutorial").classList.remove("is-positioning");
   document.body.classList.remove("feature-tutorial-open");
   showContentPanel("skill");
-  setMessage("튜토리얼을 완료했어요. 이제 자유롭게 성장해보세요.");
+  try {
+    state.player = await api("/api/player/tutorial/feature/complete", { method: "POST" });
+    render();
+    setMessage("튜토리얼을 완료했어요. 이제 자유롭게 성장해보세요.");
+  } catch (error) {
+    setMessage(error.message || "튜토리얼 완료 저장에 실패했어요.");
+  }
 }
 
 function nextFeatureTutorialStep() {
@@ -412,6 +405,7 @@ function renderFeatureTutorialStep() {
   $("tutorialTitle").textContent = step.title;
   $("tutorialBody").textContent = step.body;
   $("tutorialNext").textContent = state.featureTutorialIndex >= featureTutorialSteps.length - 1 ? "시작하기" : "다음";
+  $("featureTutorial").classList.add("is-positioning");
   window.clearTimeout(state.featureTutorialPositionTimer);
   state.featureTutorialPositionTimer = window.setTimeout(positionFeatureTutorial, 90);
 }
@@ -426,7 +420,11 @@ function positionFeatureTutorial() {
     nextFeatureTutorialStep();
     return;
   }
-  target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+  const initialRect = target.getBoundingClientRect();
+  const alreadyVisible = initialRect.top >= 12 && initialRect.bottom <= window.innerHeight - 12;
+  if (!alreadyVisible) {
+    target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+  }
   window.clearTimeout(state.featureTutorialPositionTimer);
   state.featureTutorialPositionTimer = window.setTimeout(() => {
     const rect = target.getBoundingClientRect();
@@ -457,7 +455,8 @@ function positionFeatureTutorial() {
       : Math.max(14, aboveTop);
     card.style.left = `${left}px`;
     card.style.top = `${top}px`;
-  }, 220);
+    $("featureTutorial").classList.remove("is-positioning");
+  }, alreadyVisible ? 90 : 280);
 }
 
 function syncBgmState() {
@@ -1475,6 +1474,7 @@ async function simulateHit() {
   const beforeLevel = state.player.level;
   try {
     const next = await api("/api/player/combat/hit", { method: "POST" });
+    const impactJob = activeJob();
     state.player = next;
     state.displayGold = Math.max(state.displayGold, next.gold);
     const gainedGold = Math.max(0, next.gold - beforeGold);
@@ -1485,7 +1485,7 @@ async function simulateHit() {
     if (gainedGold > 0) {
       spawnGoldPop(gainedGold);
     }
-    pulseMonsterHp(beforeMonsterKey && beforeMonsterKey !== next.monster.key);
+    scheduleMonsterImpact(beforeMonsterKey && beforeMonsterKey !== next.monster.key, impactJob);
     if (next.level > beforeLevel) {
       showLevelUpModal(next.level, next.level - beforeLevel);
       setMessage(`Lv.${next.level} 달성! 스킬 포인트 1개를 얻었어요.`);
@@ -1587,6 +1587,11 @@ function pulseMonsterHp(defeated = false) {
   monster.classList.remove("hit", "defeated");
   playMonsterHitSound(defeated);
   window.requestAnimationFrame(() => monster.classList.add(defeated ? "defeated" : "hit"));
+}
+
+function scheduleMonsterImpact(defeated = false, job = activeJob()) {
+  const impactDelayMs = Math.round(attackMotionMs(job) * 0.72);
+  window.setTimeout(() => pulseMonsterHp(defeated), impactDelayMs);
 }
 
 document.querySelectorAll(".job-select").forEach((button) => {
@@ -1919,7 +1924,6 @@ function initializeDevPanel() {
       state.dismissedJobModal = false;
       state.featureTutorialStarted = false;
       state.featureTutorialActive = false;
-      removeStoredValue(featureTutorialStorageKey);
       $("featureTutorial").classList.add("hidden");
       return api("/api/player/test/reset", { method: "POST" });
     },

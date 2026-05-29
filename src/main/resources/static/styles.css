@@ -814,7 +814,7 @@ button {
   flex: 0 0 auto;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  padding: 4px 7px 9px;
+  padding: 5px 7px calc(15px + env(safe-area-inset-bottom, 0px));
   background: #596573;
 }
 
@@ -1171,7 +1171,7 @@ button {
 
 .upgrade-sheet {
   min-height: 100%;
-  padding: 7px;
+  padding: 0 7px 7px;
   background: #596573;
 }
 
@@ -1348,6 +1348,7 @@ button {
 .tutorial-spotlight {
   position: fixed;
   z-index: 91;
+  opacity: 1;
   border: 2px solid #facc15;
   border-radius: 12px;
   box-shadow:
@@ -1358,18 +1359,33 @@ button {
     left 0.22s ease,
     top 0.22s ease,
     width 0.22s ease,
-    height 0.22s ease;
+    height 0.22s ease,
+    opacity 0.18s ease;
 }
 
 .tutorial-card {
   position: fixed;
   z-index: 92;
+  opacity: 1;
+  transform: translateY(0) scale(1);
   padding: 15px;
   border: 2px solid rgba(250, 204, 21, 0.72);
   border-radius: 12px;
   background: #f8fafc;
   color: var(--ink);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.feature-tutorial.is-positioning .tutorial-spotlight,
+.feature-tutorial.is-positioning .tutorial-card {
+  opacity: 0;
+}
+
+.feature-tutorial.is-positioning .tutorial-card {
+  transform: translateY(8px) scale(0.98);
 }
 
 .tutorial-count {

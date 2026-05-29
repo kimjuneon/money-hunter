@@ -225,6 +225,14 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse completeFeatureTutorial(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		player.completeFeatureTutorial(clock.instant());
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse upgradeSkill(String userKey, SkillType type) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
@@ -588,6 +596,7 @@ public class PlayerService {
 				player.getJob(),
 				!player.hasChosenJob(),
 				player.hasClaimedTutorialReward(),
+				player.hasChosenJob() && !player.hasCompletedFeatureTutorial(),
 				player.getCharacterSlots(),
 				economy.maxCharacterSlots(),
 				economy.companionPriceWon(),
