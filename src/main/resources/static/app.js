@@ -930,7 +930,7 @@ function attackIntervalMillis(player = state.player) {
     return player.attackIntervalMillis;
   }
   const rapidBonus = Math.min(900, skillLevel("RAPID_ATTACK") * 45);
-  return Math.max(900, (isActive(player?.boostEndsAt) ? 1200 : 2400) - rapidBonus);
+  return Math.max(750, (isActive(player?.boostEndsAt) ? 750 : 1500) - rapidBonus);
 }
 
 function renderRewardPanel(player) {
