@@ -1,0 +1,19 @@
+{
+  "name": "money-hunter-apps-in-toss",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build:web": "vite build",
+    "build": "ait build"
+  },
+  "dependencies": {
+    "@apps-in-toss/web-framework": "2.4.1"
+  },
+  "devDependencies": {
+    "@apps-in-toss/cli": "2.4.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0"
+  }
+}

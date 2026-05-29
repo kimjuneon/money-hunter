@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ecfeff"/>
+      <stop offset="1" stop-color="#ede9fe"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="44" y1="17" x2="81" y2="109" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fef08a"/>
+      <stop offset=".5" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="4" flood-color="#1e3a8a" flood-opacity=".24"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="22" fill="url(#bg)"/>
+  <path d="M72 15 35 68h27l-10 45 43-61H69Z" fill="url(#bolt)" filter="url(#shadow)"/>
+  <path d="M16 43h34" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity=".9"/>
+  <path d="M20 65h30" stroke="#60a5fa" stroke-width="7" stroke-linecap="round" opacity=".82"/>
+  <path d="M17 87h27" stroke="#818cf8" stroke-width="6" stroke-linecap="round" opacity=".74"/>
+  <path d="M88 27c7 2 12 7 15 15 3-8 8-13 16-15-8-3-13-8-16-16-3 8-8 13-15 16Z" fill="#facc15" opacity=".9"/>
+</svg>

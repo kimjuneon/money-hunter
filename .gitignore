@@ -42,5 +42,12 @@ android-onestore/local.properties
 /nbdist/
 /.nb-gradle/
 
+### Node / Apps in Toss ###
+node_modules/
+apps-in-toss/dist/
+apps-in-toss/.granite/
+apps-in-toss/node_modules/
+apps-in-toss/*.ait
+
 ### VS Code ###
 .vscode/

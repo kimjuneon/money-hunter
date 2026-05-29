@@ -14,10 +14,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("prod")
+@TestPropertySource(properties = {
+		"money-hunter.app.toss-login-enabled=false",
+		"money-hunter.app.toss-user-key-enabled=false"
+})
 @AutoConfigureMockMvc
 @SpringBootTest
 class ProdProfileApiExposureTest {

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="4" flood-color="#0f172a" flood-opacity=".28"/>
+    </filter>
+    <radialGradient id="fur" cx="42%" cy="32%" r="70%">
+      <stop offset="0" stop-color="#fff7ad"/>
+      <stop offset=".45" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </radialGradient>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M25 78c-11-13-6-31 13-34 5-18 26-24 42-11 19-3 34 14 27 32 15 12 7 36-13 37H46c-10 0-17-7-21-24Z" fill="url(#fur)"/>
+    <path d="M35 43 27 21l24 12Zm54-5 18-18-2 28Z" fill="#fb923c"/>
+    <path d="M41 45 36 31l15 8Zm49-5 11-10-2 16Z" fill="#fff7ad"/>
+    <path d="M35 87c18 9 42 10 64-1-3 13-14 21-31 21-18 0-29-8-33-20Z" fill="#fff7ad"/>
+    <circle cx="53" cy="61" r="6" fill="#172033"/>
+    <circle cx="82" cy="61" r="6" fill="#172033"/>
+    <circle cx="55" cy="59" r="2" fill="#fff"/>
+    <circle cx="84" cy="59" r="2" fill="#fff"/>
+    <path d="M62 75c5 5 10 5 15 0" fill="none" stroke="#7c2d12" stroke-width="5" stroke-linecap="round"/>
+    <path d="M25 81c-18 6-21-13-7-22 8-5 17-2 20 7-14-1-20 5-13 15Z" fill="#facc15"/>
+    <path d="M104 66c8-15 27-8 19 8-5 10-18 10-25 4 11-2 14-7 6-12Z" fill="#fdba74"/>
+  </g>
+</svg>
