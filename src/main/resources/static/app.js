@@ -200,7 +200,7 @@ const featureTutorialSteps = [
     target: "#rewardPanel",
     panel: "reward",
     title: "보상 수령",
-    body: "모은 골드는 포인트 기준으로 환산돼요. 수령 가능 상태가 되면 광고를 확인하고 토스 포인트 지급을 신청할 수 있어요.",
+    body: "모은 골드는 포인트 기준으로 환산돼요. 수령 가능 상태가 되면 토스포인트로 받을 수 있어요.",
   },
   {
     target: ".panel-tabs",
@@ -1074,7 +1074,7 @@ function renderRewardPanel(player) {
   $("claimReward").innerHTML = player.rewardClaimable
     ? isOneStoreTarget()
       ? "<span>게임 보상 수령</span><small>심사용 즉시 지급</small>"
-      : `<span>광고 보고 ${claimPointAmount.toLocaleString("ko-KR")}P 신청</span><small>토스 포인트 지급 대기 등록</small>`
+      : `<span>토스포인트 받기</span><small>${claimPointAmount.toLocaleString("ko-KR")}P 수령 가능</small>`
     : `<span>${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요</span><small>조건 달성 후 수령 가능</small>`;
   $("friendInviteRewardCopy").textContent = `초대 성공 시 SP ${inviteReward.toLocaleString("ko-KR")}개 지급`;
   $("friendInviteRewardStatus").textContent = `${inviteCount.toLocaleString("ko-KR")} / ${inviteLimit.toLocaleString("ko-KR")}명 완료`;
@@ -1605,7 +1605,7 @@ async function run(request, message) {
     if (result.state) {
       state.player = result.state;
       state.displayGold = state.player.gold;
-      setMessage(`${result.pointAmount} 토스 포인트 지급 대기 상태가 생성됐어요.`);
+      setMessage(`${result.pointAmount} 토스포인트 수령을 신청했어요.`);
     } else {
       state.player = result;
       state.displayGold = Math.max(state.displayGold, state.player.gold);
@@ -2025,7 +2025,7 @@ $("claimReward").addEventListener("click", () => runRewardFlow(
   "리워드 수령 광고",
   isOneStoreTarget()
     ? "게임 내 보상으로 SP가 지급돼요."
-    : "완료하면 토스 포인트 지급 대기 기록이 생성돼요.",
+    : "완료하면 토스포인트 수령을 신청해요.",
   {
     adGroupKey: "rewardClaim",
     adEventType: "REWARD_CLAIM",
