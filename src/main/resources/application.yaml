@@ -32,6 +32,7 @@ money-hunter:
     real-reward-ads-enabled: false
     real-banner-ads-enabled: false
     real-payments-enabled: false
+    real-iap-order-verification-enabled: true
     real-toss-point-rewards-enabled: false
     real-smart-message-enabled: false
     real-share-reward-enabled: false
@@ -75,6 +76,24 @@ money-hunter:
         - https://money-hunter-review-*.a.run.app
         - http://localhost:*
         - http://127.0.0.1:*
+        - http://10.*:*
+        - http://172.16.*:*
+        - http://172.17.*:*
+        - http://172.18.*:*
+        - http://172.19.*:*
+        - http://172.20.*:*
+        - http://172.21.*:*
+        - http://172.22.*:*
+        - http://172.23.*:*
+        - http://172.24.*:*
+        - http://172.25.*:*
+        - http://172.26.*:*
+        - http://172.27.*:*
+        - http://172.28.*:*
+        - http://172.29.*:*
+        - http://172.30.*:*
+        - http://172.31.*:*
+        - http://192.168.*:*
   economy:
     ad-revenue-per-reward-ad-won: 60
     gold-per-toss-point: 100
@@ -118,6 +137,7 @@ money-hunter:
     real-reward-ads-enabled: ${TOSS_REWARD_ADS_ENABLED:false}
     real-banner-ads-enabled: ${TOSS_BANNER_ADS_ENABLED:false}
     real-payments-enabled: ${TOSS_PAYMENTS_ENABLED:false}
+    real-iap-order-verification-enabled: ${TOSS_IAP_ORDER_VERIFICATION_ENABLED:true}
     real-toss-point-rewards-enabled: ${TOSS_POINT_REWARDS_ENABLED:false}
     real-smart-message-enabled: ${TOSS_SMART_MESSAGE_ENABLED:false}
     real-share-reward-enabled: ${TOSS_SHARE_REWARD_ENABLED:false}
@@ -138,9 +158,11 @@ money-hunter:
   app:
     review-tools-enabled: true
     guest-user-enabled: true
-    mock-monetization-enabled: true
-    integration-mode: review-mock
+    mock-monetization-enabled: ${REVIEW_MOCK_MONETIZATION_ENABLED:true}
+    integration-mode: ${REVIEW_INTEGRATION_MODE:review-mock}
     distribution-target: TOSS
+    real-payments-enabled: ${REVIEW_PAYMENTS_ENABLED:false}
+    real-iap-order-verification-enabled: ${REVIEW_IAP_ORDER_VERIFICATION_ENABLED:false}
   security:
     cors:
       allowed-origin-patterns:
@@ -149,6 +171,24 @@ money-hunter:
         - https://money-hunter-review-*.a.run.app
         - http://localhost:*
         - http://127.0.0.1:*
+        - http://10.*:*
+        - http://172.16.*:*
+        - http://172.17.*:*
+        - http://172.18.*:*
+        - http://172.19.*:*
+        - http://172.20.*:*
+        - http://172.21.*:*
+        - http://172.22.*:*
+        - http://172.23.*:*
+        - http://172.24.*:*
+        - http://172.25.*:*
+        - http://172.26.*:*
+        - http://172.27.*:*
+        - http://172.28.*:*
+        - http://172.29.*:*
+        - http://172.30.*:*
+        - http://172.31.*:*
+        - http://192.168.*:*
 
 ---
 spring:

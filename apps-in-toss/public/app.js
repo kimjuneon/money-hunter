@@ -1,4 +1,5 @@
 const distributionTargetOverride = new URLSearchParams(window.location.search).get("target");
+const pendingIapProductStorageKey = "moneyHunter.pendingIapProducts";
 
 const state = {
   player: null,
@@ -33,6 +34,7 @@ const state = {
   authToken: "",
   reviewToolsEnabled: false,
   mockMonetizationEnabled: false,
+  integrationMode: "",
   tossReleaseReady: false,
   tossLoginEnabled: false,
   realRewardAdsEnabled: false,
@@ -47,10 +49,45 @@ const state = {
   shareRewardMessage: "친구에게 공유하고 SP 5개를 받아요",
   realAdInFlight: false,
   realPaymentInFlight: false,
+  pendingIapRestoreInFlight: false,
+  pendingIapProductIdsByOrderId: readPendingIapProductIds(),
   shareRewardInFlight: false,
   loginInFlight: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
+
+function readPendingIapProductIds() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(pendingIapProductStorageKey) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePendingIapProductIds() {
+  try {
+    localStorage.setItem(pendingIapProductStorageKey, JSON.stringify(state.pendingIapProductIdsByOrderId));
+  } catch {
+    // Storage failures should never block purchase grant callbacks.
+  }
+}
+
+function rememberPendingIapProduct(orderId, productId) {
+  if (!orderId || !productId) {
+    return;
+  }
+  state.pendingIapProductIdsByOrderId[orderId] = productId;
+  savePendingIapProductIds();
+}
+
+function forgetPendingIapProduct(orderId) {
+  if (!orderId || !state.pendingIapProductIdsByOrderId[orderId]) {
+    return;
+  }
+  delete state.pendingIapProductIdsByOrderId[orderId];
+  savePendingIapProductIds();
+}
 
 const emptyElement = {
   textContent: "",
@@ -320,6 +357,10 @@ function shouldUseRealPayments() {
   return !isOneStoreTarget() && state.realPaymentsEnabled && !state.mockMonetizationEnabled;
 }
 
+function isReviewIapSandboxMode() {
+  return state.integrationMode === "review-iap-sandbox";
+}
+
 function shouldUseRealShareReward() {
   return !isOneStoreTarget() && state.realShareRewardEnabled && !state.mockMonetizationEnabled;
 }
@@ -563,6 +604,7 @@ function handlePageVisibility(visible = !document.hidden) {
   if (!visible || !state.player || state.resumeRefreshInFlight) {
     return;
   }
+  schedulePendingIapRestoreRetries();
   state.resumeRefreshInFlight = true;
   refresh()
     .catch((error) => setMessage(error.message))
@@ -713,6 +755,9 @@ async function requestTossAuthorization() {
 }
 
 async function loadTossSdk() {
+  if (window.MoneyHunterTossSdk) {
+    return window.MoneyHunterTossSdk;
+  }
   if (!tossSdkPromise) {
     tossSdkPromise = import(appsInTossSdkUrl);
   }
@@ -770,6 +815,7 @@ async function loadAppConfig() {
     state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride || config.distributionTarget);
     state.reviewToolsEnabled = Boolean(config.reviewToolsEnabled) && !isOneStoreTarget();
     state.mockMonetizationEnabled = Boolean(config.mockMonetizationEnabled);
+    state.integrationMode = config.integrationMode || "";
     state.tossReleaseReady = Boolean(config.tossReleaseReady);
     state.tossLoginEnabled = Boolean(config.tossLoginEnabled);
     state.realRewardAdsEnabled = Boolean(config.realRewardAdsEnabled);
@@ -785,6 +831,7 @@ async function loadAppConfig() {
     state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride);
     state.reviewToolsEnabled = false;
     state.mockMonetizationEnabled = isOneStoreTarget();
+    state.integrationMode = "";
     state.tossReleaseReady = false;
     state.tossLoginEnabled = false;
     state.realRewardAdsEnabled = false;
@@ -1453,6 +1500,46 @@ async function runRealIapPurchase(action) {
   }
 }
 
+function applyGrantedIapState(stateAfterGrant, message = "상품이 지급됐어요.") {
+  state.player = stateAfterGrant;
+  state.displayGold = Math.max(state.displayGold, state.player.gold);
+  setMessage(message);
+  render();
+}
+
+function grantIapProduct(orderId, productId) {
+  return requestWithLoginRetry(() => api("/api/player/shop/iap/grant", {
+    method: "POST",
+    body: JSON.stringify({ orderId, productId }),
+  }));
+}
+
+function isKnownIapProductId(productId) {
+  const normalized = String(productId || "").trim();
+  return Boolean(normalized && Object.values(state.iapProductIds || {}).includes(normalized));
+}
+
+function pendingOrderProductId(order) {
+  const candidates = [order?.sku, order?.productId, order?.productItemId];
+  const directProductId = candidates.find(isKnownIapProductId);
+  if (directProductId) {
+    return directProductId;
+  }
+  const rememberedProductId = state.pendingIapProductIdsByOrderId[order?.orderId];
+  return isKnownIapProductId(rememberedProductId) ? rememberedProductId : "";
+}
+
+function schedulePendingIapRestoreRetries() {
+  if (!shouldUseRealPayments()) {
+    return;
+  }
+  [300, 1000, 3000, 7000, 15000].forEach((delayMs) => {
+    window.setTimeout(() => {
+      restorePendingIapOrders();
+    }, delayMs);
+  });
+}
+
 function createIapOrder(productId, action) {
   return new Promise(async (resolve, reject) => {
     const sdk = await loadTossSdk().catch(reject);
@@ -1464,18 +1551,35 @@ function createIapOrder(productId, action) {
     cleanup = sdk.IAP.createOneTimePurchaseOrder({
       options: {
         sku: productId,
-        processProductGrant: async ({ orderId }) => {
-          try {
-            const stateAfterGrant = await requestWithLoginRetry(() => api("/api/player/shop/iap/grant", {
-              method: "POST",
-              body: JSON.stringify({ orderId, productId }),
-            }));
-            resolve({ state: stateAfterGrant, orderId });
+        processProductGrant: ({ orderId }) => {
+          rememberPendingIapProduct(orderId, productId);
+          setMessage("구매 상품을 지급하는 중...");
+          schedulePendingIapRestoreRetries();
+
+          if (isReviewIapSandboxMode()) {
+            grantIapProduct(orderId, productId)
+              .then((stateAfterGrant) => {
+                forgetPendingIapProduct(orderId);
+                applyGrantedIapState(stateAfterGrant, action.message || "상품이 지급됐어요.");
+                resolve({ state: stateAfterGrant, orderId });
+              })
+              .catch((error) => {
+                reject(error);
+                setMessage(error.message || "상품 지급에 실패했어요.");
+              });
             return true;
-          } catch (error) {
-            reject(error);
-            return false;
           }
+
+          return grantIapProduct(orderId, productId)
+            .then((stateAfterGrant) => {
+              forgetPendingIapProduct(orderId);
+              resolve({ state: stateAfterGrant, orderId });
+              return true;
+            })
+            .catch((error) => {
+              reject(error);
+              return false;
+            });
         },
       },
       onEvent: (event) => {
@@ -1483,15 +1587,68 @@ function createIapOrder(productId, action) {
           if (event.data?.sku) {
             state.iapProducts[event.data.sku] = event.data;
           }
+          schedulePendingIapRestoreRetries();
           cleanup?.();
         }
       },
       onError: (error) => {
+        schedulePendingIapRestoreRetries();
         cleanup?.();
         reject(error instanceof Error ? error : new Error(error?.message || "인앱 결제가 취소되었거나 실패했어요."));
       },
     });
   });
+}
+
+async function completeIapProductGrantIfSupported(sdk, orderId) {
+  if (typeof sdk?.IAP?.completeProductGrant !== "function") {
+    return;
+  }
+  try {
+    await sdk.IAP.completeProductGrant({ params: { orderId } });
+  } catch {
+    // createOneTimePurchaseOrder can complete the grant automatically after
+    // processProductGrant returns true, so duplicate completion failures are safe to ignore.
+  }
+}
+
+async function restorePendingIapOrders() {
+  if (isOneStoreTarget() || state.mockMonetizationEnabled || !state.realPaymentsEnabled) {
+    return;
+  }
+  if (state.pendingIapRestoreInFlight) {
+    return;
+  }
+  state.pendingIapRestoreInFlight = true;
+  const sdk = await loadTossSdk().catch(() => null);
+  if (typeof sdk?.IAP?.getPendingOrders !== "function") {
+    state.pendingIapRestoreInFlight = false;
+    return;
+  }
+  try {
+    const response = await sdk.IAP.getPendingOrders().catch(() => null);
+    const orders = Array.isArray(response?.orders) ? response.orders : [];
+    for (const order of orders) {
+      const productId = pendingOrderProductId(order);
+      if (!order?.orderId || !productId) {
+        continue;
+      }
+      try {
+        const stateAfterGrant = await grantIapProduct(order.orderId, productId);
+        await completeIapProductGrantIfSupported(sdk, order.orderId);
+        forgetPendingIapProduct(order.orderId);
+        state.player = stateAfterGrant;
+        state.displayGold = Math.max(state.displayGold, state.player.gold);
+        setMessage("대기 중이던 구매 상품을 지급했어요.");
+        render();
+      } catch (error) {
+        setMessage(error.message || "대기 중인 구매 상품 지급에 실패했어요.");
+        break;
+      }
+    }
+  } finally {
+    state.pendingIapRestoreInFlight = false;
+  }
 }
 
 function iapErrorMessage(error) {
@@ -2212,6 +2369,7 @@ window.addEventListener("pagehide", () => {
 });
 window.addEventListener("pageshow", () => {
   syncPageSoundState(!document.hidden);
+  schedulePendingIapRestoreRetries();
 });
 
 setInterval(() => {
@@ -2225,5 +2383,6 @@ loadAppConfig()
   .then(async () => {
     await refresh();
     loadIapProductInfo();
+    restorePendingIapOrders();
   })
   .catch((error) => setMessage(error.message));

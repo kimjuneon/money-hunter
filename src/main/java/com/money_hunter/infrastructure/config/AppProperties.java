@@ -18,6 +18,7 @@ public record AppProperties(
 		boolean realRewardAdsEnabled,
 		boolean realBannerAdsEnabled,
 		boolean realPaymentsEnabled,
+		boolean realIapOrderVerificationEnabled,
 		boolean realTossPointRewardsEnabled,
 		boolean realSmartMessageEnabled,
 		boolean realShareRewardEnabled

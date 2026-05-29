@@ -486,7 +486,7 @@ public class PlayerService {
 	}
 
 	private void verifyIapOrderIfRequired(String userKey, String orderId, String productId) {
-		if (appProperties.mockMonetizationEnabled()) {
+		if (appProperties.mockMonetizationEnabled() || !appProperties.realIapOrderVerificationEnabled()) {
 			return;
 		}
 		TossIapOrderStatus status = tossIapClient.getOrderStatus(userKey, orderId);
