@@ -25,6 +25,7 @@ const state = {
   reviewToolsEnabled: false,
   mockMonetizationEnabled: false,
   tossReleaseReady: false,
+  tossLoginEnabled: false,
   loginInFlight: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
@@ -232,6 +233,10 @@ function rewardGateLabel() {
   return isOneStoreTarget() ? "게임 내 보상" : "광고 시청";
 }
 
+function shouldUseTossLogin() {
+  return !isOneStoreTarget() && state.tossLoginEnabled && !state.mockMonetizationEnabled;
+}
+
 function runRewardFlow(title, description, action) {
   if (isOneStoreTarget()) {
     return run(action.request, action.message);
@@ -259,6 +264,14 @@ function setMessage(message, durationMs = 2400) {
   }, durationMs + 80);
 }
 
+function authErrorMessage(message = "") {
+  const normalized = String(message || "").toLowerCase();
+  if (normalized.includes("expired")) {
+    return "로그인 세션이 만료됐어요. 다시 로그인해 주세요.";
+  }
+  return "토스 로그인이 필요해요.";
+}
+
 async function api(path, options = {}) {
   const { skipAuth = false, ...fetchOptions } = options;
   const response = await fetch(apiUrl(path), {
@@ -272,9 +285,13 @@ async function api(path, options = {}) {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ message: "요청에 실패했어요." }));
-    if (response.status === 401 && !isOneStoreTarget()) {
+    if (response.status === 401 && shouldUseTossLogin()) {
+      const message = authErrorMessage(body.message);
       clearAuthToken();
-      showLoginGate(body.message || "로그인이 필요해요.");
+      showLoginGate(message);
+      const error = new Error(message);
+      error.requiresLogin = true;
+      throw error;
     }
     throw new Error(body.message || "요청에 실패했어요.");
   }
@@ -331,10 +348,11 @@ async function requestTossAuthorization() {
   return sdk.appLogin();
 }
 
-async function startTossLogin() {
+async function startTossLogin(options = {}) {
   if (state.loginInFlight) {
-    return;
+    return false;
   }
+  const { refreshAfterLogin = true } = options;
   state.loginInFlight = true;
   $("loginButton").disabled = true;
   $("loginButton").textContent = "로그인 중...";
@@ -347,10 +365,16 @@ async function startTossLogin() {
       body: JSON.stringify({ authorizationCode, referrer }),
     });
     setAuthToken(session.accessToken);
-    await refresh();
+    if (refreshAfterLogin) {
+      await refresh();
+    } else {
+      hideLoginGate();
+    }
     setMessage("토스 로그인이 완료됐어요.");
+    return true;
   } catch (error) {
     $("loginError").textContent = error.message || "토스 로그인에 실패했어요.";
+    return false;
   } finally {
     state.loginInFlight = false;
     $("loginButton").disabled = false;
@@ -369,11 +393,13 @@ async function loadAppConfig() {
     state.reviewToolsEnabled = Boolean(config.reviewToolsEnabled) && !isOneStoreTarget();
     state.mockMonetizationEnabled = Boolean(config.mockMonetizationEnabled);
     state.tossReleaseReady = Boolean(config.tossReleaseReady);
+    state.tossLoginEnabled = Boolean(config.tossLoginEnabled);
   } catch {
     state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride);
     state.reviewToolsEnabled = false;
     state.mockMonetizationEnabled = isOneStoreTarget();
     state.tossReleaseReady = false;
+    state.tossLoginEnabled = false;
   }
   document.body.classList.toggle("target-onestore", isOneStoreTarget());
   renderReviewToolsVisibility();
@@ -814,7 +840,7 @@ async function finishDummyPayment() {
 async function run(request, message) {
   try {
     setMessage("처리 중...");
-    const result = await request();
+    const result = await requestWithLoginRetry(request);
     if (result.state) {
       state.player = result.state;
       state.displayGold = state.player.gold;
@@ -832,6 +858,30 @@ async function run(request, message) {
     closeJobModalIfReady();
   } catch (error) {
     setMessage(error.message);
+  }
+}
+
+async function requestWithLoginRetry(request) {
+  if (shouldUseTossLogin() && !state.authToken) {
+    setMessage("토스 로그인 후 계속 진행할게요.");
+    const loggedIn = await startTossLogin({ refreshAfterLogin: false });
+    if (!loggedIn) {
+      throw new Error("토스 로그인이 필요해요.");
+    }
+  }
+
+  try {
+    return await request();
+  } catch (error) {
+    if (!error.requiresLogin || !shouldUseTossLogin()) {
+      throw error;
+    }
+    setMessage("로그인 세션을 다시 확인할게요.");
+    const loggedIn = await startTossLogin({ refreshAfterLogin: false });
+    if (!loggedIn) {
+      throw error;
+    }
+    return request();
   }
 }
 
