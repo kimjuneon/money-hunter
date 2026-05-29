@@ -49,6 +49,7 @@ money-hunter:
     connect-timeout: 3s
     request-timeout: 5s
   ads:
+    mode: ${TOSS_AD_MODE:test}
     auto-hunt-reward-ad-group-id: ${TOSS_AD_GROUP_AUTO_HUNT_ID:}
     boost-reward-ad-group-id: ${TOSS_AD_GROUP_BOOST_ID:}
     skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:}

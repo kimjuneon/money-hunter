@@ -46,21 +46,21 @@ public class PlayerController {
 	@PostMapping("/ads/auto-hunt/complete")
 	public PlayerStateResponse completeAutoHuntAd(Principal principal) {
 		String userKey = userKey(principal);
-		requireMockMonetization();
+		requireRewardAdMode();
 		return playerService.completeAutoHuntAd(userKey);
 	}
 
 	@PostMapping("/ads/boost/complete")
 	public PlayerStateResponse completeBoostAd(Principal principal) {
 		String userKey = userKey(principal);
-		requireMockMonetization();
+		requireRewardAdMode();
 		return playerService.completeBoostAd(userKey);
 	}
 
 	@PostMapping("/ads/skill-point/complete")
 	public PlayerStateResponse completeSkillPointAd(Principal principal) {
 		String userKey = userKey(principal);
-		requireMockMonetization();
+		requireRewardAdMode();
 		return playerService.completeSkillPointAd(userKey);
 	}
 
@@ -94,7 +94,7 @@ public class PlayerController {
 			@Valid @RequestBody ClaimRewardRequest request
 	) {
 		String userKey = userKey(principal);
-		requireMockMonetization();
+		requireRewardAdMode();
 		return playerService.claimRewardAfterAd(userKey, request.idempotencyKey());
 	}
 
@@ -166,6 +166,12 @@ public class PlayerController {
 	private void requireMockMonetization() {
 		if (!appProperties.mockMonetizationEnabled()) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "토스 광고, 결제, 리워드 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+		}
+	}
+
+	private void requireRewardAdMode() {
+		if (!appProperties.mockMonetizationEnabled() && !appProperties.realRewardAdsEnabled()) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "리워드 광고 연동이 활성화되어 있지 않아요.");
 		}
 	}
 

@@ -37,6 +37,7 @@ public class AppConfigController {
 				appProperties.realTossPointRewardsEnabled(),
 				appProperties.realSmartMessageEnabled(),
 				appProperties.realShareRewardEnabled(),
+				adProperties.normalizedMode(),
 				adProperties.clientAdGroupIds()
 		);
 	}

@@ -20,6 +20,7 @@ public record AppConfigResponse(
 		boolean realTossPointRewardsEnabled,
 		boolean realSmartMessageEnabled,
 		boolean realShareRewardEnabled,
+		String adMode,
 		Map<String, String> adGroupIds
 ) {
 }

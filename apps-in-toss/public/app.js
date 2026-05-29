@@ -28,6 +28,7 @@ const state = {
   tossLoginEnabled: false,
   realRewardAdsEnabled: false,
   realBannerAdsEnabled: false,
+  adMode: "test",
   adGroupIds: {},
   realAdInFlight: false,
   loginInFlight: false,
@@ -426,6 +427,7 @@ async function loadAppConfig() {
     state.tossLoginEnabled = Boolean(config.tossLoginEnabled);
     state.realRewardAdsEnabled = Boolean(config.realRewardAdsEnabled);
     state.realBannerAdsEnabled = Boolean(config.realBannerAdsEnabled);
+    state.adMode = config.adMode || "test";
     state.adGroupIds = config.adGroupIds || {};
   } catch {
     state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride);
@@ -435,6 +437,7 @@ async function loadAppConfig() {
     state.tossLoginEnabled = false;
     state.realRewardAdsEnabled = false;
     state.realBannerAdsEnabled = false;
+    state.adMode = "test";
     state.adGroupIds = {};
   }
   document.body.classList.toggle("target-onestore", isOneStoreTarget());
@@ -739,6 +742,7 @@ function renderPets(player) {
 function showContentPanel(panel) {
   const showReward = panel === "reward";
   const showShop = panel === "shop";
+  document.querySelector(".game-shell").dataset.panel = showReward ? "reward" : showShop ? "shop" : "skill";
   $("skillPanel").classList.toggle("hidden", showReward || showShop);
   $("rewardPanel").classList.toggle("hidden", !showReward);
   $("shopPanel").classList.toggle("hidden", !showShop);
@@ -912,6 +916,7 @@ async function runRealFullScreenAd(title, description, action) {
   try {
     await loadRealFullScreenAd(groupId);
     await showRealFullScreenAd(groupId, action.requiresReward !== false);
+    setMessage("광고 시청 완료, 보상을 지급하는 중이에요.");
     await run(action.request, action.message);
   } catch (error) {
     const message = error?.message || "광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
