@@ -32,8 +32,10 @@ import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.MonsterResponse;
 import com.money_hunter.application.dto.response.RewardClaimResponse;
 import com.money_hunter.application.dto.response.SkillResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class PlayerService {
@@ -391,11 +393,19 @@ public class PlayerService {
 	}
 
 	private Player getOrCreatePlayer(String userKey) {
-		return playerRepository.findByUserKey(userKey)
+		Player player = playerRepository.findByUserKey(userKey)
 				.orElseGet(() -> {
 					playerRepository.insertIfAbsent(userKey, clock.instant());
 					return playerRepository.findByUserKey(userKey).orElseThrow();
 				});
+		requireActivePlayer(player);
+		return player;
+	}
+
+	private void requireActivePlayer(Player player) {
+		if (player.isSuspended()) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "정지된 유저예요. 관리자에게 문의해 주세요.");
+		}
 	}
 
 	private void settle(Player player) {

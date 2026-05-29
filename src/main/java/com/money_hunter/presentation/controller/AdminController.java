@@ -5,19 +5,26 @@ import java.util.List;
 import com.money_hunter.application.AdminAccessGuard;
 import com.money_hunter.application.AdminAuditService;
 import com.money_hunter.application.AdminMonitoringService;
+import com.money_hunter.application.AdminPlayerService;
 import com.money_hunter.application.RuntimeEconomyService;
 import com.money_hunter.application.RuntimeEconomyService.PolicyChangeResult;
 import com.money_hunter.application.RuntimeEconomyService.PolicyDefinition;
+import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
+import com.money_hunter.application.dto.response.AdminPlayerResponse;
 import com.money_hunter.domain.AdminAuditLog;
+import com.money_hunter.presentation.dto.request.AdminPlayerActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
 import com.money_hunter.application.dto.response.AdminAuditLogResponse;
 import com.money_hunter.application.dto.response.AdminAuditPageResponse;
 import com.money_hunter.application.dto.response.AdminPolicyResponse;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -32,17 +39,20 @@ public class AdminController {
 	private final AdminMonitoringService monitoringService;
 	private final RuntimeEconomyService economyService;
 	private final AdminAuditService adminAuditService;
+	private final AdminPlayerService adminPlayerService;
 
 	public AdminController(
 			AdminAccessGuard adminAccessGuard,
 			AdminMonitoringService monitoringService,
 			RuntimeEconomyService economyService,
-			AdminAuditService adminAuditService
+			AdminAuditService adminAuditService,
+			AdminPlayerService adminPlayerService
 	) {
 		this.adminAccessGuard = adminAccessGuard;
 		this.monitoringService = monitoringService;
 		this.economyService = economyService;
 		this.adminAuditService = adminAuditService;
+		this.adminPlayerService = adminPlayerService;
 	}
 
 	@GetMapping("/overview")
@@ -55,6 +65,76 @@ public class AdminController {
 	public AdminMonitoringService.AdminAnomalyReport anomalies(HttpServletRequest request) {
 		adminAccessGuard.require(request);
 		return monitoringService.anomalies();
+	}
+
+	@GetMapping("/players")
+	public List<AdminPlayerResponse> players(
+			@RequestParam(defaultValue = "") String query,
+			@RequestParam(defaultValue = "30") int limit,
+			HttpServletRequest request
+	) {
+		adminAccessGuard.require(request);
+		return adminPlayerService.search(query, limit);
+	}
+
+	@PostMapping("/players/{userKey}/suspend")
+	public AdminPlayerResponse suspendPlayer(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerActionRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		requireReason(requestBody.reason());
+		AdminPlayerResponse player = adminPlayerService.suspend(userKey, requestBody.reason().trim());
+		adminAuditService.record(
+				admin,
+				"USER_SUSPEND",
+				player.userKey(),
+				"ACTIVE",
+				"SUSPENDED",
+				requestBody.reason(),
+				request);
+		return player;
+	}
+
+	@PostMapping("/players/{userKey}/resume")
+	public AdminPlayerResponse resumePlayer(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerActionRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		requireReason(requestBody.reason());
+		AdminPlayerResponse player = adminPlayerService.resume(userKey);
+		adminAuditService.record(
+				admin,
+				"USER_RESUME",
+				player.userKey(),
+				"SUSPENDED",
+				"ACTIVE",
+				requestBody.reason(),
+				request);
+		return player;
+	}
+
+	@PostMapping("/players/{userKey}/reset")
+	public AdminPlayerResetResponse resetPlayer(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerActionRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		requireReason(requestBody.reason());
+		AdminPlayerResetResponse result = adminPlayerService.resetFromLogin(userKey);
+		adminAuditService.record(
+				admin,
+				"USER_RESET",
+				result.userKey(),
+				"EXISTS",
+				result.playerDeleted() ? "DELETED" : "NO_PLAYER",
+				requestBody.reason(),
+				request);
+		return result;
 	}
 
 	@GetMapping("/policies")

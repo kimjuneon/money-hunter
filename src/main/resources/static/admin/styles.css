@@ -88,6 +88,11 @@ input {
   color: white;
 }
 
+.danger {
+  background: var(--red);
+  color: white;
+}
+
 .login-panel button {
   width: 100%;
   margin-top: 14px;
@@ -254,14 +259,16 @@ nav {
 
 .policy-list,
 .audit-list,
-.anomaly-list {
+.anomaly-list,
+.player-list {
   display: grid;
   gap: 10px;
 }
 
 .policy-row,
 .audit-row,
-.anomaly-row {
+.anomaly-row,
+.player-row {
   display: grid;
   align-items: center;
   gap: 12px;
@@ -273,6 +280,69 @@ nav {
 
 .policy-row {
   grid-template-columns: 1.5fr 150px 1fr auto;
+}
+
+.player-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.player-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.player-row.suspended {
+  border-color: rgba(220, 38, 38, 0.32);
+  background: #fff7f7;
+}
+
+.player-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-status {
+  display: inline-grid;
+  min-height: 24px;
+  place-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: white;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.player-status.active {
+  background: var(--green);
+}
+
+.player-status.suspended {
+  background: var(--red);
+}
+
+.player-main p,
+.player-main small {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.player-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.player-actions button {
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+.danger-ghost {
+  color: var(--red);
+  border-color: rgba(220, 38, 38, 0.4);
 }
 
 .policy-copy strong,
@@ -451,7 +521,14 @@ nav {
 
   .policy-row,
   .audit-row,
-  .anomaly-row {
+  .anomaly-row,
+  .player-row,
+  .player-search {
     grid-template-columns: 1fr;
+  }
+
+  .player-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }

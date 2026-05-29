@@ -15,6 +15,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindEvents() {
   $("loginForm").addEventListener("submit", login);
+  $("playerSearchForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    loadPlayers();
+  });
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", refreshCurrentView);
   $("prevAuditButton").addEventListener("click", () => {
@@ -112,6 +116,7 @@ function switchView(viewId) {
   $("pageTitle").textContent = {
     dashboardView: "대시보드",
     anomalyView: "이상징후",
+    playerView: "유저 관리",
     policyView: "정책값",
     auditView: "감사 로그",
   }[viewId] || "대시보드";
@@ -125,6 +130,8 @@ function refreshCurrentView() {
     loadAudits();
   } else if (state.view === "anomalyView") {
     loadAnomalies();
+  } else if (state.view === "playerView") {
+    loadPlayers();
   } else {
     loadOverview();
   }
@@ -151,6 +158,7 @@ function renderMetrics(data) {
   const metrics = [
     ["전체 유저", data.totalPlayers, "명"],
     ["온보딩 완료", data.onboardedPlayers, "명"],
+    ["정지 유저", data.suspendedPlayers, "명"],
     ["오늘 신규", data.newPlayersToday, "명"],
     ["자동사냥 활성", data.activeAutoHuntPlayers, "명"],
     ["공속버프 활성", data.activeBoostPlayers, "명"],
@@ -208,6 +216,76 @@ function renderAnomalyList(anomalies) {
       </div>
     </article>
   `).join("") || `<p class="empty">현재 감지된 이상징후가 없어요.</p>`;
+}
+
+async function loadPlayers() {
+  const query = $("playerSearchInput").value.trim();
+  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=50`);
+  $("playerCount").textContent = `${players.length}명`;
+  $("playerList").innerHTML = players.map((player) => playerRow(player)).join("")
+    || `<p class="empty">검색 결과가 없어요.</p>`;
+  document.querySelectorAll("[data-player-action]").forEach((button) => {
+    button.addEventListener("click", () => runPlayerAction(button));
+  });
+}
+
+function playerRow(player) {
+  const status = player.suspended ? "정지" : "정상";
+  const statusClass = player.suspended ? "suspended" : "active";
+  const job = player.job || "미선택";
+  const autoHunt = player.autoHuntEndsAt ? new Date(player.autoHuntEndsAt).toLocaleString("ko-KR") : "-";
+  const boost = player.boostEndsAt ? new Date(player.boostEndsAt).toLocaleString("ko-KR") : "-";
+  return `
+    <article class="player-row ${statusClass}">
+      <div class="player-main">
+        <div class="player-title">
+          <strong>${escapeHtml(player.userKey)}</strong>
+          <span class="player-status ${statusClass}">${status}</span>
+        </div>
+        <p>${escapeHtml(job)} · Lv.${formatNumber(player.level)} · ${formatNumber(player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
+        <small>자동사냥 ${escapeHtml(autoHunt)} · 공속버프 ${escapeHtml(boost)}</small>
+        ${player.suspended ? `<small>정지 사유: ${escapeHtml(player.suspensionReason || "-")}</small>` : ""}
+      </div>
+      <div class="player-actions">
+        ${player.suspended
+          ? `<button class="secondary" data-player-action="resume" data-user-key="${escapeHtml(player.userKey)}">정지 해제</button>`
+          : `<button class="danger" data-player-action="suspend" data-user-key="${escapeHtml(player.userKey)}">정지</button>`}
+        <button class="ghost danger-ghost" data-player-action="reset" data-user-key="${escapeHtml(player.userKey)}">완전 초기화</button>
+      </div>
+    </article>
+  `;
+}
+
+async function runPlayerAction(button) {
+  const action = button.dataset.playerAction;
+  const userKey = button.dataset.userKey;
+  const labels = {
+    suspend: "정지",
+    resume: "정지 해제",
+    reset: "완전 초기화",
+  };
+  if (action === "reset" && !confirm(`${userKey} 유저의 세션과 게임 데이터를 모두 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) {
+    return;
+  }
+  const reason = prompt(`${labels[action]} 사유를 입력해 주세요.`);
+  if (!reason || !reason.trim()) {
+    $("playerResult").textContent = "사유를 입력해야 처리할 수 있어요.";
+    $("playerResult").classList.add("error-text");
+    return;
+  }
+  $("playerResult").textContent = "";
+  $("playerResult").classList.remove("error-text");
+  try {
+    await request(`/api/admin/players/${encodeURIComponent(userKey)}/${action}`, {
+      method: "POST",
+      body: { reason: reason.trim() },
+    });
+    $("playerResult").textContent = `${userKey} 유저 ${labels[action]} 처리를 완료했어요.`;
+    await loadPlayers();
+  } catch (error) {
+    $("playerResult").textContent = error.message;
+    $("playerResult").classList.add("error-text");
+  }
 }
 
 async function loadPolicies() {

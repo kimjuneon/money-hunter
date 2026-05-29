@@ -15,6 +15,8 @@ import org.springframework.data.repository.query.Param;
 public interface RewardClaimRepository extends JpaRepository<RewardClaim, Long> {
 	Optional<RewardClaim> findByPlayerAndIdempotencyKey(Player player, String idempotencyKey);
 
+	long deleteByPlayerUserKey(String userKey);
+
 	long countByCreatedAtAfter(Instant createdAt);
 
 	long countByStatus(RewardClaimStatus status);

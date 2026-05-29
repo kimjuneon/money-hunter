@@ -15,6 +15,8 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 
 	long countByJobIsNotNull();
 
+	long countBySuspendedAtIsNotNull();
+
 	long countByCreatedAtAfter(Instant createdAt);
 
 	long countByAutoHuntEndsAtAfter(Instant now);
@@ -23,6 +25,14 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 
 	@Query("select coalesce(sum(p.gold), 0) from Player p")
 	long totalGold();
+
+	@Query("""
+			select p
+			from Player p
+			where (:query is null or :query = '' or lower(p.userKey) like lower(concat('%', :query, '%')))
+			order by p.updatedAt desc
+			""")
+	List<Player> searchPlayers(@Param("query") String query, org.springframework.data.domain.Pageable pageable);
 
 	@Query("""
 			select p.userKey as userKey,
@@ -72,6 +82,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 				and p.autoHuntEndsAt <= :now
 				and p.autoHuntEndNotifiedAt is null
 				and p.job is not null
+				and p.suspendedAt is null
 			""")
 	List<Player> findAutoHuntEndedNotificationTargets(@Param("now") Instant now);
 

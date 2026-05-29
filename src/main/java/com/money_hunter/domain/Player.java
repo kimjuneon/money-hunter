@@ -74,6 +74,11 @@ public class Player {
 
 	private Instant tutorialRewardClaimedAt;
 
+	private Instant suspendedAt;
+
+	@Column(length = 500)
+	private String suspensionReason;
+
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
@@ -252,6 +257,22 @@ public class Player {
 
 	public void claimTutorialReward(Instant claimedAt) {
 		this.tutorialRewardClaimedAt = claimedAt;
+		touch();
+	}
+
+	public boolean isSuspended() {
+		return suspendedAt != null;
+	}
+
+	public void suspend(String reason, Instant suspendedAt) {
+		this.suspendedAt = suspendedAt;
+		this.suspensionReason = reason;
+		touch();
+	}
+
+	public void resume() {
+		this.suspendedAt = null;
+		this.suspensionReason = null;
 		touch();
 	}
 

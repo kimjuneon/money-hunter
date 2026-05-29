@@ -15,6 +15,8 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 
 	long countByTypeAndOccurredAtAfter(AdEventType type, Instant occurredAt);
 
+	long deleteByPlayerUserKey(String userKey);
+
 	@Query("""
 			select a.player.userKey as userKey,
 				count(a.id) as eventCount,

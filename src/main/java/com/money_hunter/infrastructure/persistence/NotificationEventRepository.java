@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface NotificationEventRepository extends JpaRepository<NotificationEvent, Long> {
 	Optional<NotificationEvent> findTopByPlayerAndReadAtIsNullOrderByCreatedAtDesc(Player player);
 
+	long deleteByPlayerUserKey(String userKey);
+
 	List<NotificationEvent> findByPlayerAndReadAtIsNull(Player player);
 
 	List<NotificationEvent> findByPlayerAndTypeAndReadAtIsNull(Player player, NotificationType type);

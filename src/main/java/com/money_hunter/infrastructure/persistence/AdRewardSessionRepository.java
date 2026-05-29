@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AdRewardSessionRepository extends JpaRepository<AdRewardSession, Long> {
 	Optional<AdRewardSession> findBySessionToken(String sessionToken);
+
+	long deleteByPlayerUserKey(String userKey);
 }
