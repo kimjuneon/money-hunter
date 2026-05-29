@@ -21,7 +21,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
 		"money-hunter.app.toss-login-enabled=false",
-		"money-hunter.app.toss-user-key-enabled=false"
+		"money-hunter.app.toss-user-key-enabled=false",
+		"money-hunter.app.real-reward-ads-enabled=false",
+		"money-hunter.app.real-banner-ads-enabled=false"
 })
 @AutoConfigureMockMvc
 @SpringBootTest
