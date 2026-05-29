@@ -24,6 +24,7 @@ const state = {
   bgmMuted: false,
   bgmStarted: false,
   soundContext: null,
+  pageVisible: !document.hidden,
   featureTutorialStarted: false,
   featureTutorialActive: false,
   featureTutorialIndex: 0,
@@ -462,18 +463,25 @@ function positionFeatureTutorial() {
 function syncBgmState() {
   const audio = $("bgmAudio");
   audio.volume = 0.35;
-  audio.muted = state.bgmMuted;
+  audio.muted = !canPlaySound();
   $("muteToggle").classList.toggle("is-muted", state.bgmMuted);
   $("muteToggle").textContent = state.bgmMuted ? "♪" : "♫";
   $("muteToggle").setAttribute("aria-label", state.bgmMuted ? "BGM 켜기" : "BGM 음소거");
 }
 
+function canPlaySound() {
+  return !state.bgmMuted && state.pageVisible;
+}
+
 function startBgm() {
   syncBgmState();
-  if (state.bgmMuted || state.bgmStarted) {
+  if (!canPlaySound()) {
     return;
   }
   const audio = $("bgmAudio");
+  if (state.bgmStarted && !audio.paused) {
+    return;
+  }
   const playPromise = audio.play?.();
   if (playPromise?.then) {
     playPromise
@@ -494,6 +502,20 @@ function toggleBgmMute() {
   }
 }
 
+function syncPageSoundState(visible = !document.hidden) {
+  state.pageVisible = visible;
+  syncBgmState();
+  const audio = $("bgmAudio");
+  if (canPlaySound()) {
+    if (state.bgmStarted) {
+      startBgm();
+    }
+    return;
+  }
+  audio.pause?.();
+  state.soundContext?.suspend?.().catch(() => {});
+}
+
 function audioContext() {
   const AudioContextType = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextType) {
@@ -506,7 +528,7 @@ function audioContext() {
 }
 
 function playMonsterHitSound(defeated = false) {
-  if (state.bgmMuted) {
+  if (!canPlaySound()) {
     return;
   }
   const ctx = audioContext();
@@ -1934,6 +1956,13 @@ function initializeDevPanel() {
 initializeDevPanel();
 syncBgmState();
 document.addEventListener("pointerdown", () => startBgm(), { once: true, passive: true });
+document.addEventListener("visibilitychange", () => syncPageSoundState(!document.hidden));
+window.addEventListener("pagehide", () => {
+  syncPageSoundState(false);
+});
+window.addEventListener("pageshow", () => {
+  syncPageSoundState(!document.hidden);
+});
 
 setInterval(() => {
   if (state.player) {

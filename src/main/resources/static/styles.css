@@ -552,7 +552,7 @@ button {
 
 .projectile.sword {
   left: 151px;
-  top: 163px;
+  top: 153px;
   width: 120px;
   height: 78px;
   --fly-x: 150px;
@@ -566,7 +566,7 @@ button {
 
 .projectile.arrow {
   left: 162px;
-  top: 160px;
+  top: 150px;
   width: 132px;
   height: 52px;
   --fly-x: 141px;
@@ -580,7 +580,7 @@ button {
 
 .projectile.magic {
   left: 154px;
-  top: 156px;
+  top: 146px;
   width: 104px;
   height: 72px;
   --fly-x: 151px;
@@ -594,7 +594,7 @@ button {
 
 .projectile.shuriken {
   left: 154px;
-  top: 160px;
+  top: 150px;
   width: 88px;
   height: 56px;
   --fly-x: 158px;
@@ -614,28 +614,28 @@ button {
 
 .projectile.skill-projectile.sword {
   left: 147px;
-  top: 122px;
+  top: 112px;
   width: 136px;
   height: 136px;
 }
 
 .projectile.skill-projectile.arrow {
   left: 152px;
-  top: 123px;
+  top: 113px;
   width: 130px;
   height: 130px;
 }
 
 .projectile.skill-projectile.magic {
   left: 150px;
-  top: 123px;
+  top: 113px;
   width: 132px;
   height: 132px;
 }
 
 .projectile.skill-projectile.shuriken {
   left: 151px;
-  top: 125px;
+  top: 115px;
   width: 130px;
   height: 130px;
 }
