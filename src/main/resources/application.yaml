@@ -48,6 +48,13 @@ money-hunter:
     mtls-private-key-path: ${TOSS_API_MTLS_PRIVATE_KEY_PATH:}
     connect-timeout: 3s
     request-timeout: 5s
+  ads:
+    auto-hunt-reward-ad-group-id: ${TOSS_AD_GROUP_AUTO_HUNT_ID:}
+    boost-reward-ad-group-id: ${TOSS_AD_GROUP_BOOST_ID:}
+    skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:}
+    reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:}
+    job-change-interstitial-ad-group-id: ${TOSS_AD_GROUP_JOB_CHANGE_ID:}
+    banner-ad-group-id: ${TOSS_AD_GROUP_BANNER_ID:}
   security:
     cors:
       allowed-origin-patterns:

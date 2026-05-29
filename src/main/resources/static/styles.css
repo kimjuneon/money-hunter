@@ -33,6 +33,8 @@ button {
 .game-shell {
   position: relative;
   overflow: hidden;
+  --combat-panel-height: 378px;
+  --battle-screen-height: 316px;
   width: min(100%, 430px);
   height: 100dvh;
   margin: 0 auto;
@@ -49,7 +51,7 @@ button {
   display: flex;
   overflow: hidden;
   flex-direction: column;
-  height: calc(100dvh - 410px);
+  height: calc(100dvh - var(--combat-panel-height));
   background: #596573;
 }
 
@@ -132,7 +134,7 @@ button {
 .battle-screen {
   position: relative;
   overflow: hidden;
-  height: 348px;
+  height: var(--battle-screen-height);
   background:
     radial-gradient(circle at 72% 18%, rgba(255, 245, 157, 0.46), transparent 17%),
     linear-gradient(var(--wall) 0 43%, var(--floor) 43% 100%);
@@ -820,6 +822,17 @@ button {
   background: linear-gradient(90deg, #172033, #243149);
   color: #e2e8f0;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 3px 8px rgba(15, 23, 42, 0.16);
+}
+
+.real-banner-ad {
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 96px;
+  min-height: 96px;
+  margin: 6px 0 4px;
+  overflow: hidden;
+  background: #ffffff;
 }
 
 .dummy-banner-ad span {
@@ -1941,8 +1954,9 @@ button {
 }
 
 @media (max-width: 370px) {
-  .battle-screen {
-    height: 330px;
+  .game-shell {
+    --combat-panel-height: 364px;
+    --battle-screen-height: 302px;
   }
 
   .upgrade-row {

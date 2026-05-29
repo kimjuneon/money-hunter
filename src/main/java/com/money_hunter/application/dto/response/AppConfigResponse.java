@@ -1,6 +1,7 @@
 package com.money_hunter.application.dto.response;
 
 import java.util.List;
+import java.util.Map;
 
 public record AppConfigResponse(
 			boolean reviewToolsEnabled,
@@ -18,6 +19,7 @@ public record AppConfigResponse(
 		boolean realPaymentsEnabled,
 		boolean realTossPointRewardsEnabled,
 		boolean realSmartMessageEnabled,
-		boolean realShareRewardEnabled
+		boolean realShareRewardEnabled,
+		Map<String, String> adGroupIds
 ) {
 }

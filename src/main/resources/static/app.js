@@ -26,6 +26,10 @@ const state = {
   mockMonetizationEnabled: false,
   tossReleaseReady: false,
   tossLoginEnabled: false,
+  realRewardAdsEnabled: false,
+  realBannerAdsEnabled: false,
+  adGroupIds: {},
+  realAdInFlight: false,
   loginInFlight: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
@@ -37,6 +41,7 @@ const emptyElement = {
   dataset: {},
   classList: { add() {}, remove() {}, toggle() {} },
   appendChild() {},
+  replaceChildren() {},
   click() {},
   scrollIntoView() {},
   setAttribute() {},
@@ -106,6 +111,9 @@ const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@latest/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
+let tossSdkPromise = null;
+let bannerAdHandle = null;
+let bannerAdLoading = false;
 
 function apiBaseUrl() {
   const configured = String(window.MONEY_HUNTER_API_BASE_URL || "").trim();
@@ -237,9 +245,24 @@ function shouldUseTossLogin() {
   return !isOneStoreTarget() && state.tossLoginEnabled && !state.mockMonetizationEnabled;
 }
 
+function shouldUseRealFullScreenAds() {
+  return !isOneStoreTarget() && state.realRewardAdsEnabled && !state.mockMonetizationEnabled;
+}
+
+function shouldUseRealBannerAd() {
+  return !isOneStoreTarget() && state.realBannerAdsEnabled && !state.mockMonetizationEnabled;
+}
+
+function adGroupId(key) {
+  return String(state.adGroupIds?.[key] || "").trim();
+}
+
 function runRewardFlow(title, description, action) {
   if (isOneStoreTarget()) {
     return run(action.request, action.message);
+  }
+  if (shouldUseRealFullScreenAds()) {
+    return runRealFullScreenAd(title, description, action);
   }
   return showDummyAd(title, description, action);
 }
@@ -341,11 +364,18 @@ async function requestTossAuthorization() {
   if (window.MoneyHunterTossLogin?.appLogin) {
     return window.MoneyHunterTossLogin.appLogin();
   }
-  const sdk = await import(appsInTossSdkUrl);
+  const sdk = await loadTossSdk();
   if (typeof sdk.appLogin !== "function") {
     throw new Error("토스 로그인 SDK를 찾지 못했어요.");
   }
   return sdk.appLogin();
+}
+
+async function loadTossSdk() {
+  if (!tossSdkPromise) {
+    tossSdkPromise = import(appsInTossSdkUrl);
+  }
+  return tossSdkPromise;
 }
 
 async function startTossLogin(options = {}) {
@@ -394,12 +424,18 @@ async function loadAppConfig() {
     state.mockMonetizationEnabled = Boolean(config.mockMonetizationEnabled);
     state.tossReleaseReady = Boolean(config.tossReleaseReady);
     state.tossLoginEnabled = Boolean(config.tossLoginEnabled);
+    state.realRewardAdsEnabled = Boolean(config.realRewardAdsEnabled);
+    state.realBannerAdsEnabled = Boolean(config.realBannerAdsEnabled);
+    state.adGroupIds = config.adGroupIds || {};
   } catch {
     state.distributionTarget = normalizedDistributionTarget(distributionTargetOverride);
     state.reviewToolsEnabled = false;
     state.mockMonetizationEnabled = isOneStoreTarget();
     state.tossReleaseReady = false;
     state.tossLoginEnabled = false;
+    state.realRewardAdsEnabled = false;
+    state.realBannerAdsEnabled = false;
+    state.adGroupIds = {};
   }
   document.body.classList.toggle("target-onestore", isOneStoreTarget());
   renderReviewToolsVisibility();
@@ -449,10 +485,66 @@ function render() {
 }
 
 function renderDummyBanner() {
+  renderRealBannerAd();
   const shouldShowDummyBanner = !isOneStoreTarget() && state.reviewToolsEnabled && state.showDummyBanner;
   $("dummyBannerAd").classList.toggle("hidden", !shouldShowDummyBanner);
   $("devToggleBanner").classList.toggle("is-on", state.showDummyBanner);
   $("devToggleBanner").textContent = state.showDummyBanner ? "배너 숨기기" : "배너 표시";
+}
+
+async function renderRealBannerAd() {
+  const slot = $("realBannerAd");
+  const groupId = adGroupId("banner");
+  const shouldShow = shouldUseRealBannerAd() && Boolean(groupId);
+  slot.classList.toggle("hidden", !shouldShow);
+  if (!shouldShow) {
+    destroyRealBannerAd();
+    return;
+  }
+  if (bannerAdHandle || bannerAdLoading) {
+    return;
+  }
+  bannerAdLoading = true;
+  try {
+    const sdk = await loadTossSdk();
+    const tossAds = sdk.TossAds;
+    if (!tossAds?.initialize?.isSupported?.() || !tossAds?.attachBanner?.isSupported?.()) {
+      slot.classList.add("hidden");
+      return;
+    }
+    await new Promise((resolve, reject) => {
+      tossAds.initialize({
+        callbacks: {
+          onInitialized: resolve,
+          onInitializationFailed: reject,
+        },
+      });
+    });
+    slot.replaceChildren();
+    bannerAdHandle = tossAds.attachBanner(groupId, slot, {
+      theme: "auto",
+      tone: "blackAndWhite",
+      variant: "expanded",
+      callbacks: {
+        onNoFill: () => slot.classList.add("hidden"),
+        onAdFailedToRender: () => slot.classList.add("hidden"),
+        onAdRendered: () => slot.classList.remove("hidden"),
+      },
+    });
+  } catch {
+    slot.classList.add("hidden");
+  } finally {
+    bannerAdLoading = false;
+  }
+}
+
+function destroyRealBannerAd() {
+  if (!bannerAdHandle) {
+    return;
+  }
+  bannerAdHandle.destroy?.();
+  bannerAdHandle = null;
+  $("realBannerAd").replaceChildren();
 }
 
 function renderBattleTip(hunting = false) {
@@ -791,7 +883,7 @@ function remain(value) {
 
 function showDummyAd(title, description, action) {
   if (!state.mockMonetizationEnabled) {
-    setMessage("토스 광고 연동 전에는 리뷰 환경에서만 사용할 수 있어요.");
+    setMessage("광고 설정이 아직 완료되지 않았어요.");
     return;
   }
   state.adAction = action;
@@ -803,6 +895,103 @@ function showDummyAd(title, description, action) {
   $("adSkip").textContent = "광고 완료하고 보상 받기";
   $("adModal").classList.remove("hidden");
   window.clearInterval(state.adTimer);
+}
+
+async function runRealFullScreenAd(title, description, action) {
+  if (state.realAdInFlight) {
+    setMessage("이미 광고를 준비하고 있어요.");
+    return;
+  }
+  const groupId = adGroupId(action.adGroupKey);
+  if (!groupId) {
+    setMessage("광고 그룹 ID가 아직 설정되지 않았어요.");
+    return;
+  }
+  state.realAdInFlight = true;
+  setMessage(`${title} 준비 중...`);
+  try {
+    await loadRealFullScreenAd(groupId);
+    await showRealFullScreenAd(groupId, action.requiresReward !== false);
+    await run(action.request, action.message);
+  } catch (error) {
+    const message = error?.message || "광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
+    setMessage(message);
+  } finally {
+    state.realAdInFlight = false;
+  }
+}
+
+async function loadRealFullScreenAd(groupId) {
+  const sdk = await loadTossSdk();
+  const loadFullScreenAd = sdk.loadFullScreenAd;
+  if (typeof loadFullScreenAd !== "function" || loadFullScreenAd.isSupported?.() !== true) {
+    throw new Error("현재 토스 앱에서 광고를 사용할 수 없어요.");
+  }
+  return new Promise((resolve, reject) => {
+    let unregister = null;
+    const timeout = window.setTimeout(() => {
+      unregister?.();
+      reject(new Error("광고 준비 시간이 초과됐어요. 잠시 후 다시 시도해 주세요."));
+    }, 12000);
+    unregister = loadFullScreenAd({
+      options: { adGroupId: groupId },
+      onEvent: (event) => {
+        if (event.type === "loaded") {
+          window.clearTimeout(timeout);
+          unregister?.();
+          resolve();
+        }
+      },
+      onError: (error) => {
+        window.clearTimeout(timeout);
+        unregister?.();
+        reject(error instanceof Error ? error : new Error("광고 로드에 실패했어요."));
+      },
+    });
+  });
+}
+
+async function showRealFullScreenAd(groupId, requiresReward) {
+  const sdk = await loadTossSdk();
+  const showFullScreenAd = sdk.showFullScreenAd;
+  if (typeof showFullScreenAd !== "function" || showFullScreenAd.isSupported?.() !== true) {
+    throw new Error("현재 토스 앱에서 광고를 표시할 수 없어요.");
+  }
+  return new Promise((resolve, reject) => {
+    let completed = false;
+    let unregister = null;
+    const finish = (result, error) => {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      unregister?.();
+      error ? reject(error) : resolve(result);
+    };
+    unregister = showFullScreenAd({
+      options: { adGroupId: groupId },
+      onEvent: (event) => {
+        if (requiresReward && event.type === "userEarnedReward") {
+          finish("reward");
+          return;
+        }
+        if (!requiresReward && event.type === "impression") {
+          finish("impression");
+          return;
+        }
+        if (event.type === "failedToShow") {
+          finish(null, new Error("광고 표시가 실패했어요."));
+          return;
+        }
+        if (event.type === "dismissed" && requiresReward && !completed) {
+          finish(null, new Error("광고 시청을 완료해야 보상이 지급돼요."));
+        }
+      },
+      onError: (error) => {
+        finish(null, error instanceof Error ? error : new Error("광고 표시가 실패했어요."));
+      },
+    });
+  });
 }
 
 async function finishDummyAd() {
@@ -1117,6 +1306,8 @@ document.querySelectorAll(".job-select").forEach((button) => {
           ? "선택한 헌터로 바로 변경돼요. 성장 수치는 그대로 유지돼요."
           : "완료하면 선택한 헌터로 변경돼요. 성장 수치는 그대로 유지돼요.",
         {
+          adGroupKey: "jobChange",
+          requiresReward: false,
           request,
           message: `${jobMeta[job].change} 변경했어요.`,
         }
@@ -1173,6 +1364,8 @@ $("autoHuntAd").addEventListener("click", () => runRewardFlow(
     ? "게임 내 보상으로 자동사냥 시간이 1시간 충전돼요."
     : "완료하면 자동사냥 시간이 1시간 충전돼요.",
   {
+    adGroupKey: "autoHunt",
+    requiresReward: true,
     request: () => api(isOneStoreTarget()
       ? "/api/player/onestore/auto-hunt/claim"
       : "/api/player/ads/auto-hunt/complete", { method: "POST" }),
@@ -1186,6 +1379,8 @@ $("boostAd").addEventListener("click", () => runRewardFlow(
     ? "게임 내 보상으로 공격 모션과 골드 획득 속도가 빨라져요."
     : "완료하면 공격 모션과 골드 획득 속도가 빨라져요.",
   {
+    adGroupKey: "boost",
+    requiresReward: true,
     request: () => api(isOneStoreTarget()
       ? "/api/player/onestore/boost/claim"
       : "/api/player/ads/boost/complete", { method: "POST" }),
@@ -1199,6 +1394,8 @@ $("skillAd").addEventListener("click", () => runRewardFlow(
     ? "게임 내 보상으로 헌터와 동료 펫 강화에 쓰는 SP를 받아요."
     : "완료하면 헌터와 동료 펫 강화에 쓰는 SP를 받아요.",
   {
+    adGroupKey: "skillPoint",
+    requiresReward: true,
     request: () => api(isOneStoreTarget()
       ? "/api/player/onestore/skill-point/claim"
       : "/api/player/ads/skill-point/complete", { method: "POST" }),
@@ -1225,6 +1422,8 @@ $("claimReward").addEventListener("click", () => runRewardFlow(
     ? "게임 내 보상으로 SP가 지급돼요."
     : "완료하면 토스 포인트 지급 대기 기록이 생성돼요.",
   {
+    adGroupKey: "rewardClaim",
+    requiresReward: true,
     request: () => api(isOneStoreTarget()
       ? "/api/player/onestore/reward/claim"
       : "/api/player/reward/claim-after-ad", {

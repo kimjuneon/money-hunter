@@ -49,6 +49,7 @@ apps-in-toss/.granite/
 apps-in-toss/node_modules/
 apps-in-toss/*.ait
 apps-in-toss/versions/
+.local-backups/
 
 ### VS Code ###
 .vscode/

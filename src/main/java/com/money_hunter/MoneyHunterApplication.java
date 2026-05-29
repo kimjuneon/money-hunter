@@ -2,6 +2,7 @@ package com.money_hunter;
 
 import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.infrastructure.config.AdminProperties;
+import com.money_hunter.infrastructure.config.AdProperties;
 import com.money_hunter.infrastructure.config.CorsProperties;
 import com.money_hunter.infrastructure.config.EconomyProperties;
 import com.money_hunter.infrastructure.config.TossApiProperties;
@@ -17,6 +18,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 		EconomyProperties.class,
 		TossApiProperties.class,
 		AdminProperties.class,
+		AdProperties.class,
 		CorsProperties.class
 })
 public class MoneyHunterApplication {
