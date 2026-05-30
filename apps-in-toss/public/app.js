@@ -1174,6 +1174,9 @@ function renderNotification(player) {
   $("notificationModal").dataset.notificationId = notification.id;
   $("notificationTitle").textContent = notification.title;
   $("notificationBody").textContent = notification.body;
+  $("notificationMeta").textContent = notification.sentAt
+    ? `알림 도착 · ${formatShortTime(notification.sentAt)}`
+    : "자동사냥 종료 안내";
   $("notificationModal").classList.remove("hidden");
 }
 
@@ -1563,6 +1566,17 @@ function remain(value) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+}
+
+function formatShortTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "방금";
+  }
+  return date.toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function showDummyAd(title, description, action) {
@@ -2051,7 +2065,7 @@ function applyDevPlayer(player, message) {
 
 async function chooseJobForTest(job) {
   state.selectedJob = job;
-  return api("/api/player/job", {
+  return api("/api/player/test/job", {
     method: "POST",
     body: JSON.stringify({ job }),
   });
@@ -2067,12 +2081,8 @@ async function ensureJobForTest(job = "WARRIOR") {
 }
 
 async function buyAllPetsForTest(player = state.player) {
-  let next = player;
-  const maxSlots = next?.maxCharacterSlots || 3;
-  while ((next?.characterSlots || 1) < maxSlots) {
-    next = await api("/api/player/shop/companions/purchase", { method: "POST" });
-    setServerPlayer(next);
-  }
+  const next = await api("/api/player/test/companions/unlock-all", { method: "POST" });
+  setServerPlayer(next);
   return next;
 }
 

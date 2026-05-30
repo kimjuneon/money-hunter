@@ -1518,6 +1518,7 @@ img {
 
 .job-modal,
 .ad-modal,
+.notification-modal,
 .levelup-modal,
 .login-modal {
   position: fixed;
@@ -1778,6 +1779,155 @@ img {
 
 .ad-card button.ready {
   background: linear-gradient(#22c7ee, #0891b2);
+}
+
+.notification-card {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 390px;
+  padding: 28px 20px 20px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(96, 165, 250, 0.22), transparent 34%),
+    radial-gradient(circle at 92% 12%, rgba(56, 189, 248, 0.22), transparent 30%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.34);
+  text-align: center;
+}
+
+.notification-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, #38bdf8, #818cf8, #22c55e);
+}
+
+.notification-orb {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 12px;
+  place-items: center;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #e0f2fe, #eef2ff 58%, #ecfeff);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.9),
+    0 10px 24px rgba(59, 130, 246, 0.18);
+}
+
+.notification-orb span {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 34px;
+  border: 4px solid #2563eb;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.notification-orb span::before,
+.notification-orb span::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  border-radius: 999px;
+  background: #1e3a8a;
+  transform-origin: 50% 100%;
+}
+
+.notification-orb span::before {
+  height: 11px;
+  transform: translate(-50%, -100%) rotate(0deg);
+}
+
+.notification-orb span::after {
+  height: 10px;
+  transform: translate(-50%, -100%) rotate(115deg);
+}
+
+.notification-kicker {
+  margin: 0 0 7px;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
+
+.notification-card h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.notification-card > p:not(.notification-kicker):not(.notification-meta) {
+  margin: 8px auto 0;
+  max-width: 300px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.notification-summary {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 13px;
+  text-align: left;
+}
+
+.notification-summary div {
+  display: grid;
+  gap: 2px;
+  padding: 11px 12px;
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  border-radius: 10px;
+  background: rgba(239, 246, 255, 0.72);
+}
+
+.notification-summary strong {
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.notification-summary span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.notification-meta {
+  margin: 0 0 12px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.notification-primary {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #3182f6, #1b64da);
+  color: white;
+  font-weight: 1000;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.28), 0 10px 22px rgba(49, 130, 246, 0.24);
+}
+
+.notification-card .modal-close {
+  top: 12px;
+  right: 12px;
+  width: 31px;
+  min-height: 31px;
+  background: rgba(241, 245, 249, 0.92);
+  color: #475569;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.88), 0 4px 10px rgba(15, 23, 42, 0.08);
 }
 
 .levelup-card {

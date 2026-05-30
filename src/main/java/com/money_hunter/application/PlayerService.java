@@ -49,6 +49,7 @@ public class PlayerService {
 	private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
 	private static final long GOLD_MICROS = 1_000_000L;
 	private static final long HOUR_MILLIS = 3_600_000L;
+	private static final int GOLD_EARNING_BASELINE_PER_POINT = 100;
 	private static final double BOOST_REWARD_MULTIPLIER = 1.5;
 	private static final double MAX_PREBOOST_PAYOUT_RATE = 1.0 / BOOST_REWARD_MULTIPLIER;
 	private static final double BASE_PAYOUT_RATE = 0.20;
@@ -472,6 +473,88 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse chooseJobForTest(String userKey, JobType job) {
+		return chooseJob(userKey, job);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeAutoHuntForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		Instant now = clock.instant();
+		player.setAutoHuntEndsAt(addUncappedTime(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
+		player.clearAutoHuntEndNotification();
+		clearUnreadAutoHuntEndNotifications(player, now);
+		log.info("테스트 자동사냥 시간 지급: userKey={}, seconds={}, autoHuntEndsAt={}",
+				mask(userKey),
+				economy.autoHuntAdSeconds(),
+				player.getAutoHuntEndsAt());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeBoostForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		Instant now = clock.instant();
+		player.setBoostEndsAt(addUncappedTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
+		log.info("테스트 공속버프 시간 지급: userKey={}, seconds={}, boostEndsAt={}",
+				mask(userKey),
+				economy.boostAdSeconds(),
+				player.getBoostEndsAt());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse grantSkillPointForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		player.addSkillPoint();
+		log.info("테스트 스킬포인트 지급: userKey={}, skillPoints={}", mask(userKey), player.getSkillPoints());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse unlockAllCompanionsForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		while (player.getCharacterSlots() < economy.maxCharacterSlots()) {
+			player.purchaseCharacterSlot(economy.maxCharacterSlots());
+		}
+		log.info("테스트 동료 펫 전체 해제: userKey={}, characterSlots={}", mask(userKey), player.getCharacterSlots());
+		return toState(player);
+	}
+
+	@Transactional
+	public RewardClaimResponse claimRewardForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		long missingGold = Math.max(0, economy.rewardGoldThreshold() - player.getGold());
+		if (missingGold > 0) {
+			player.addGold(missingGold);
+		}
+		String idempotencyKey = "review-test-" + UUID.randomUUID();
+		RewardClaim claim = createRewardClaim(player, idempotencyKey);
+		log.info(
+				"테스트 토스포인트 보상 수령 신청: userKey={}, claimId={}, pointAmount={}, goldAmount={}",
+				mask(userKey),
+				claim.getId(),
+				claim.getPointAmount(),
+				rewardGoldAmount(claim.getPointAmount()));
+		return new RewardClaimResponse(
+				claim.getId(),
+				claim.getPointAmount(),
+				claim.getStatus(),
+				claim.getIdempotencyKey(),
+				toState(player));
+	}
+
+	@Transactional
 	public PlayerStateResponse resetForTest(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		Instant now = clock.instant();
@@ -782,6 +865,11 @@ public class PlayerService {
 		return min(requestedEnd, cappedEnd);
 	}
 
+	private Instant addUncappedTime(Instant currentEnd, long secondsToAdd, Instant now) {
+		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
+		return base.plusSeconds(secondsToAdd);
+	}
+
 	private PlayerStateResponse toState(Player player) {
 		ensureMonster(player);
 		syncStatSkills(player);
@@ -927,7 +1015,7 @@ public class PlayerService {
 	}
 
 	private long maxGoldPerHour() {
-		return (long) economy.adRevenuePerRewardAdWon() * economy.goldPerTossPoint();
+		return (long) economy.adRevenuePerRewardAdWon() * GOLD_EARNING_BASELINE_PER_POINT;
 	}
 
 	private int payoutRatePercent(Player player) {

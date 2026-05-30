@@ -15,7 +15,10 @@ import java.time.Instant;
 import com.jayway.jsonpath.JsonPath;
 import com.money_hunter.application.AdminMonitoringService;
 import com.money_hunter.application.AdminPlayerService;
+import com.money_hunter.application.RuntimeEconomyService;
 import com.money_hunter.domain.Player;
+import com.money_hunter.domain.PlayerSkill;
+import com.money_hunter.domain.SkillType;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("review")
@@ -42,6 +46,12 @@ class ReviewProfileApiExposureTest {
 
 	@Autowired
 	private AdminPlayerService adminPlayerService;
+
+	@Autowired
+	private RuntimeEconomyService economy;
+
+	@Autowired
+	private TransactionTemplate transactionTemplate;
 
 	@AfterEach
 	void cleanReviewPlayer() {
@@ -221,6 +231,90 @@ class ReviewProfileApiExposureTest {
 		long afterPetSkillGoldPerHour = readLong(petSkillUpgraded, "$.baseGoldPerHour");
 		assertTrue(afterPetSkillGoldPerHour > afterPetGoldPerHour);
 		assertTrue(readLong(petSkillUpgraded, "$.boostedGoldPerHour") > afterPetSkillGoldPerHour);
+	}
+
+	@Test
+	void goldPerTossPointChangesRewardConversionButNotGoldRates() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		String before = mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.goldPerTossPoint", is(100)))
+				.andExpect(jsonPath("$.rewardGoldThreshold", is(1000)))
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		long baseGoldPerHour = readLong(before, "$.baseGoldPerHour");
+		long boostedGoldPerHour = readLong(before, "$.boostedGoldPerHour");
+
+		try {
+			economy.update("goldPerTossPoint", 200);
+
+			mockMvc.perform(get("/api/player"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.goldPerTossPoint", is(200)))
+					.andExpect(jsonPath("$.rewardGoldThreshold", is(2000)))
+					.andExpect(jsonPath("$.baseGoldPerHour", is((int) baseGoldPerHour)))
+					.andExpect(jsonPath("$.boostedGoldPerHour", is((int) boostedGoldPerHour)));
+		} finally {
+			economy.reset("goldPerTossPoint");
+		}
+	}
+
+	@Test
+	void fullyUpgradedBoostedGoldRateIsCappedAtDefaultSixThousand() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+			while (player.getCharacterSlots() < 3) {
+				player.purchaseCharacterSlot(3);
+			}
+			for (SkillType type : SkillType.values()) {
+				if (type != SkillType.AUTO_HUNT_EFFICIENCY) {
+					player.getOrCreateSkill(type).setLevel(PlayerSkill.MAX_LEVEL);
+				}
+			}
+			Instant now = Instant.now();
+			player.setAutoHuntEndsAt(now.plusSeconds(3600));
+			player.setBoostEndsAt(now.plusSeconds(3600));
+		});
+
+		mockMvc.perform(get("/api/player"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.baseGoldPerHour", is(4000)))
+				.andExpect(jsonPath("$.boostedGoldPerHour", is(6000)))
+				.andExpect(jsonPath("$.goldPerHour", is(6000)))
+				.andExpect(jsonPath("$.payoutRatePercent", is(100)));
+	}
+
+	@Test
+	void reviewTestToolsBypassNormalRewardLimits() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/test/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"ROGUE\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.job", is("ROGUE")));
+
+		mockMvc.perform(post("/api/player/test/skill-point"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.skillPoints", is(1)));
+		mockMvc.perform(post("/api/player/test/skill-point"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.skillPoints", is(2)));
+
+		mockMvc.perform(post("/api/player/test/companions/unlock-all"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.characterSlots", is(3)));
 	}
 
 	@Test

@@ -360,13 +360,27 @@
         </div>
       </section>
 
-      <section id="notificationModal" class="ad-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
-        <div class="ad-card">
+      <section id="notificationModal" class="notification-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
+        <div class="notification-card">
           <button id="closeNotificationModal" class="modal-close" type="button" aria-label="닫기">×</button>
-          <span class="ad-badge">알림</span>
+          <div class="notification-orb" aria-hidden="true">
+            <span></span>
+          </div>
+          <p class="notification-kicker">HUNT REPORT</p>
           <h2 id="notificationTitle">자동사냥이 종료됐어요</h2>
           <p id="notificationBody">보상을 받고 자동사냥 시간을 다시 충전할 수 있어요.</p>
-          <button id="confirmNotification" type="button" class="ready">확인</button>
+          <div class="notification-summary" aria-label="사냥 종료 요약">
+            <div>
+              <strong>정산 완료</strong>
+              <span>자리 비운 동안의 골드와 EXP가 반영됐어요</span>
+            </div>
+            <div>
+              <strong>재시작 가능</strong>
+              <span>자동사냥 버튼으로 시간을 이어갈 수 있어요</span>
+            </div>
+          </div>
+          <p id="notificationMeta" class="notification-meta">자동사냥 종료 안내</p>
+          <button id="confirmNotification" type="button" class="notification-primary">확인하고 돌아가기</button>
         </div>
       </section>
 

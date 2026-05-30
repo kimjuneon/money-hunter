@@ -5,10 +5,14 @@ import java.security.Principal;
 import com.money_hunter.application.PlayerService;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.RewardClaimResponse;
+import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
 
 @Profile({"local", "review"})
 @RestController
@@ -29,22 +33,35 @@ public class ReviewTestController {
 
 	@PostMapping("/auto-hunt")
 	public PlayerStateResponse completeAutoHuntForTest(Principal principal) {
-		return playerService.completeAutoHuntAd(userKey(principal));
+		return playerService.completeAutoHuntForTest(userKey(principal));
 	}
 
 	@PostMapping("/boost")
 	public PlayerStateResponse completeBoostForTest(Principal principal) {
-		return playerService.completeBoostAd(userKey(principal));
+		return playerService.completeBoostForTest(userKey(principal));
 	}
 
 	@PostMapping("/skill-point")
 	public PlayerStateResponse completeSkillPointForTest(Principal principal) {
-		return playerService.completeSkillPointAd(userKey(principal));
+		return playerService.grantSkillPointForTest(userKey(principal));
 	}
 
 	@PostMapping("/claim-reward")
 	public RewardClaimResponse claimRewardForTest(Principal principal) {
-		return playerService.claimRewardAfterAd(userKey(principal), "review-test-" + System.nanoTime());
+		return playerService.claimRewardForTest(userKey(principal));
+	}
+
+	@PostMapping("/job")
+	public PlayerStateResponse chooseJobForTest(
+			Principal principal,
+			@Valid @RequestBody ChooseJobRequest request
+	) {
+		return playerService.chooseJobForTest(userKey(principal), request.job());
+	}
+
+	@PostMapping("/companions/unlock-all")
+	public PlayerStateResponse unlockAllCompanionsForTest(Principal principal) {
+		return playerService.unlockAllCompanionsForTest(userKey(principal));
 	}
 
 	@PostMapping("/reset")
