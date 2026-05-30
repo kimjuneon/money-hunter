@@ -19,6 +19,10 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 
 	long countByCreatedAtAfter(Instant createdAt);
 
+	long countByCreatedAtBefore(Instant createdAt);
+
+	long countByCreatedAtBetween(Instant startedAt, Instant endedAt);
+
 	long countByAutoHuntEndsAtAfter(Instant now);
 
 	long countByBoostEndsAtAfter(Instant now);

@@ -5,8 +5,16 @@ const state = {
   auditPage: 0,
   auditSize: 30,
   toastTimer: null,
+  overview: null,
+  players: [],
+  selectedUserKey: "",
+  policies: [],
+  growthDays: 30,
+  loadingTimer: null,
 };
 
+const maxGoldPerHour = 6000;
+const fullRateRequiredAdsPerHour = 2;
 const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -20,8 +28,11 @@ function bindEvents() {
     event.preventDefault();
     loadPlayers();
   });
+  $("playerFilterStatus").addEventListener("change", renderPlayers);
+  $("playerFilterProgress").addEventListener("change", renderPlayers);
+  $("playerFilterClearButton").addEventListener("click", clearPlayerFilters);
   $("logoutButton").addEventListener("click", logout);
-  $("refreshButton").addEventListener("click", refreshCurrentView);
+  $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
   $("prevAuditButton").addEventListener("click", () => {
     if (state.auditPage > 0) {
       state.auditPage -= 1;
@@ -124,24 +135,49 @@ function switchView(viewId) {
   refreshCurrentView();
 }
 
-function refreshCurrentView() {
-  if (state.view === "policyView") {
-    loadPolicies();
-  } else if (state.view === "auditView") {
-    loadAudits();
-  } else if (state.view === "anomalyView") {
-    loadAnomalies();
-  } else if (state.view === "playerView") {
-    loadPlayers();
-  } else {
-    loadOverview();
+async function refreshCurrentView(options = {}) {
+  const notify = Boolean(options.notify);
+  const button = $("refreshButton");
+  const originalText = button.textContent;
+  if (notify) {
+    setButtonBusy(button, true);
+    button.textContent = "새로고침 중";
+    showLoading("새로고침 중이에요.");
+  }
+  try {
+    if (state.view === "policyView") {
+      await loadPolicies();
+    } else if (state.view === "auditView") {
+      await loadAudits();
+    } else if (state.view === "anomalyView") {
+      await loadAnomalies();
+    } else if (state.view === "playerView") {
+      await loadPlayers();
+    } else {
+      await loadOverview();
+    }
+    if (notify) {
+      showToast("새로고침 완료");
+    }
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    if (notify) {
+      hideLoading();
+      button.textContent = originalText;
+      setButtonBusy(button, false);
+    }
   }
 }
 
 async function loadOverview() {
   const data = await request("/api/admin/overview");
+  state.overview = data;
   renderStatus(data);
   renderMetrics(data);
+  renderEconomyPanel(data);
+  renderMonitoringPanel(data);
+  await loadPlayerGrowth(state.growthDays);
 }
 
 function renderStatus(data) {
@@ -177,6 +213,267 @@ function renderMetrics(data) {
       <strong>${formatNumber(value)}${escapeHtml(unit)}</strong>
     </article>
   `).join("");
+}
+
+function renderEconomyPanel(data) {
+  const economy = data.economy || {};
+  const pendingPoints = Number(data.pendingRewardPoints || 0);
+  const pendingWon = pendingPoints;
+  const adRevenue = Number(economy.adRevenuePerRewardAdWon || 0);
+  const goldPerPoint = Number(economy.goldPerTossPoint || 0);
+  const revenueBasis = adRevenue * fullRateRequiredAdsPerHour;
+  const derivedGoldPerPoint = deriveGoldPerPoint(adRevenue);
+  const currentMaxPointValue = goldPerPoint > 0 ? Math.floor(maxGoldPerHour / goldPerPoint) : 0;
+  $("economyPanel").innerHTML = `
+    <section class="panel economy-panel">
+      <div class="panel-head">
+        <div>
+          <h3>수익/보상 정책</h3>
+          <p>광고 단가 기준 환산과 포인트 지급 기준을 운영 중 바로 확인해요.</p>
+        </div>
+        <span class="muted">${formatDate(data.generatedAt)}</span>
+      </div>
+      <div class="economy-grid">
+        ${economyItem("리워드 광고 단가", economy.adRevenuePerRewardAdWon, "원/회")}
+        ${economyItem("최대 수급 기준", maxGoldPerHour, "G/h")}
+        ${economyItem("광고 기준 수익", revenueBasis, "원/h")}
+        ${economyItem("현재 최대 환산", currentMaxPointValue, "P/h")}
+        ${economyItem("포인트 환산", economy.goldPerTossPoint, "골드/P")}
+        ${economyItem("보상 신청 기준", economy.rewardPointAmount, "P")}
+        ${economyItem("신청 필요 골드", economy.rewardGoldThreshold, "G")}
+        ${economyItem("대기 중 포인트", pendingPoints, "P")}
+      </div>
+      <div class="quick-policy-card calibration-card">
+        <div>
+          <strong>광고 수익 기준 자동 환산</strong>
+          <p>자동사냥 광고 1회와 공속버프 광고 1회를 기준으로 6,000G/h의 포인트 환산값을 계산해요.</p>
+        </div>
+        <label>
+          <span>1회 예상 매출(원)</span>
+          <input id="revenueAdInput" type="number" min="1" max="10000" value="${escapeHtml(adRevenue || 1)}" />
+        </label>
+        <div class="derived-policy">
+          <span>자동 환산값</span>
+          <strong id="derivedGoldPerPoint">${formatNumber(derivedGoldPerPoint)}G/P</strong>
+        </div>
+        <button id="revenueCalibrationSaveButton" class="secondary" type="button">환산 저장</button>
+      </div>
+      <div class="quick-policy-card direct-policy-card">
+        <div>
+          <strong>토스포인트 1P당 골드 직접 수정</strong>
+          <p>광고 단가와 무관하게 지급 기준만 직접 조정할 때 사용해요.</p>
+        </div>
+        <label>
+          <span>골드/P</span>
+          <input id="directGoldPerPointInput" type="number" min="1" max="1000000" value="${escapeHtml(goldPerPoint || 1)}" />
+        </label>
+        <button id="directGoldPerPointSaveButton" class="secondary" type="button">직접 저장</button>
+      </div>
+      <p class="note">
+        대기 중 포인트 ${formatNumber(pendingPoints)}P(예상 지급액 ${formatNumber(pendingWon)}원)는 실제 생성된 보상 수령 대기 기록의 합계예요.
+        정책값을 바꿔도 이미 대기 중인 기록은 재계산하지 않고, 새 보상 신청부터 변경된 기준이 적용돼요.
+      </p>
+    </section>
+  `;
+  $("revenueAdInput").addEventListener("input", () => {
+    $("derivedGoldPerPoint").textContent = `${formatNumber(deriveGoldPerPoint(Number($("revenueAdInput").value)))}G/P`;
+  });
+  $("revenueCalibrationSaveButton").addEventListener("click", () => {
+    saveRevenueCalibration($("revenueCalibrationSaveButton"));
+  });
+  $("directGoldPerPointSaveButton").addEventListener("click", () => {
+    saveQuickPolicy(
+      "goldPerTossPoint",
+      Number($("directGoldPerPointInput").value),
+      "토스포인트 환산 기준을 저장했어요.",
+      $("directGoldPerPointSaveButton"),
+    );
+  });
+}
+
+function economyItem(label, value, unit) {
+  return `
+    <article class="economy-item">
+      <span>${escapeHtml(label)}</span>
+      <strong>${formatNumber(value)}${escapeHtml(unit)}</strong>
+    </article>
+  `;
+}
+
+function deriveGoldPerPoint(adRevenuePerAd) {
+  const adRevenue = Number(adRevenuePerAd || 0);
+  if (!Number.isFinite(adRevenue) || adRevenue <= 0) {
+    return 1;
+  }
+  return Math.max(1, Math.ceil(maxGoldPerHour / (adRevenue * fullRateRequiredAdsPerHour)));
+}
+
+async function saveRevenueCalibration(button) {
+  const value = Number($("revenueAdInput").value);
+  if (!Number.isFinite(value) || value < 1 || value > 10000) {
+    showToast("광고 1회 예상 매출은 1원 이상 10,000원 이하로 입력해주세요.", "error");
+    return;
+  }
+  setButtonBusy(button, true);
+  try {
+    await request("/api/admin/economy/revenue-calibration", {
+      method: "PATCH",
+      body: { adRevenuePerRewardAdWon: value },
+    });
+    showToast("광고 수익 기준 환산값을 저장했어요.");
+    await loadOverview();
+    if (state.view === "policyView") {
+      await loadPolicies();
+    }
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function saveQuickPolicy(key, value, successMessage, button = null) {
+  if (!Number.isFinite(value)) {
+    showToast("정책값을 숫자로 입력해주세요.", "error");
+    return;
+  }
+  if (button) {
+    setButtonBusy(button, true);
+  }
+  try {
+    await request("/api/admin/policies", {
+      method: "PATCH",
+      body: { key, value, resetToDefault: false, reason: "" },
+    });
+    showToast(successMessage);
+    await loadOverview();
+    if (state.view === "policyView") {
+      await loadPolicies();
+    }
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    if (button) {
+      setButtonBusy(button, false);
+    }
+  }
+}
+
+function renderMonitoringPanel(data) {
+  const totalPlayers = Number(data.totalPlayers || 0);
+  const adEvents = Number(data.rewardAdEventsToday || 0);
+  const items = [
+    ["온보딩 전환", formatPercent(data.onboardedPlayers, totalPlayers), "직업 선택 완료 비율"],
+    ["자동사냥 활성률", formatPercent(data.activeAutoHuntPlayers, totalPlayers), "현재 사냥 중인 유저"],
+    ["공속버프 활성률", formatPercent(data.activeBoostPlayers, totalPlayers), "현재 공속버프 중인 유저"],
+    ["오늘 광고/유저", totalPlayers > 0 ? (adEvents / totalPlayers).toFixed(2) : "0.00", "전체 유저 기준 평균"],
+    ["대기 보상", `${formatNumber(data.pendingRewardClaims)}건`, `${formatNumber(data.pendingRewardPoints)}P 지급 대기`],
+    ["오늘 순수익", `${formatNumber(data.estimatedNetWonToday)}원`, "광고 추정 - 포인트 지급"],
+  ];
+  $("monitoringPanel").innerHTML = `
+    <section class="panel monitoring-panel">
+      <div class="panel-head">
+        <div>
+          <h3>운영 모니터링</h3>
+          <p>현재 플레이, 광고, 보상 흐름이 정상 범위인지 빠르게 확인해요.</p>
+        </div>
+      </div>
+      <div class="monitoring-grid">
+        ${items.map(([label, value, detail]) => `
+          <article class="monitoring-card">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value)}</strong>
+            <small>${escapeHtml(detail)}</small>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+async function loadPlayerGrowth(days = state.growthDays) {
+  const data = await request(`/api/admin/player-growth?days=${encodeURIComponent(days)}`);
+  state.growthDays = data.days || days;
+  renderPlayerGrowth(data);
+}
+
+function renderPlayerGrowth(data) {
+  const points = data.points || [];
+  const totalNewPlayers = points.reduce((sum, point) => sum + Number(point.newPlayers || 0), 0);
+  const latestTotal = points.length ? Number(points[points.length - 1].totalPlayers || 0) : 0;
+  $("playerGrowthPanel").innerHTML = `
+    <section class="panel player-growth-panel">
+      <div class="panel-head">
+        <div>
+          <h3>전체 유저 추이</h3>
+          <p>기간별 누적 유저 수를 선형 그래프로 확인해요.</p>
+        </div>
+        <label class="compact-select">
+          <span>기간</span>
+          <select id="growthPeriodSelect">
+            ${[7, 14, 30, 90].map((days) => `
+              <option value="${days}" ${days === state.growthDays ? "selected" : ""}>${days}일</option>
+            `).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="growth-summary">
+        ${economyItem("현재 전체 유저", latestTotal, "명")}
+        ${economyItem("기간 신규 유저", totalNewPlayers, "명")}
+        ${economyItem("집계 기간", data.days || state.growthDays, "일")}
+      </div>
+      ${renderLineChart(points)}
+    </section>
+  `;
+  $("growthPeriodSelect").addEventListener("change", (event) => {
+    state.growthDays = Number(event.target.value);
+    loadPlayerGrowth(state.growthDays).catch((error) => showToast(error.message, "error"));
+  });
+}
+
+function renderLineChart(points) {
+  if (!points.length) {
+    return `<p class="empty">유저 추이 데이터가 아직 없어요.</p>`;
+  }
+  const width = 720;
+  const height = 250;
+  const left = 42;
+  const right = width - 18;
+  const top = 24;
+  const bottom = height - 44;
+  const chartWidth = right - left;
+  const chartHeight = bottom - top;
+  const maxTotal = Math.max(1, ...points.map((point) => Number(point.totalPlayers || 0)));
+  const x = (index) => left + (points.length === 1 ? chartWidth : chartWidth * index / (points.length - 1));
+  const y = (value) => bottom - chartHeight * Number(value || 0) / maxTotal;
+  const linePoints = points.map((point, index) => `${x(index).toFixed(1)},${y(point.totalPlayers).toFixed(1)}`).join(" ");
+  const areaPoints = `${left},${bottom} ${linePoints} ${right},${bottom}`;
+  const lastPoint = points[points.length - 1];
+  const lastX = x(points.length - 1).toFixed(1);
+  const lastY = y(lastPoint.totalPlayers).toFixed(1);
+  const labelStep = Math.max(1, Math.ceil(points.length / 6));
+  const labels = points
+    .filter((_, index) => index === 0 || index === points.length - 1 || index % labelStep === 0)
+    .map((point, index, filtered) => {
+      const originalIndex = points.indexOf(point);
+      const anchor = index === 0 ? "start" : index === filtered.length - 1 ? "end" : "middle";
+      return `<text x="${x(originalIndex).toFixed(1)}" y="${height - 12}" text-anchor="${anchor}">${escapeHtml(point.date.slice(5))}</text>`;
+    }).join("");
+  return `
+    <div class="growth-chart" role="img" aria-label="전체 유저 선형 그래프">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+        <line class="chart-grid" x1="${left}" y1="${top}" x2="${right}" y2="${top}"></line>
+        <line class="chart-grid" x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}"></line>
+        <text class="chart-axis" x="${left}" y="${top - 6}">${formatNumber(maxTotal)}명</text>
+        <text class="chart-axis" x="${left}" y="${bottom + 18}">0명</text>
+        <polygon class="growth-area" points="${areaPoints}"></polygon>
+        <polyline class="growth-line" points="${linePoints}"></polyline>
+        <circle class="growth-dot" cx="${lastX}" cy="${lastY}" r="5"></circle>
+        <text class="growth-last-label" x="${Math.max(left + 52, Number(lastX) - 8)}" y="${Math.max(top + 16, Number(lastY) - 10)}" text-anchor="end">${formatNumber(lastPoint.totalPlayers)}명</text>
+        ${labels}
+      </svg>
+    </div>
+  `;
 }
 
 async function loadAnomalies() {
@@ -221,12 +518,57 @@ function renderAnomalyList(anomalies) {
 
 async function loadPlayers() {
   const query = $("playerSearchInput").value.trim();
-  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=50`);
+  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=100`);
+  state.players = players;
+  if (!players.some((player) => player.userKey === state.selectedUserKey)) {
+    state.selectedUserKey = players[0]?.userKey || "";
+  }
+  renderPlayers();
+}
+
+function clearPlayerFilters() {
+  $("playerSearchInput").value = "";
+  $("playerFilterStatus").value = "ALL";
+  $("playerFilterProgress").value = "ALL";
+  state.selectedUserKey = "";
+  loadPlayers();
+}
+
+function renderPlayers() {
+  const players = filteredPlayers();
   $("playerCount").textContent = `${players.length}명`;
   $("playerList").innerHTML = players.map((player) => playerRow(player)).join("")
     || `<p class="empty">검색 결과가 없어요.</p>`;
+  if (!players.some((player) => player.userKey === state.selectedUserKey)) {
+    state.selectedUserKey = players[0]?.userKey || "";
+  }
+  renderSelectedPlayerDetail();
+  document.querySelectorAll("[data-player-select]").forEach((row) => {
+    row.addEventListener("click", () => {
+      state.selectedUserKey = row.dataset.userKey;
+      renderPlayers();
+    });
+  });
   document.querySelectorAll("[data-player-action]").forEach((button) => {
-    button.addEventListener("click", () => runPlayerAction(button));
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      runPlayerAction(button);
+    });
+  });
+}
+
+function filteredPlayers() {
+  const status = $("playerFilterStatus").value;
+  const progress = $("playerFilterProgress").value;
+  return state.players.filter((player) => {
+    const statusMatched = status === "ALL"
+      || (status === "ACTIVE" && !player.suspended)
+      || (status === "SUSPENDED" && player.suspended);
+    const progressMatched = progress === "ALL"
+      || (progress === "ONBOARDED" && !player.onboardingRequired)
+      || (progress === "NEEDS_JOB" && player.onboardingRequired)
+      || (progress === "FEATURE_TUTORIAL_DONE" && player.featureTutorialCompleted);
+    return statusMatched && progressMatched;
   });
 }
 
@@ -236,14 +578,15 @@ function playerRow(player) {
   const job = player.job || "미선택";
   const autoHunt = player.autoHuntEndsAt ? new Date(player.autoHuntEndsAt).toLocaleString("ko-KR") : "-";
   const boost = player.boostEndsAt ? new Date(player.boostEndsAt).toLocaleString("ko-KR") : "-";
+  const selected = player.userKey === state.selectedUserKey ? "selected" : "";
   return `
-    <article class="player-row ${statusClass}">
+    <article class="player-row ${statusClass} ${selected}" data-player-select data-user-key="${escapeHtml(player.userKey)}">
       <div class="player-main">
         <div class="player-title">
           <strong>${escapeHtml(player.userKey)}</strong>
           <span class="player-status ${statusClass}">${status}</span>
         </div>
-        <p>${escapeHtml(job)} · Lv.${formatNumber(player.level)} · ${formatNumber(player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
+        <p>${escapeHtml(jobLabel(job))} · Lv.${formatNumber(player.level)} · ${formatNumber(player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
         <small>자동사냥 ${escapeHtml(autoHunt)} · 공속버프 ${escapeHtml(boost)}</small>
         ${player.suspended ? `<small>정지 사유: ${escapeHtml(player.suspensionReason || "-")}</small>` : ""}
       </div>
@@ -254,6 +597,80 @@ function playerRow(player) {
         <button class="ghost danger-ghost" data-player-action="reset" data-user-key="${escapeHtml(player.userKey)}">완전 초기화</button>
       </div>
     </article>
+  `;
+}
+
+function renderSelectedPlayerDetail() {
+  const player = state.players.find((item) => item.userKey === state.selectedUserKey);
+  if (!player) {
+    $("playerDetail").innerHTML = `
+      <div class="empty-detail">
+        <strong>유저를 선택하세요</strong>
+        <p>검색 결과에서 유저를 선택하면 상세 정보와 운영 액션이 표시돼요.</p>
+      </div>
+    `;
+    return;
+  }
+  const status = player.suspended ? "정지" : "정상";
+  const statusClass = player.suspended ? "suspended" : "active";
+  const progress = player.onboardingRequired ? "직업 미선택" : "게임 시작";
+  $("playerDetail").innerHTML = `
+    <div class="detail-head">
+      <div>
+        <span class="player-status ${statusClass}">${status}</span>
+        <h3>${escapeHtml(player.userKey)}</h3>
+        <p>${escapeHtml(jobLabel(player.job || "미선택"))} · ${escapeHtml(progress)}</p>
+      </div>
+      <button class="ghost" type="button" data-copy-user-key="${escapeHtml(player.userKey)}">유저 키 복사</button>
+    </div>
+    <div class="detail-grid">
+      ${kv("골드", `${formatNumber(player.gold)}G`)}
+      ${kv("SP", formatNumber(player.skillPoints))}
+      ${kv("레벨", `Lv.${formatNumber(player.level)}`)}
+      ${kv("경험치", `${formatNumber(player.experience)} / ${formatNumber(player.nextLevelExperience)}`)}
+      ${kv("펫 슬롯", `${formatNumber(player.characterSlots)} / 3`)}
+      ${kv("초대 보상", `${formatNumber(player.friendInviteRewardCount)}회`)}
+      ${kv("처치 몬스터", formatNumber(player.defeatedMonsters))}
+      ${kv("현재 몬스터", `${player.currentMonsterKey || "-"} · HP ${formatNumber(player.currentMonsterHp)}`)}
+      ${kv("튜토리얼 보상", player.tutorialRewardClaimed ? "완료" : "미수령")}
+      ${kv("기능 튜토리얼", player.featureTutorialCompleted ? "완료" : "미완료")}
+      ${kv("마지막 정산", formatDate(player.lastSettledAt))}
+      ${kv("최근 SP 광고", formatDate(player.lastSkillPointAdClaimedAt))}
+      ${kv("자동사냥 종료", formatDate(player.autoHuntEndsAt))}
+      ${kv("공속버프 종료", formatDate(player.boostEndsAt))}
+      ${kv("가입", formatDate(player.createdAt))}
+      ${kv("수정", formatDate(player.updatedAt))}
+    </div>
+    ${player.suspended ? `<p class="note danger-note">정지 사유: ${escapeHtml(player.suspensionReason || "-")}</p>` : ""}
+    <div class="action-panel">
+      <label>
+        <span>운영 메모(선택)</span>
+        <input id="playerActionReason" type="text" maxlength="500" placeholder="감사 로그에 남길 사유" />
+      </label>
+      <div class="action-row">
+        ${player.suspended
+          ? `<button class="secondary" data-player-action="resume" data-user-key="${escapeHtml(player.userKey)}">정지 해제</button>`
+          : `<button class="danger" data-player-action="suspend" data-user-key="${escapeHtml(player.userKey)}">유저 정지</button>`}
+        <button class="ghost danger-ghost" data-player-action="reset" data-user-key="${escapeHtml(player.userKey)}">로그인부터 초기화</button>
+      </div>
+    </div>
+  `;
+  const copyButton = document.querySelector("[data-copy-user-key]");
+  copyButton?.addEventListener("click", async () => {
+    await navigator.clipboard?.writeText(player.userKey);
+    showToast("유저 키를 복사했어요.");
+  });
+  document.querySelectorAll("#playerDetail [data-player-action]").forEach((button) => {
+    button.addEventListener("click", () => runPlayerAction(button));
+  });
+}
+
+function kv(label, value) {
+  return `
+    <div class="kv">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
   `;
 }
 
@@ -268,10 +685,7 @@ async function runPlayerAction(button) {
   if (action === "reset" && !confirm(`${userKey} 유저의 세션과 게임 데이터를 모두 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) {
     return;
   }
-  const reason = prompt(`${labels[action]} 사유를 입력해 주세요. (선택)`, "");
-  if (reason === null) {
-    return;
-  }
+  const reason = $("playerActionReason")?.value?.trim() || "";
   $("playerResult").textContent = "";
   $("playerResult").classList.remove("error-text");
   setButtonBusy(button, true);
@@ -295,27 +709,72 @@ async function runPlayerAction(button) {
 
 async function loadPolicies() {
   const policies = await request("/api/admin/policies");
+  state.policies = policies;
   $("policyCount").textContent = `${policies.length}개`;
-  $("policyList").innerHTML = policies.map((policy) => `
-    <article class="policy-row" data-key="${escapeHtml(policy.key)}">
-      <div class="policy-copy">
-        <strong>${escapeHtml(policy.label)}</strong>
-        <small>${escapeHtml(policy.key)} · ${formatNumber(policy.min)}~${formatNumber(policy.max)} ${escapeHtml(policy.unit)}</small>
-      </div>
-      <input type="number" min="${policy.min}" max="${policy.max}" value="${escapeHtml(policy.value)}" data-value />
-      <input type="text" placeholder="변경 사유(선택)" data-reason />
-      <div class="actions">
-        <button class="secondary" data-save>저장</button>
-        <button class="ghost" data-reset>기본값</button>
-      </div>
-    </article>
-  `).join("");
+  $("policyList").innerHTML = policyGroups().map((group) => {
+    const rows = policies.filter((policy) => group.keys.includes(policy.key));
+    if (!rows.length) {
+      return "";
+    }
+    return `
+      <section class="policy-group">
+        <div class="policy-group-head">
+          <strong>${escapeHtml(group.title)}</strong>
+          <span>${escapeHtml(group.description)}</span>
+        </div>
+        ${rows.map(policyRow).join("")}
+      </section>
+    `;
+  }).join("");
   document.querySelectorAll("[data-save]").forEach((button) => {
     button.addEventListener("click", () => savePolicy(button.closest(".policy-row"), false));
   });
   document.querySelectorAll("[data-reset]").forEach((button) => {
     button.addEventListener("click", () => savePolicy(button.closest(".policy-row"), true));
   });
+}
+
+function policyRow(policy) {
+  return `
+    <article class="policy-row" data-key="${escapeHtml(policy.key)}">
+      <div class="policy-copy">
+        <strong>${escapeHtml(policy.label)}</strong>
+        <small>${escapeHtml(policy.key)} · ${formatNumber(policy.min)}~${formatNumber(policy.max)} ${escapeHtml(policy.unit)}</small>
+      </div>
+      <label>
+        <span>값</span>
+        <input type="number" min="${policy.min}" max="${policy.max}" value="${escapeHtml(policy.value)}" data-value />
+      </label>
+      <label>
+        <span>변경 사유</span>
+        <input type="text" placeholder="선택 입력" data-reason />
+      </label>
+      <div class="actions">
+        <button class="secondary" data-save>저장</button>
+        <button class="ghost" data-reset>기본값</button>
+      </div>
+    </article>
+  `;
+}
+
+function policyGroups() {
+  return [
+    {
+      title: "보상 기준",
+      description: "토스포인트 수령 가능 기준",
+      keys: ["rewardPointAmount"],
+    },
+    {
+      title: "광고 보상",
+      description: "광고 1회 보상 시간과 누적 상한",
+      keys: ["autoHuntAdSeconds", "boostAdSeconds", "maxAdSeconds", "skillPointAdCooldownSeconds"],
+    },
+    {
+      title: "상점/초대",
+      description: "펫, SP 패키지, 친구 초대 보상",
+      keys: ["companionPriceWon", "skillPointPackPriceWon", "skillPointPackAmount", "friendInviteRewardSkillPoints", "friendInviteLimit", "maxCharacterSlots"],
+    },
+  ];
 }
 
 async function savePolicy(row, resetToDefault) {
@@ -398,6 +857,9 @@ async function send(url, options = {}) {
 }
 
 function setButtonBusy(button, busy) {
+  if (!button) {
+    return;
+  }
   button.disabled = busy;
   button.setAttribute("aria-busy", String(busy));
 }
@@ -428,8 +890,62 @@ function showToast(message, type = "success") {
   }, 2600);
 }
 
+function showLoading(message) {
+  let overlay = document.querySelector(".loading-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "loading-overlay";
+    overlay.setAttribute("role", "status");
+    overlay.setAttribute("aria-live", "polite");
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div class="loading-box">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <strong>${escapeHtml(message)}</strong>
+    </div>
+  `;
+  window.clearTimeout(state.loadingTimer);
+  state.loadingTimer = window.setTimeout(() => overlay.classList.add("visible"), 80);
+}
+
+function hideLoading() {
+  window.clearTimeout(state.loadingTimer);
+  const overlay = document.querySelector(".loading-overlay");
+  overlay?.classList.remove("visible");
+}
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("ko-KR");
+}
+
+function formatPercent(value, total) {
+  const denominator = Number(total || 0);
+  if (denominator <= 0) {
+    return "0.0%";
+  }
+  return `${(Number(value || 0) / denominator * 100).toFixed(1)}%`;
+}
+
+function formatDate(value) {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  return date.toLocaleString("ko-KR");
+}
+
+function jobLabel(job) {
+  return {
+    WARRIOR: "전사",
+    ARCHER: "궁수",
+    MAGE: "마법사",
+    ROGUE: "도적",
+    미선택: "미선택",
+  }[job] || job || "미선택";
 }
 
 function severityLabel(severity) {

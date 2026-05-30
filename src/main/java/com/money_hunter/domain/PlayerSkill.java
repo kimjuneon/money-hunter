@@ -15,7 +15,7 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "player_skills")
 public class PlayerSkill {
-	public static final int MAX_LEVEL = 20;
+	public static final int MAX_LEVEL = 30;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

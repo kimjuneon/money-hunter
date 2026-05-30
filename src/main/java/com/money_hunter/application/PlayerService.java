@@ -49,7 +49,7 @@ public class PlayerService {
 	private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
 	private static final long GOLD_MICROS = 1_000_000L;
 	private static final long HOUR_MILLIS = 3_600_000L;
-	private static final int GOLD_EARNING_BASELINE_PER_POINT = 100;
+	private static final long MAX_GOLD_PER_HOUR = 6_000L;
 	private static final double BOOST_REWARD_MULTIPLIER = 1.5;
 	private static final double MAX_PREBOOST_PAYOUT_RATE = 1.0 / BOOST_REWARD_MULTIPLIER;
 	private static final double BASE_PAYOUT_RATE = 0.20;
@@ -62,7 +62,10 @@ public class PlayerService {
 	private static final int BASE_ATTACK_INTERVAL_MILLIS = 1_500;
 	private static final int BOOSTED_ATTACK_INTERVAL_MILLIS = 750;
 	private static final int MIN_ATTACK_INTERVAL_MILLIS = 750;
-	private static final int RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS = 45;
+	private static final int MAX_RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS = BASE_ATTACK_INTERVAL_MILLIS - MIN_ATTACK_INTERVAL_MILLIS;
+	private static final int MAX_RAPID_DAMAGE_BONUS = 40;
+	private static final int MAX_STAT_DAMAGE_BONUS = 60;
+	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Map<String, Integer> MONSTER_BASE_HP = Map.of(
@@ -322,19 +325,30 @@ public class PlayerService {
 
 	@Transactional
 	public PlayerStateResponse claimFriendInviteReward(String userKey) {
+		return claimFriendInviteReward(userKey, 1);
+	}
+
+	@Transactional
+	public PlayerStateResponse claimFriendInviteReward(String userKey, int completedInvites) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
-		player.claimFriendInviteReward(economy.friendInviteLimit(), economy.friendInviteRewardSkillPoints());
+		int claimedInvites = player.claimFriendInviteReward(
+				economy.friendInviteLimit(),
+				economy.friendInviteRewardSkillPoints(),
+				completedInvites);
+		int rewardSkillPoints = economy.friendInviteRewardSkillPoints() * claimedInvites;
 		adEventRepository.save(new AdEvent(
 			player,
 			AdEventType.FRIEND_INVITE_REWARD,
-			economy.friendInviteRewardSkillPoints(),
+			rewardSkillPoints,
 			clock.instant()));
 		log.info(
-				"친구 초대 보상 지급: userKey={}, amount={}, count={}/{}",
+				"친구 초대 보상 지급: userKey={}, completedInvites={}, claimedInvites={}, amount={}, count={}/{}",
 				mask(userKey),
-				economy.friendInviteRewardSkillPoints(),
+				completedInvites,
+				claimedInvites,
+				rewardSkillPoints,
 				player.getFriendInviteRewardCount(),
 				economy.friendInviteLimit());
 		return toState(player);
@@ -725,7 +739,11 @@ public class PlayerService {
 	private int damage(Player player, boolean boosted) {
 		int rapidLevel = player.getOrCreateSkill(SkillType.RAPID_ATTACK).getLevel();
 		int statLevel = currentJobStatLevel(player);
-		int damage = 16 + player.getLevel() * 2 + rapidLevel * 2 + statLevel * 3 + petDamage(player);
+		int damage = 16
+				+ player.getLevel() * 2
+				+ scaledSkillValue(rapidLevel, MAX_RAPID_DAMAGE_BONUS)
+				+ scaledSkillValue(statLevel, MAX_STAT_DAMAGE_BONUS)
+				+ petDamage(player);
 		if (boosted) {
 			damage = Math.round(damage * 1.35f);
 		}
@@ -1005,7 +1023,7 @@ public class PlayerService {
 		int rapidLevel = player.getOrCreateSkill(SkillType.RAPID_ATTACK).getLevel();
 		return Math.max(
 				MIN_ATTACK_INTERVAL_MILLIS,
-				baseIntervalMillis - rapidLevel * RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS);
+				baseIntervalMillis - scaledSkillValue(rapidLevel, MAX_RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS));
 	}
 
 	private AttackCounts attackCounts(Player player, long normalMillis, long boostedMillis) {
@@ -1015,7 +1033,7 @@ public class PlayerService {
 	}
 
 	private long maxGoldPerHour() {
-		return (long) economy.adRevenuePerRewardAdWon() * GOLD_EARNING_BASELINE_PER_POINT;
+		return MAX_GOLD_PER_HOUR;
 	}
 
 	private int payoutRatePercent(Player player) {
@@ -1059,12 +1077,20 @@ public class PlayerService {
 		int pets = unlockedPetCount(player);
 		int damage = pets * 4;
 		if (pets >= 1) {
-			damage += player.getOrCreateSkill(SkillType.PET_FLARE_ATTACK).getLevel() * 2;
+			damage += scaledSkillValue(
+					player.getOrCreateSkill(SkillType.PET_FLARE_ATTACK).getLevel(),
+					MAX_PET_SKILL_DAMAGE_BONUS);
 		}
 		if (pets >= 2) {
-			damage += player.getOrCreateSkill(SkillType.PET_AQUA_ATTACK).getLevel() * 2;
+			damage += scaledSkillValue(
+					player.getOrCreateSkill(SkillType.PET_AQUA_ATTACK).getLevel(),
+					MAX_PET_SKILL_DAMAGE_BONUS);
 		}
 		return damage;
+	}
+
+	private int scaledSkillValue(int level, int maxValue) {
+		return (int) Math.round(maxValue * level / (double) PlayerSkill.MAX_LEVEL);
 	}
 
 	private int unlockedPetCount(Player player) {

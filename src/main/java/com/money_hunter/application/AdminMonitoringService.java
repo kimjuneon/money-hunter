@@ -166,6 +166,24 @@ public class AdminMonitoringService {
 						TIMER_GRACE_SECONDS));
 	}
 
+	public AdminPlayerGrowthReport playerGrowth(int days) {
+		int safeDays = Math.max(7, Math.min(days, 90));
+		LocalDate today = LocalDate.now(SEOUL);
+		LocalDate firstDay = today.minusDays(safeDays - 1L);
+		Instant firstDayStart = firstDay.atStartOfDay(SEOUL).toInstant();
+		long cumulative = playerRepository.countByCreatedAtBefore(firstDayStart);
+		List<AdminPlayerGrowthPoint> points = new ArrayList<>();
+		for (int offset = 0; offset < safeDays; offset++) {
+			LocalDate day = firstDay.plusDays(offset);
+			Instant startedAt = day.atStartOfDay(SEOUL).toInstant();
+			Instant endedAt = day.plusDays(1).atStartOfDay(SEOUL).toInstant();
+			long newPlayers = playerRepository.countByCreatedAtBetween(startedAt, endedAt);
+			cumulative += newPlayers;
+			points.add(new AdminPlayerGrowthPoint(day.toString(), newPlayers, cumulative));
+		}
+		return new AdminPlayerGrowthReport(Instant.now(clock), safeDays, points);
+	}
+
 	private AdminAnomaly timerAnomaly(Instant now, PlayerRepository.PlayerTimerSnapshot row) {
 		long autoHuntSeconds = secondsAfterNow(now, row.getAutoHuntEndsAt());
 		long boostSeconds = secondsAfterNow(now, row.getBoostEndsAt());
@@ -266,6 +284,20 @@ public class AdminMonitoringService {
 			int skillPointsWarning,
 			long maxAdSeconds,
 			long timerGraceSeconds
+	) {
+	}
+
+	public record AdminPlayerGrowthReport(
+			Instant generatedAt,
+			int days,
+			List<AdminPlayerGrowthPoint> points
+	) {
+	}
+
+	public record AdminPlayerGrowthPoint(
+			String date,
+			long newPlayers,
+			long totalPlayers
 	) {
 	}
 }

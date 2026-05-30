@@ -14,6 +14,7 @@ import com.money_hunter.application.dto.response.AdminPlayerResponse;
 import com.money_hunter.domain.AdminAuditLog;
 import com.money_hunter.presentation.dto.request.AdminPlayerActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
+import com.money_hunter.presentation.dto.request.AdminRevenueCalibrationRequest;
 import com.money_hunter.application.dto.response.AdminAuditLogResponse;
 import com.money_hunter.application.dto.response.AdminAuditPageResponse;
 import com.money_hunter.application.dto.response.AdminPolicyResponse;
@@ -35,6 +36,9 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
+	private static final long FULLY_BOOSTED_GOLD_PER_HOUR = 6_000L;
+	private static final long FULL_RATE_REQUIRED_ADS_PER_HOUR = 2L;
+
 	private final AdminAccessGuard adminAccessGuard;
 	private final AdminMonitoringService monitoringService;
 	private final RuntimeEconomyService economyService;
@@ -65,6 +69,15 @@ public class AdminController {
 	public AdminMonitoringService.AdminAnomalyReport anomalies(HttpServletRequest request) {
 		adminAccessGuard.require(request);
 		return monitoringService.anomalies();
+	}
+
+	@GetMapping("/player-growth")
+	public AdminMonitoringService.AdminPlayerGrowthReport playerGrowth(
+			@RequestParam(defaultValue = "30") int days,
+			HttpServletRequest request
+	) {
+		adminAccessGuard.require(request);
+		return monitoringService.playerGrowth(days);
 	}
 
 	@GetMapping("/players")
@@ -167,6 +180,35 @@ public class AdminController {
 		return policies(request);
 	}
 
+	@PatchMapping("/economy/revenue-calibration")
+	public AdminMonitoringService.AdminOverview calibrateRevenue(
+			@Valid @RequestBody AdminRevenueCalibrationRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		long adRevenuePerRewardAdWon = requestBody.adRevenuePerRewardAdWon();
+		long goldPerTossPoint = deriveGoldPerTossPoint(adRevenuePerRewardAdWon);
+		PolicyChangeResult adRevenueResult = economyService.update("adRevenuePerRewardAdWon", adRevenuePerRewardAdWon);
+		PolicyChangeResult goldPerPointResult = economyService.update("goldPerTossPoint", goldPerTossPoint);
+		adminAuditService.record(
+				admin,
+				"REVENUE_CALIBRATION",
+				"adRevenuePerRewardAdWon",
+				String.valueOf(adRevenueResult.beforeValue()),
+				String.valueOf(adRevenueResult.afterValue()),
+				"광고 단가 기준 자동 환산",
+				request);
+		adminAuditService.record(
+				admin,
+				"REVENUE_CALIBRATION",
+				"goldPerTossPoint",
+				String.valueOf(goldPerPointResult.beforeValue()),
+				String.valueOf(goldPerPointResult.afterValue()),
+				"6,000G/h, 광고 2회 기준 자동 환산",
+				request);
+		return monitoringService.overview();
+	}
+
 	@GetMapping("/audits")
 	public AdminAuditPageResponse audits(
 			@RequestParam(defaultValue = "0") int page,
@@ -211,5 +253,14 @@ public class AdminController {
 			return null;
 		}
 		return reason.trim();
+	}
+
+	private long deriveGoldPerTossPoint(long adRevenuePerRewardAdWon) {
+		long hourlyRevenueBasis = Math.multiplyExact(adRevenuePerRewardAdWon, FULL_RATE_REQUIRED_ADS_PER_HOUR);
+		return Math.max(1, ceilDiv(FULLY_BOOSTED_GOLD_PER_HOUR, hourlyRevenueBasis));
+	}
+
+	private long ceilDiv(long dividend, long divisor) {
+		return (dividend + divisor - 1) / divisor;
 	}
 }

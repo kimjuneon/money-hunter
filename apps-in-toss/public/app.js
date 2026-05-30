@@ -223,16 +223,18 @@ const statSkillByJob = {
   ROGUE: "LUCK",
 };
 
+const skillMaxLevel = 30;
+
 const skillMeta = {
-  STRENGTH: { label: "STR 전사", short: "전사 공격", step: 4, max: 20, effectPrefix: "str" },
-  DEXTERITY: { label: "DEX 궁수", short: "궁수 집중", step: 4, max: 20, effectPrefix: "dex" },
-  INTELLIGENCE: { label: "INT 마법사", short: "마법 증폭", step: 4, max: 20, effectPrefix: "int" },
-  LUCK: { label: "LUK 도적", short: "행운 타격", step: 4, max: 20, effectPrefix: "luk" },
-  MINING_MASTERY: { label: "채굴 숙련", short: "채굴량", step: 5, max: 20, description: "골드 획득량이 증가해요" },
-  RAPID_ATTACK: { label: "연속 공격", short: "공격 효율", step: 3, max: 20, description: "공격 간격이 짧아져요" },
-  REWARD_AMPLIFIER: { label: "보상 증폭", short: "게이지 효율", step: 2, max: 20, description: "보상 게이지 효율이 좋아져요" },
-  PET_FLARE_ATTACK: { label: "해빛냥 공격", short: "해빛냥 공격력", max: 20, petIndex: 1, description: "해빛냥 공격 피해량이 올라가요" },
-  PET_AQUA_ATTACK: { label: "물방울토 공격", short: "물방울토 공격력", max: 20, petIndex: 2, description: "물방울토 공격 피해량이 올라가요" },
+  STRENGTH: { label: "STR 전사", short: "전사 공격", step: 80 / skillMaxLevel, max: skillMaxLevel, effectPrefix: "str" },
+  DEXTERITY: { label: "DEX 궁수", short: "궁수 집중", step: 80 / skillMaxLevel, max: skillMaxLevel, effectPrefix: "dex" },
+  INTELLIGENCE: { label: "INT 마법사", short: "마법 증폭", step: 80 / skillMaxLevel, max: skillMaxLevel, effectPrefix: "int" },
+  LUCK: { label: "LUK 도적", short: "행운 타격", step: 80 / skillMaxLevel, max: skillMaxLevel, effectPrefix: "luk" },
+  MINING_MASTERY: { label: "채굴 숙련", short: "채굴량", step: 100 / skillMaxLevel, max: skillMaxLevel, description: "골드 획득량이 증가해요" },
+  RAPID_ATTACK: { label: "연속 공격", short: "공격 효율", step: 60 / skillMaxLevel, max: skillMaxLevel, description: "공격 간격이 짧아져요" },
+  REWARD_AMPLIFIER: { label: "보상 증폭", short: "게이지 효율", step: 40 / skillMaxLevel, max: skillMaxLevel, description: "보상 게이지 효율이 좋아져요" },
+  PET_FLARE_ATTACK: { label: "해빛냥 공격", short: "해빛냥 공격력", max: skillMaxLevel, maxDamage: 40, petIndex: 1, description: "해빛냥 공격 피해량이 올라가요" },
+  PET_AQUA_ATTACK: { label: "물방울토 공격", short: "물방울토 공격력", max: skillMaxLevel, maxDamage: 40, petIndex: 2, description: "물방울토 공격 피해량이 올라가요" },
 };
 
 const featureTutorialSteps = [
@@ -1362,7 +1364,7 @@ function skillPointRewardsAvailable(player = state.player) {
   const spendableTypes = new Set(Object.keys(skillMeta));
   return !player.skills
     ?.filter((skill) => spendableTypes.has(skill.type))
-    .every((skill) => skill.level >= 20);
+    .every((skill) => skill.level >= (skillMeta[skill.type]?.max || skillMaxLevel));
 }
 
 function skillPointAdCooldownReady(player = state.player) {
@@ -1421,7 +1423,7 @@ function renderSkills(player) {
     if (!meta) {
       return;
     }
-    const maxLevel = meta.max || 20;
+    const maxLevel = meta.max || skillMaxLevel;
     const locked = isPetSkillLocked(skill.type, player);
     const current = skill.level * (meta.step || 0);
     const next = Math.min(maxLevel, skill.level + 1) * (meta.step || 0);
@@ -1436,11 +1438,11 @@ function renderSkills(player) {
       if (locked) {
         effectElement.textContent = "동료 펫 잠금 해제 필요";
       } else if (meta.petIndex) {
-        effectElement.textContent = petSkillEffectText(skill, maxLevel);
+        effectElement.textContent = petSkillEffectText(skill, maxLevel, meta);
       } else {
         effectElement.textContent = skill.level >= maxLevel
-        ? `${meta.short} +${current}% · MAX`
-        : `${meta.short} +${current}% → +${next}%`;
+        ? `${meta.short} +${formatPercentValue(current)}% · MAX`
+        : `${meta.short} +${formatPercentValue(current)}% → +${formatPercentValue(next)}%`;
       }
     }
     if (tierElement) {
@@ -1459,7 +1461,7 @@ function renderSkills(player) {
   document.querySelectorAll(".upgrade-skill").forEach((button) => {
     const skill = skillsByType.get(button.dataset.skill);
     const meta = skillMeta[button.dataset.skill];
-    const maxLevel = meta?.max || 20;
+    const maxLevel = meta?.max || skillMaxLevel;
     const locked = isPetSkillLocked(button.dataset.skill, player);
     const isMaxed = !skill || skill.level >= maxLevel;
     button.disabled = locked || player.skillPoints < 1 || isMaxed;
@@ -1471,14 +1473,20 @@ function renderSkills(player) {
   });
 }
 
+function formatPercentValue(value) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
 function isPetSkillLocked(type, player = state.player) {
   const petIndex = skillMeta[type]?.petIndex;
   return Boolean(petIndex && unlockedPetCount(player) < petIndex);
 }
 
-function petSkillEffectText(skill, maxLevel) {
-  const damage = skill.level * 2;
-  const nextDamage = Math.min(maxLevel, skill.level + 1) * 2;
+function petSkillEffectText(skill, maxLevel, meta) {
+  const maxDamage = meta.maxDamage || 40;
+  const damage = Math.round((maxDamage * skill.level) / maxLevel);
+  const nextDamage = Math.round((maxDamage * Math.min(maxLevel, skill.level + 1)) / maxLevel);
   return skill.level >= maxLevel
     ? `피해량 +${damage} · MAX`
     : `피해량 +${damage} → +${nextDamage}`;
@@ -1904,21 +1912,29 @@ async function runFriendInviteRewardFlow() {
   }
   state.shareRewardInFlight = true;
   try {
-    await requestTossShareReward();
-    return api("/api/player/reward/friend-invite/claim", { method: "POST" });
+    const completedInvites = await requestTossShareReward();
+    return claimFriendInviteReward(completedInvites);
   } finally {
     state.shareRewardInFlight = false;
   }
+}
+
+function claimFriendInviteReward(completedInvites = 1) {
+  return api("/api/player/reward/friend-invite/claim", {
+    method: "POST",
+    body: JSON.stringify({ completedInvites }),
+  });
 }
 
 async function requestTossShareReward() {
   const sdk = await loadTossSdk();
   const bridge = typeof sdk.contactsViral === "function" ? sdk : await loadTossBridge();
   if (typeof bridge.contactsViral === "function") {
-    await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       let cleanup = null;
       let settled = false;
       let timeoutId = null;
+      let observedSendCount = 0;
       const settle = (callback, value) => {
         if (settled) {
           return;
@@ -1930,15 +1946,20 @@ async function requestTossShareReward() {
       };
       timeoutId = window.setTimeout(() => {
         settle(reject, new Error("공유 리워드 응답 시간이 초과됐어요. 다시 시도해 주세요."));
-      }, 60_000);
+      }, 180_000);
       cleanup = bridge.contactsViral({
         options: { moduleId: state.shareRewardModuleId },
         onEvent: (event) => {
           if (event.type === "sendViral") {
-            settle(resolve, event);
+            observedSendCount += 1;
             return;
           }
           if (event.type === "close") {
+            const completedInvites = completedShareRewardCount(event, observedSendCount);
+            if (completedInvites > 0) {
+              settle(resolve, completedInvites);
+              return;
+            }
             const message = event.data?.closeReason === "noReward"
               ? "받을 수 있는 공유 리워드가 없어요."
               : "친구 초대 공유가 취소됐어요.";
@@ -1950,7 +1971,6 @@ async function requestTossShareReward() {
         },
       });
     });
-    return;
   }
   const shareLink = typeof sdk.getTossShareLink === "function"
     ? await sdk.getTossShareLink("intoss://gold-hunter")
@@ -1959,6 +1979,16 @@ async function requestTossShareReward() {
     throw new Error("현재 토스 앱에서 공유 기능을 사용할 수 없어요.");
   }
   await sdk.share({ message: `${state.shareRewardMessage}\n${shareLink}` });
+  return 1;
+}
+
+function completedShareRewardCount(event, observedSendCount = 0) {
+  const data = event?.data || {};
+  const count = Number(data.sentRewardsCount ?? data.sentRewardCount ?? data.rewardCount);
+  if (Number.isFinite(count) && count > 0) {
+    return Math.floor(count);
+  }
+  return observedSendCount;
 }
 
 async function finishDummyAd() {

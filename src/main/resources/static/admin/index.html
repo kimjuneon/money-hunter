@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260530-01" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260530-03" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -55,6 +55,9 @@
         <section id="dashboardView" class="view">
           <div id="statusBand" class="status-band"></div>
           <div id="metricGrid" class="metric-grid"></div>
+          <div id="economyPanel" class="dashboard-block"></div>
+          <div id="monitoringPanel" class="dashboard-block"></div>
+          <div id="playerGrowthPanel" class="dashboard-block"></div>
         </section>
 
         <section id="anomalyView" class="view hidden">
@@ -82,10 +85,25 @@
             </div>
             <form id="playerSearchForm" class="player-search">
               <input id="playerSearchInput" type="search" placeholder="유저 키 검색" autocomplete="off" />
+              <select id="playerFilterStatus" aria-label="상태 필터">
+                <option value="ALL">전체 상태</option>
+                <option value="ACTIVE">정상</option>
+                <option value="SUSPENDED">정지</option>
+              </select>
+              <select id="playerFilterProgress" aria-label="진행 상태 필터">
+                <option value="ALL">전체 진행</option>
+                <option value="ONBOARDED">게임 시작</option>
+                <option value="NEEDS_JOB">직업 미선택</option>
+                <option value="FEATURE_TUTORIAL_DONE">튜토리얼 완료</option>
+              </select>
               <button class="secondary" type="submit">검색</button>
+              <button id="playerFilterClearButton" class="ghost" type="button">초기화</button>
             </form>
             <p id="playerResult" class="feedback"></p>
-            <div id="playerList" class="player-list"></div>
+            <div class="player-console">
+              <div id="playerList" class="player-list"></div>
+              <aside id="playerDetail" class="player-detail"></aside>
+            </div>
           </section>
         </section>
 
@@ -122,6 +140,6 @@
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260530-01"></script>
+    <script src="/admin/app.js?v=20260530-03"></script>
   </body>
 </html>

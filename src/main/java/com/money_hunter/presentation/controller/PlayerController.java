@@ -7,6 +7,7 @@ import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.presentation.dto.request.AdCompletionRequest;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
+import com.money_hunter.presentation.dto.request.FriendInviteRewardClaimRequest;
 import com.money_hunter.presentation.dto.request.IapGrantRequest;
 import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
@@ -142,10 +143,13 @@ public class PlayerController {
 	}
 
 	@PostMapping("/reward/friend-invite/claim")
-	public PlayerStateResponse claimFriendInviteReward(Principal principal) {
+	public PlayerStateResponse claimFriendInviteReward(
+			Principal principal,
+			@Valid @RequestBody(required = false) FriendInviteRewardClaimRequest request
+	) {
 		String userKey = userKey(principal);
 		requireShareRewardMode();
-		return playerService.claimFriendInviteReward(userKey);
+		return playerService.claimFriendInviteReward(userKey, friendInviteCount(request));
 	}
 
 	@PostMapping("/onestore/auto-hunt/claim")
@@ -177,10 +181,13 @@ public class PlayerController {
 	}
 
 	@PostMapping("/onestore/friend-invite/claim")
-	public PlayerStateResponse claimOneStoreFriendInviteReward(Principal principal) {
+	public PlayerStateResponse claimOneStoreFriendInviteReward(
+			Principal principal,
+			@Valid @RequestBody(required = false) FriendInviteRewardClaimRequest request
+	) {
 		String userKey = userKey(principal);
 		requireGameRewardMode();
-		return playerService.claimFriendInviteReward(userKey);
+		return playerService.claimFriendInviteReward(userKey, friendInviteCount(request));
 	}
 
 	@PostMapping("/onestore/shop/companions/unlock")
@@ -232,6 +239,10 @@ public class PlayerController {
 
 	private boolean requiresRealRewardSession() {
 		return !appProperties.mockMonetizationEnabled() && appProperties.realRewardAdsEnabled();
+	}
+
+	private int friendInviteCount(FriendInviteRewardClaimRequest request) {
+		return request == null ? 1 : request.normalizedCompletedInvites();
 	}
 
 	private String adSessionToken(AdCompletionRequest request) {

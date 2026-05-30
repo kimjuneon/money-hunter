@@ -195,15 +195,24 @@ public class Player {
 	}
 
 	public void claimFriendInviteReward(int inviteLimit, int rewardSkillPoints) {
+		claimFriendInviteReward(inviteLimit, rewardSkillPoints, 1);
+	}
+
+	public int claimFriendInviteReward(int inviteLimit, int rewardSkillPoints, int completedInvites) {
 		if (friendInviteRewardCount >= inviteLimit) {
 			throw new IllegalStateException("친구 초대 보상을 모두 받았어요.");
 		}
 		if (rewardSkillPoints < 1) {
 			throw new IllegalArgumentException("Friend invite reward must be positive.");
 		}
-		this.friendInviteRewardCount += 1;
-		this.skillPoints += rewardSkillPoints;
+		if (completedInvites < 1) {
+			throw new IllegalArgumentException("Friend invite count must be positive.");
+		}
+		int claimCount = Math.min(completedInvites, inviteLimit - friendInviteRewardCount);
+		this.friendInviteRewardCount += claimCount;
+		this.skillPoints += rewardSkillPoints * claimCount;
 		touch();
+		return claimCount;
 	}
 
 	public void spendSkillPoint() {

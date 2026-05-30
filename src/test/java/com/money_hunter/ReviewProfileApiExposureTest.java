@@ -2,6 +2,7 @@ package com.money_hunter;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -264,6 +265,32 @@ class ReviewProfileApiExposureTest {
 	}
 
 	@Test
+	void adRevenuePolicyDoesNotChangeGoldRates() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		String before = mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"ARCHER\"}"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		long baseGoldPerHour = readLong(before, "$.baseGoldPerHour");
+		long boostedGoldPerHour = readLong(before, "$.boostedGoldPerHour");
+
+		try {
+			economy.update("adRevenuePerRewardAdWon", 120);
+
+			mockMvc.perform(get("/api/player"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.baseGoldPerHour", is((int) baseGoldPerHour)))
+					.andExpect(jsonPath("$.boostedGoldPerHour", is((int) boostedGoldPerHour)));
+		} finally {
+			economy.reset("adRevenuePerRewardAdWon");
+		}
+	}
+
+	@Test
 	void fullyUpgradedBoostedGoldRateIsCappedAtDefaultSixThousand() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());
@@ -293,6 +320,57 @@ class ReviewProfileApiExposureTest {
 				.andExpect(jsonPath("$.boostedGoldPerHour", is(6000)))
 				.andExpect(jsonPath("$.goldPerHour", is(6000)))
 				.andExpect(jsonPath("$.payoutRatePercent", is(100)));
+	}
+
+	@Test
+	void skillUpgradeContinuesPastTwentyUntilThirty() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+			player.getOrCreateSkill(SkillType.STRENGTH).setLevel(20);
+			player.addSkillPoints(1);
+		});
+
+		mockMvc.perform(post("/api/player/skills/upgrade")
+						.contentType(APPLICATION_JSON)
+						.content("{\"type\":\"STRENGTH\"}"))
+				.andExpect(status().isOk());
+
+		int upgradedLevel = transactionTemplate.execute(status -> {
+			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+			return player.getOrCreateSkill(SkillType.STRENGTH).getLevel();
+		});
+		assertEquals(21, upgradedLevel);
+	}
+
+	@Test
+	void friendInviteRewardClaimsMultipleCompletedInvitesAtOnce() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/player/reward/friend-invite/claim")
+						.contentType(APPLICATION_JSON)
+						.content("{\"completedInvites\":2}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.friendInviteRewardCount", is(2)))
+				.andExpect(jsonPath("$.skillPoints", is(10)));
+
+		mockMvc.perform(post("/api/player/reward/friend-invite/claim")
+						.contentType(APPLICATION_JSON)
+						.content("{\"completedInvites\":2}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.friendInviteRewardCount", is(3)))
+				.andExpect(jsonPath("$.skillPoints", is(15)));
 	}
 
 	@Test
