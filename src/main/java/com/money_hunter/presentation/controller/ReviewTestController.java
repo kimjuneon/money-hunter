@@ -4,6 +4,7 @@ import java.security.Principal;
 
 import com.money_hunter.application.PlayerService;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
+import com.money_hunter.application.dto.response.RewardClaimResponse;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +25,26 @@ public class ReviewTestController {
 	@PostMapping("/fill-reward-gauge")
 	public PlayerStateResponse fillRewardGaugeForTest(Principal principal) {
 		return playerService.fillRewardGaugeForTest(userKey(principal));
+	}
+
+	@PostMapping("/auto-hunt")
+	public PlayerStateResponse completeAutoHuntForTest(Principal principal) {
+		return playerService.completeAutoHuntAd(userKey(principal));
+	}
+
+	@PostMapping("/boost")
+	public PlayerStateResponse completeBoostForTest(Principal principal) {
+		return playerService.completeBoostAd(userKey(principal));
+	}
+
+	@PostMapping("/skill-point")
+	public PlayerStateResponse completeSkillPointForTest(Principal principal) {
+		return playerService.completeSkillPointAd(userKey(principal));
+	}
+
+	@PostMapping("/claim-reward")
+	public RewardClaimResponse claimRewardForTest(Principal principal) {
+		return playerService.claimRewardAfterAd(userKey(principal), "review-test-" + System.nanoTime());
 	}
 
 	@PostMapping("/reset")

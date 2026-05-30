@@ -2084,9 +2084,9 @@ async function battlePresetForTest() {
   }
   next = await buyAllPetsForTest(next);
   setServerPlayer(next);
-  next = await api("/api/player/ads/auto-hunt/complete", { method: "POST" });
+  next = await api("/api/player/test/auto-hunt", { method: "POST" });
   setServerPlayer(next);
-  next = await api("/api/player/ads/boost/complete", { method: "POST" });
+  next = await api("/api/player/test/boost", { method: "POST" });
   return next;
 }
 
@@ -2518,7 +2518,7 @@ function initializeDevPanel() {
   $("devAutoHunt").addEventListener("click", () => runDevAction(
     async () => {
       await ensureJobForTest();
-      return api("/api/player/ads/auto-hunt/complete", { method: "POST" });
+      return api("/api/player/test/auto-hunt", { method: "POST" });
     },
     "자동사냥 시간이 1시간 충전됐어요."
   ));
@@ -2526,7 +2526,7 @@ function initializeDevPanel() {
   $("devBoost").addEventListener("click", () => runDevAction(
     async () => {
       await ensureJobForTest();
-      return api("/api/player/ads/boost/complete", { method: "POST" });
+      return api("/api/player/test/boost", { method: "POST" });
     },
     "공격 속도 부스터가 1시간 충전됐어요."
   ));
@@ -2534,7 +2534,7 @@ function initializeDevPanel() {
   $("devSkillPoint").addEventListener("click", () => runDevAction(
     async () => {
       await ensureJobForTest();
-      return api("/api/player/ads/skill-point/complete", { method: "POST" });
+      return api("/api/player/test/skill-point", { method: "POST" });
     },
     "SP 1개를 지급했어요."
   ));
@@ -2569,10 +2569,7 @@ function initializeDevPanel() {
       if (!state.player.rewardClaimable) {
         setServerPlayer(await api("/api/player/test/fill-reward-gauge", { method: "POST" }));
       }
-      return api("/api/player/reward/claim-after-ad", {
-        method: "POST",
-        body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
-      });
+      return api("/api/player/test/claim-reward", { method: "POST" });
     },
     "테스트 리워드 수령 기록을 만들었어요."
   ));
