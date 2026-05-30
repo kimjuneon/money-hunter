@@ -17,6 +17,12 @@ public record EconomyProperties(
 		long maxAdSeconds,
 		long skillPointAdCooldownSeconds,
 		long rewardGoldThreshold,
-		int rewardPointAmount
+		int rewardPointAmount,
+		int anomalyLimitPerRule,
+		long anomalyAdEventsPerHourWarning,
+		long anomalyRewardClaimsPerDayWarning,
+		long anomalyGoldThresholdMultiplier,
+		int anomalySkillPointsWarning,
+		long anomalyTimerGraceSeconds
 ) {
 }

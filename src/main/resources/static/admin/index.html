@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260530-03" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260530-04" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -35,10 +35,11 @@
         </div>
         <nav>
           <button class="nav-item active" data-view="dashboardView">대시보드</button>
-          <button class="nav-item" data-view="anomalyView">이상징후</button>
-          <button class="nav-item" data-view="playerView">유저 관리</button>
           <button class="nav-item" data-view="policyView">정책값</button>
+          <button class="nav-item" data-view="playerView">유저 관리</button>
+          <button class="nav-item" data-view="anomalyView">이상징후</button>
           <button class="nav-item" data-view="auditView">감사 로그</button>
+          <button class="nav-item" data-view="monitoringView">모니터링</button>
         </nav>
         <button id="logoutButton" class="ghost">로그아웃</button>
       </aside>
@@ -70,7 +71,9 @@
               <span id="anomalyUpdatedAt" class="muted"></span>
             </div>
             <div id="anomalySummary" class="anomaly-summary"></div>
+            <div id="anomalyRules" class="anomaly-rules"></div>
             <div id="anomalyList" class="anomaly-list"></div>
+            <p id="anomalyResult" class="feedback"></p>
           </section>
         </section>
 
@@ -137,9 +140,23 @@
             </div>
           </section>
         </section>
+
+        <section id="monitoringView" class="view hidden">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>서버 모니터링</h3>
+                <p>관리자 페이지 안에서 서버 런타임과 운영 상태를 확인해요.</p>
+              </div>
+              <span id="serverMetricsUpdatedAt" class="muted"></span>
+            </div>
+            <div id="serverMetricsGrid" class="metric-grid"></div>
+            <div id="serverRuntimePanel" class="monitoring-panel"></div>
+          </section>
+        </section>
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260530-03"></script>
+    <script src="/admin/app.js?v=20260530-04"></script>
   </body>
 </html>

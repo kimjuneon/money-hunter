@@ -1037,8 +1037,20 @@ function render() {
   renderRewardPanel(player);
   renderShopPanel(player);
   renderPets(player);
-  $("huntTime").textContent = hunting ? `${remain(player.autoHuntEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
-  $("boostTime").textContent = isActive(player.boostEndsAt) ? `${remain(player.boostEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
+  const autoHuntReward = timeRewardAvailability(player.autoHuntEndsAt, player.autoHuntAdSeconds, player.maxAdSeconds);
+  const boostReward = timeRewardAvailability(player.boostEndsAt, player.boostAdSeconds, player.maxAdSeconds);
+  $("autoHuntAd").disabled = !autoHuntReward.available;
+  $("boostAd").disabled = !boostReward.available;
+  $("huntTime").textContent = autoHuntReward.available
+    ? hunting
+      ? `${remain(player.autoHuntEndsAt)} · 추가 가능`
+      : `${rewardGateLabel()} · ${secondsLabel(player.autoHuntAdSeconds)}`
+    : autoHuntReward.label;
+  $("boostTime").textContent = boostReward.available
+    ? isActive(player.boostEndsAt)
+      ? `${remain(player.boostEndsAt)} · 추가 가능`
+      : `${rewardGateLabel()} · ${secondsLabel(player.boostAdSeconds)}`
+    : boostReward.label;
   const spAvailable = skillPointRewardsAvailable(player);
   const spCooldownReady = skillPointAdCooldownReady(player);
   $("skillAd").disabled = !spAvailable || !spCooldownReady;
@@ -1369,6 +1381,42 @@ function skillPointRewardsAvailable(player = state.player) {
 
 function skillPointAdCooldownReady(player = state.player) {
   return !player?.nextSkillPointAdAvailableAt || !isActive(player.nextSkillPointAdAvailableAt);
+}
+
+function timeRewardAvailability(currentEndAt, rewardSeconds, maxSeconds) {
+  const reward = Number(rewardSeconds || 3600);
+  const max = Number(maxSeconds || 14400);
+  const remainingSeconds = remainingSecondsFrom(currentEndAt);
+  if (remainingSeconds + reward > max) {
+    return {
+      available: false,
+      label: `${secondsLabel(max)} 최대 누적`,
+    };
+  }
+  return {
+    available: true,
+    label: "",
+  };
+}
+
+function remainingSecondsFrom(value) {
+  if (!value) {
+    return 0;
+  }
+  const target = new Date(value).getTime();
+  if (!target || Number.isNaN(target)) {
+    return 0;
+  }
+  return Math.max(0, Math.ceil((target - Date.now()) / 1000));
+}
+
+function secondsLabel(seconds) {
+  const totalSeconds = Math.max(0, Number(seconds || 3600));
+  const hours = totalSeconds / 3600;
+  if (Number.isInteger(hours)) {
+    return `${hours}시간`;
+  }
+  return `${hours.toFixed(1).replace(/\\.0$/, "")}시간`;
 }
 
 function showContentPanel(panel) {
@@ -2381,43 +2429,65 @@ $("showSkillPanel").addEventListener("click", () => showContentPanel("skill"));
 $("showRewardPanel").addEventListener("click", () => showContentPanel("reward"));
 $("showShopPanel").addEventListener("click", () => showContentPanel("shop"));
 
-$("autoHuntAd").addEventListener("click", () => runRewardFlow(
-  "자동사냥 광고",
-  isOneStoreTarget()
-    ? "게임 내 보상으로 자동사냥 시간이 1시간 충전돼요."
-    : "완료하면 자동사냥 시간이 1시간 충전돼요.",
-  {
-    adGroupKey: "autoHunt",
-    adEventType: "AUTO_HUNT",
-    requiresReward: true,
-    request: (adSessionToken) => api(isOneStoreTarget()
-      ? "/api/player/onestore/auto-hunt/claim"
-      : "/api/player/ads/auto-hunt/complete", {
-      method: "POST",
-      body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
-    }),
-    message: "자동사냥 시간이 1시간 충전됐어요.",
+$("autoHuntAd").addEventListener("click", () => {
+  const availability = timeRewardAvailability(
+    state.player?.autoHuntEndsAt,
+    state.player?.autoHuntAdSeconds,
+    state.player?.maxAdSeconds,
+  );
+  if (!availability.available) {
+    setMessage("자동사냥 시간이 최대 누적 시간에 가까워 추가할 수 없어요.");
+    return;
   }
-));
+  runRewardFlow(
+    "자동사냥 광고",
+    isOneStoreTarget()
+      ? `게임 내 보상으로 자동사냥 시간이 ${secondsLabel(state.player?.autoHuntAdSeconds)} 충전돼요.`
+      : `완료하면 자동사냥 시간이 ${secondsLabel(state.player?.autoHuntAdSeconds)} 충전돼요.`,
+    {
+      adGroupKey: "autoHunt",
+      adEventType: "AUTO_HUNT",
+      requiresReward: true,
+      request: (adSessionToken) => api(isOneStoreTarget()
+        ? "/api/player/onestore/auto-hunt/claim"
+        : "/api/player/ads/auto-hunt/complete", {
+        method: "POST",
+        body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
+      }),
+      message: `자동사냥 시간이 ${secondsLabel(state.player?.autoHuntAdSeconds)} 충전됐어요.`,
+    }
+  );
+});
 
-$("boostAd").addEventListener("click", () => runRewardFlow(
-  "공속버프 광고",
-  isOneStoreTarget()
-    ? "게임 내 보상으로 공격 모션과 골드 획득 속도가 빨라져요."
-    : "완료하면 공격 모션과 골드 획득 속도가 빨라져요.",
-  {
-    adGroupKey: "boost",
-    adEventType: "BOOST",
-    requiresReward: true,
-    request: (adSessionToken) => api(isOneStoreTarget()
-      ? "/api/player/onestore/boost/claim"
-      : "/api/player/ads/boost/complete", {
-      method: "POST",
-      body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
-    }),
-    message: "공격 속도 부스터가 1시간 충전됐어요.",
+$("boostAd").addEventListener("click", () => {
+  const availability = timeRewardAvailability(
+    state.player?.boostEndsAt,
+    state.player?.boostAdSeconds,
+    state.player?.maxAdSeconds,
+  );
+  if (!availability.available) {
+    setMessage("공속버프 시간이 최대 누적 시간에 가까워 추가할 수 없어요.");
+    return;
   }
-));
+  runRewardFlow(
+    "공속버프 광고",
+    isOneStoreTarget()
+      ? `게임 내 보상으로 공격 모션과 골드 획득 속도가 ${secondsLabel(state.player?.boostAdSeconds)} 동안 빨라져요.`
+      : `완료하면 공격 모션과 골드 획득 속도가 ${secondsLabel(state.player?.boostAdSeconds)} 동안 빨라져요.`,
+    {
+      adGroupKey: "boost",
+      adEventType: "BOOST",
+      requiresReward: true,
+      request: (adSessionToken) => api(isOneStoreTarget()
+        ? "/api/player/onestore/boost/claim"
+        : "/api/player/ads/boost/complete", {
+        method: "POST",
+        body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
+      }),
+      message: `공격 속도 부스터가 ${secondsLabel(state.player?.boostAdSeconds)} 충전됐어요.`,
+    }
+  );
+});
 
 $("skillAd").addEventListener("click", () => {
   if (!skillPointRewardsAvailable()) {

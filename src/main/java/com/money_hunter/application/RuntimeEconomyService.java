@@ -31,7 +31,13 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("boostAdSeconds", "공속버프 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("maxAdSeconds", "광고 보상 최대 누적 시간", "초", 3_600, 86_400),
 			new PolicyDefinition("skillPointAdCooldownSeconds", "SP 광고 보상 쿨타임", "초", 0, 86_400),
-			new PolicyDefinition("rewardPointAmount", "보상 수령 포인트 기준", "P", 1, 1_000_000)
+			new PolicyDefinition("rewardPointAmount", "보상 수령 포인트 기준", "P", 1, 1_000_000),
+			new PolicyDefinition("anomalyLimitPerRule", "이상징후 룰별 최대 표시", "건", 1, 200),
+			new PolicyDefinition("anomalyAdEventsPerHourWarning", "1시간 광고 이벤트 이상징후 기준", "회", 1, 10_000),
+			new PolicyDefinition("anomalyRewardClaimsPerDayWarning", "일일 보상 수령 이상징후 기준", "건", 1, 1_000),
+			new PolicyDefinition("anomalyGoldThresholdMultiplier", "보유 골드 이상징후 배수", "배", 1, 1_000),
+			new PolicyDefinition("anomalySkillPointsWarning", "미사용 SP 이상징후 기준", "SP", 1, 100_000),
+			new PolicyDefinition("anomalyTimerGraceSeconds", "버프 시간 이상징후 유예", "초", 0, 86_400)
 	);
 
 	private final EconomyProperties defaults;
@@ -129,7 +135,13 @@ public class RuntimeEconomyService {
 				nvl(row.getMaxAdSeconds(), defaults.maxAdSeconds()),
 				nvl(row.getSkillPointAdCooldownSeconds(), defaults.skillPointAdCooldownSeconds()),
 				rewardGoldThreshold(goldPerTossPoint, rewardPointAmount),
-				rewardPointAmount
+				rewardPointAmount,
+				nvl(row.getAnomalyLimitPerRule(), defaults.anomalyLimitPerRule()),
+				nvl(row.getAnomalyAdEventsPerHourWarning(), defaults.anomalyAdEventsPerHourWarning()),
+				nvl(row.getAnomalyRewardClaimsPerDayWarning(), defaults.anomalyRewardClaimsPerDayWarning()),
+				nvl(row.getAnomalyGoldThresholdMultiplier(), defaults.anomalyGoldThresholdMultiplier()),
+				nvl(row.getAnomalySkillPointsWarning(), defaults.anomalySkillPointsWarning()),
+				nvl(row.getAnomalyTimerGraceSeconds(), defaults.anomalyTimerGraceSeconds())
 		);
 	}
 
@@ -149,7 +161,13 @@ public class RuntimeEconomyService {
 				defaults.maxAdSeconds(),
 				defaults.skillPointAdCooldownSeconds(),
 				rewardGoldThreshold,
-				defaults.rewardPointAmount()
+				defaults.rewardPointAmount(),
+				defaults.anomalyLimitPerRule(),
+				defaults.anomalyAdEventsPerHourWarning(),
+				defaults.anomalyRewardClaimsPerDayWarning(),
+				defaults.anomalyGoldThresholdMultiplier(),
+				defaults.anomalySkillPointsWarning(),
+				defaults.anomalyTimerGraceSeconds()
 		);
 	}
 
@@ -221,6 +239,30 @@ public class RuntimeEconomyService {
 		return snapshot().rewardPointAmount();
 	}
 
+	public int anomalyLimitPerRule() {
+		return snapshot().anomalyLimitPerRule();
+	}
+
+	public long anomalyAdEventsPerHourWarning() {
+		return snapshot().anomalyAdEventsPerHourWarning();
+	}
+
+	public long anomalyRewardClaimsPerDayWarning() {
+		return snapshot().anomalyRewardClaimsPerDayWarning();
+	}
+
+	public long anomalyGoldThresholdMultiplier() {
+		return snapshot().anomalyGoldThresholdMultiplier();
+	}
+
+	public int anomalySkillPointsWarning() {
+		return snapshot().anomalySkillPointsWarning();
+	}
+
+	public long anomalyTimerGraceSeconds() {
+		return snapshot().anomalyTimerGraceSeconds();
+	}
+
 	public Number valueOf(EconomyPolicySnapshot snapshot, String key) {
 		return switch (key) {
 			case "adRevenuePerRewardAdWon" -> snapshot.adRevenuePerRewardAdWon();
@@ -237,6 +279,12 @@ public class RuntimeEconomyService {
 			case "skillPointAdCooldownSeconds" -> snapshot.skillPointAdCooldownSeconds();
 			case "rewardGoldThreshold" -> snapshot.rewardGoldThreshold();
 			case "rewardPointAmount" -> snapshot.rewardPointAmount();
+			case "anomalyLimitPerRule" -> snapshot.anomalyLimitPerRule();
+			case "anomalyAdEventsPerHourWarning" -> snapshot.anomalyAdEventsPerHourWarning();
+			case "anomalyRewardClaimsPerDayWarning" -> snapshot.anomalyRewardClaimsPerDayWarning();
+			case "anomalyGoldThresholdMultiplier" -> snapshot.anomalyGoldThresholdMultiplier();
+			case "anomalySkillPointsWarning" -> snapshot.anomalySkillPointsWarning();
+			case "anomalyTimerGraceSeconds" -> snapshot.anomalyTimerGraceSeconds();
 			default -> throw new IllegalArgumentException("Unknown policy key.");
 		};
 	}

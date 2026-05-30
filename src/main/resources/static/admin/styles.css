@@ -107,10 +107,14 @@ select {
 }
 
 .sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 24px;
+  overflow-y: auto;
   background: #111827;
   color: white;
 }
@@ -158,11 +162,17 @@ nav {
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin: -12px -4px 18px;
+  padding: 12px 4px;
+  background: rgba(238, 242, 247, 0.94);
+  backdrop-filter: blur(12px);
 }
 
 .topbar h2 {
@@ -187,7 +197,13 @@ nav {
   padding: 18px;
 }
 
-.release-card span {
+.release-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.release-head span {
   display: inline-grid;
   min-height: 24px;
   place-items: center;
@@ -198,11 +214,11 @@ nav {
   font-weight: 1000;
 }
 
-.release-card.ready span {
+.release-card.ready .release-head span {
   background: var(--green);
 }
 
-.release-card.blocked span {
+.release-card.blocked .release-head span {
   background: var(--red);
 }
 
@@ -214,6 +230,50 @@ nav {
 
 .release-card p {
   color: var(--muted);
+}
+
+.runtime-status-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.runtime-status-card {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.runtime-status-card strong,
+.runtime-status-card small {
+  display: block;
+}
+
+.runtime-status-card small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.status-lamp {
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--red);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+}
+
+.runtime-status-card.ok .status-lamp {
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);
 }
 
 .metric-grid {
@@ -240,6 +300,13 @@ nav {
   display: block;
   margin-top: 8px;
   font-size: 24px;
+}
+
+.metric-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .economy-panel {
@@ -573,7 +640,7 @@ nav {
 
 .player-detail {
   position: sticky;
-  top: 24px;
+  top: 96px;
   display: grid;
   gap: 14px;
   padding: 16px;
@@ -694,6 +761,48 @@ nav {
   margin-bottom: 12px;
 }
 
+.anomaly-rules {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+
+.anomaly-rule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.anomaly-rule-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.anomaly-rule p,
+.anomaly-rule small {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.anomaly-rule-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.anomaly-rule-control button {
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
 .anomaly-count {
   padding: 14px;
   border: 1px solid var(--line);
@@ -729,8 +838,10 @@ nav {
 }
 
 .anomaly-row {
-  grid-template-columns: minmax(0, 1fr) minmax(150px, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(210px, auto);
   border-left-width: 5px;
+  cursor: pointer;
+  align-items: start;
 }
 
 .anomaly-row.critical {
@@ -748,7 +859,30 @@ nav {
 .anomaly-title {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.anomaly-status {
+  display: inline-grid;
+  min-height: 24px;
+  place-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.anomaly-status.in_progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.anomaly-status.resolved {
+  background: #dcfce7;
+  color: #15803d;
 }
 
 .severity-chip {
@@ -777,6 +911,42 @@ nav {
   color: var(--muted);
   font-size: 12px;
   text-align: right;
+}
+
+.anomaly-meta button,
+.anomaly-meta select,
+.anomaly-meta textarea {
+  width: 100%;
+}
+
+.anomaly-meta textarea {
+  min-height: 74px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  resize: vertical;
+  background: #ffffff;
+  font: inherit;
+}
+
+.anomaly-history {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.monitoring-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.compact-head {
+  margin-bottom: 10px;
 }
 
 .pager {
@@ -883,6 +1053,7 @@ nav {
   .sidebar {
     position: sticky;
     top: 0;
+    height: auto;
     z-index: 10;
     flex-direction: row;
     align-items: center;
@@ -907,6 +1078,7 @@ nav {
   .quick-policy-card.calibration-card,
   .quick-policy-card.direct-policy-card,
   .monitoring-grid,
+  .runtime-status-grid,
   .growth-summary,
   .player-console {
     grid-template-columns: 1fr;
@@ -919,6 +1091,8 @@ nav {
   .policy-row,
   .audit-row,
   .anomaly-row,
+  .anomaly-rule,
+  .anomaly-rule-control,
   .player-row,
   .player-search {
     grid-template-columns: 1fr;

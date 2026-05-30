@@ -2,6 +2,7 @@ package com.money_hunter.presentation.controller;
 
 import java.util.List;
 
+import com.money_hunter.application.AdminAnomalyCaseService;
 import com.money_hunter.application.AdminAccessGuard;
 import com.money_hunter.application.AdminAuditService;
 import com.money_hunter.application.AdminMonitoringService;
@@ -11,7 +12,9 @@ import com.money_hunter.application.RuntimeEconomyService.PolicyChangeResult;
 import com.money_hunter.application.RuntimeEconomyService.PolicyDefinition;
 import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResponse;
+import com.money_hunter.domain.AdminAnomalyStatus;
 import com.money_hunter.domain.AdminAuditLog;
+import com.money_hunter.presentation.dto.request.AdminAnomalyActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
 import com.money_hunter.presentation.dto.request.AdminRevenueCalibrationRequest;
@@ -44,19 +47,22 @@ public class AdminController {
 	private final RuntimeEconomyService economyService;
 	private final AdminAuditService adminAuditService;
 	private final AdminPlayerService adminPlayerService;
+	private final AdminAnomalyCaseService anomalyCaseService;
 
 	public AdminController(
 			AdminAccessGuard adminAccessGuard,
 			AdminMonitoringService monitoringService,
 			RuntimeEconomyService economyService,
 			AdminAuditService adminAuditService,
-			AdminPlayerService adminPlayerService
+			AdminPlayerService adminPlayerService,
+			AdminAnomalyCaseService anomalyCaseService
 	) {
 		this.adminAccessGuard = adminAccessGuard;
 		this.monitoringService = monitoringService;
 		this.economyService = economyService;
 		this.adminAuditService = adminAuditService;
 		this.adminPlayerService = adminPlayerService;
+		this.anomalyCaseService = anomalyCaseService;
 	}
 
 	@GetMapping("/overview")
@@ -71,6 +77,31 @@ public class AdminController {
 		return monitoringService.anomalies();
 	}
 
+	@PostMapping("/anomalies/actions")
+	public AdminAnomalyCaseService.AdminAnomalyCaseResponse updateAnomalyAction(
+			@Valid @RequestBody AdminAnomalyActionRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminAnomalyStatus status = parseAnomalyStatus(requestBody.status());
+		AdminAnomalyCaseService.AdminAnomalyCaseResponse response = anomalyCaseService.update(
+				requestBody.anomalyKey(),
+				requestBody.category(),
+				requestBody.userKey(),
+				status,
+				requestBody.note(),
+				admin);
+		adminAuditService.record(
+				admin,
+				"ANOMALY_ACTION",
+				requestBody.anomalyKey(),
+				null,
+				status.name(),
+				optionalReason(requestBody.note()),
+				request);
+		return response;
+	}
+
 	@GetMapping("/player-growth")
 	public AdminMonitoringService.AdminPlayerGrowthReport playerGrowth(
 			@RequestParam(defaultValue = "30") int days,
@@ -78,6 +109,12 @@ public class AdminController {
 	) {
 		adminAccessGuard.require(request);
 		return monitoringService.playerGrowth(days);
+	}
+
+	@GetMapping("/server-metrics")
+	public AdminMonitoringService.AdminServerMetrics serverMetrics(HttpServletRequest request) {
+		adminAccessGuard.require(request);
+		return monitoringService.serverMetrics();
 	}
 
 	@GetMapping("/players")
@@ -253,6 +290,14 @@ public class AdminController {
 			return null;
 		}
 		return reason.trim();
+	}
+
+	private AdminAnomalyStatus parseAnomalyStatus(String status) {
+		try {
+			return AdminAnomalyStatus.valueOf(status);
+		} catch (RuntimeException exception) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 이상징후 처리 상태예요.");
+		}
 	}
 
 	private long deriveGoldPerTossPoint(long adRevenuePerRewardAdWon) {

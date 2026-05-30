@@ -15,6 +15,13 @@ const state = {
 
 const maxGoldPerHour = 6000;
 const fullRateRequiredAdsPerHour = 2;
+const hourPolicyKeys = new Set([
+  "autoHuntAdSeconds",
+  "boostAdSeconds",
+  "maxAdSeconds",
+  "skillPointAdCooldownSeconds",
+  "anomalyTimerGraceSeconds",
+]);
 const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -117,7 +124,7 @@ function showAdmin() {
   refreshCurrentView();
 }
 
-function switchView(viewId) {
+function activateView(viewId) {
   state.view = viewId;
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === viewId);
@@ -131,7 +138,12 @@ function switchView(viewId) {
     playerView: "유저 관리",
     policyView: "정책값",
     auditView: "감사 로그",
+    monitoringView: "모니터링",
   }[viewId] || "대시보드";
+}
+
+function switchView(viewId) {
+  activateView(viewId);
   refreshCurrentView();
 }
 
@@ -153,6 +165,8 @@ async function refreshCurrentView(options = {}) {
       await loadAnomalies();
     } else if (state.view === "playerView") {
       await loadPlayers();
+    } else if (state.view === "monitoringView") {
+      await loadServerMetrics();
     } else {
       await loadOverview();
     }
@@ -182,11 +196,25 @@ async function loadOverview() {
 
 function renderStatus(data) {
   const ready = data.tossReleaseReady;
+  const statusItems = data.runtimeStatusItems || [];
   $("statusBand").innerHTML = `
     <div class="release-card ${ready ? "ready" : "blocked"}">
-      <span>${ready ? "READY" : "BLOCKED"}</span>
-      <strong>${escapeHtml(data.integrationMode)} · ${escapeHtml(data.distributionTarget)}</strong>
-      <p>${ready ? "출시 차단 항목이 없어요." : escapeHtml((data.releaseBlockers || []).join(", "))}</p>
+      <div class="release-head">
+        <span>${ready ? "READY" : "CHECK"}</span>
+        <strong>${escapeHtml(data.integrationMode)} · ${escapeHtml(data.distributionTarget)}</strong>
+      </div>
+      <p>${ready ? "운영 차단 항목이 없어요." : escapeHtml((data.releaseBlockers || []).join(", "))}</p>
+      <div class="runtime-status-grid">
+        ${statusItems.map((item) => `
+          <article class="runtime-status-card ${item.healthy ? "ok" : "blocked"}">
+            <div class="status-lamp" aria-hidden="true"></div>
+            <div>
+              <strong>${escapeHtml(item.label)}</strong>
+              <small>${escapeHtml(item.detail || item.status)}</small>
+            </div>
+          </article>
+        `).join("")}
+      </div>
     </div>
   `;
 }
@@ -480,6 +508,7 @@ async function loadAnomalies() {
   const data = await request("/api/admin/anomalies");
   $("anomalyUpdatedAt").textContent = new Date(data.generatedAt).toLocaleString("ko-KR");
   renderAnomalySummary(data);
+  renderAnomalyRules(data.rules || []);
   renderAnomalyList(data.anomalies || []);
 }
 
@@ -499,21 +528,180 @@ function renderAnomalySummary(data) {
 
 function renderAnomalyList(anomalies) {
   $("anomalyList").innerHTML = anomalies.map((anomaly) => `
-    <article class="anomaly-row ${escapeHtml(anomaly.severity.toLowerCase())}">
+    <article
+      class="anomaly-row ${escapeHtml(anomaly.severity.toLowerCase())}"
+      data-anomaly-row
+      data-anomaly-key="${escapeHtml(anomaly.anomalyKey)}"
+      data-category="${escapeHtml(anomaly.category)}"
+      data-user-key="${escapeHtml(anomaly.userKey)}"
+    >
       <div>
         <div class="anomaly-title">
           <span class="severity-chip">${escapeHtml(severityLabel(anomaly.severity))}</span>
           <strong>${escapeHtml(anomaly.title)}</strong>
+          <span class="anomaly-status ${escapeHtml(String(anomaly.status || "OPEN").toLowerCase())}">
+            ${escapeHtml(anomalyStatusLabel(anomaly.status))}
+          </span>
         </div>
         <p>${escapeHtml(anomaly.detail)}</p>
         <small>${escapeHtml(anomaly.category)} · 기준 ${formatNumber(anomaly.thresholdValue)} / 감지 ${formatNumber(anomaly.observedValue)}</small>
+        ${renderAnomalyActions(anomaly.actions || [])}
       </div>
-      <div class="anomaly-meta">
+      <div class="anomaly-meta" data-anomaly-control>
+        <button class="ghost" type="button" data-open-user>유저 보기</button>
         <strong>${escapeHtml(anomaly.userKey)}</strong>
-        <span>${new Date(anomaly.detectedAt).toLocaleString("ko-KR")}</span>
+        <span>${formatDate(anomaly.detectedAt)}</span>
+        <select data-anomaly-status aria-label="이상징후 처리 상태">
+          ${["OPEN", "IN_PROGRESS", "RESOLVED"].map((status) => `
+            <option value="${status}" ${status === (anomaly.status || "OPEN") ? "selected" : ""}>
+              ${escapeHtml(anomalyStatusLabel(status))}
+            </option>
+          `).join("")}
+        </select>
+        <textarea data-anomaly-note maxlength="500" placeholder="조치 내역 입력">${escapeHtml(anomaly.note || "")}</textarea>
+        <button class="secondary" type="button" data-anomaly-save>조치 저장</button>
       </div>
     </article>
   `).join("") || `<p class="empty">현재 감지된 이상징후가 없어요.</p>`;
+
+  document.querySelectorAll("[data-anomaly-row]").forEach((row) => {
+    row.addEventListener("click", (event) => {
+      if (event.target.closest("[data-anomaly-control]")) {
+        return;
+      }
+      openPlayerFromAnomaly(row.dataset.userKey);
+    });
+  });
+  document.querySelectorAll("[data-open-user]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openPlayerFromAnomaly(button.closest("[data-anomaly-row]").dataset.userKey);
+    });
+  });
+  document.querySelectorAll("[data-anomaly-save]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      saveAnomalyAction(button.closest("[data-anomaly-row]"), button);
+    });
+  });
+}
+
+function renderAnomalyRules(rules) {
+  $("anomalyRules").innerHTML = rules.map((rule) => {
+    const displayValue = policyDisplayValue(rule.policyKey, rule.thresholdValue);
+    const displayMin = policyDisplayValue(rule.policyKey, rule.min);
+    const displayMax = policyDisplayValue(rule.policyKey, rule.max);
+    return `
+      <article class="anomaly-rule ${escapeHtml(rule.severity.toLowerCase())}">
+        <div>
+          <div class="anomaly-rule-title">
+            <span class="severity-chip">${escapeHtml(severityLabel(rule.severity))}</span>
+            <strong>${escapeHtml(rule.title)}</strong>
+          </div>
+          <p>${escapeHtml(rule.description)}</p>
+          <small>${escapeHtml(rule.policyKey)} · ${formatNumber(displayMin)}~${formatNumber(displayMax)} ${escapeHtml(policyDisplayUnit(rule.policyKey, rule.unit))}</small>
+        </div>
+        ${rule.editable ? `
+          <div class="anomaly-rule-control" data-anomaly-rule data-key="${escapeHtml(rule.policyKey)}">
+            <input
+              type="number"
+              min="${escapeHtml(displayMin)}"
+              max="${escapeHtml(displayMax)}"
+              step="${escapeHtml(policyInputStep(rule.policyKey))}"
+              value="${escapeHtml(displayValue)}"
+              data-anomaly-rule-value
+              aria-label="${escapeHtml(rule.title)} 기준값"
+            />
+            <button class="secondary" type="button" data-anomaly-rule-save>기준 저장</button>
+          </div>
+        ` : ""}
+      </article>
+    `;
+  }).join("");
+
+  document.querySelectorAll("[data-anomaly-rule-save]").forEach((button) => {
+    button.addEventListener("click", () => saveAnomalyRule(button.closest("[data-anomaly-rule]"), button));
+  });
+}
+
+function renderAnomalyActions(actions) {
+  if (!actions.length) {
+    return "";
+  }
+  return `
+    <div class="anomaly-history">
+      ${actions.slice(0, 3).map((action) => `
+        <small>
+          ${escapeHtml(anomalyStatusLabel(action.status))} · ${escapeHtml(action.note || "메모 없음")} · ${formatDate(action.createdAt)}
+        </small>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function saveAnomalyRule(row, button) {
+  const key = row.dataset.key;
+  const rawValue = Number(row.querySelector("[data-anomaly-rule-value]").value);
+  const value = policyRequestValue(key, rawValue);
+  $("anomalyResult").textContent = "";
+  $("anomalyResult").classList.remove("error-text");
+  setButtonBusy(button, true);
+  try {
+    await request("/api/admin/policies", {
+      method: "PATCH",
+      body: { key, value, resetToDefault: false, reason: "" },
+    });
+    $("anomalyResult").textContent = "이상징후 기준을 저장했어요.";
+    showToast("이상징후 기준을 저장했어요.");
+    await loadAnomalies();
+    if (state.view === "policyView") {
+      await loadPolicies();
+    }
+  } catch (error) {
+    $("anomalyResult").textContent = error.message;
+    $("anomalyResult").classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function saveAnomalyAction(row, button) {
+  const body = {
+    anomalyKey: row.dataset.anomalyKey,
+    category: row.dataset.category,
+    userKey: row.dataset.userKey,
+    status: row.querySelector("[data-anomaly-status]").value,
+    note: row.querySelector("[data-anomaly-note]").value.trim(),
+  };
+  $("anomalyResult").textContent = "";
+  $("anomalyResult").classList.remove("error-text");
+  setButtonBusy(button, true);
+  try {
+    await request("/api/admin/anomalies/actions", { method: "POST", body });
+    $("anomalyResult").textContent = `${body.userKey} 이상징후 조치를 저장했어요.`;
+    showToast("이상징후 조치를 저장했어요.");
+    await loadAnomalies();
+  } catch (error) {
+    $("anomalyResult").textContent = error.message;
+    $("anomalyResult").classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function openPlayerFromAnomaly(userKey) {
+  if (!userKey) {
+    return;
+  }
+  activateView("playerView");
+  $("playerSearchInput").value = userKey;
+  $("playerFilterStatus").value = "ALL";
+  $("playerFilterProgress").value = "ALL";
+  state.selectedUserKey = userKey;
+  await loadPlayers();
+  showToast(`${userKey} 유저 정보를 열었어요.`);
 }
 
 async function loadPlayers() {
@@ -735,15 +923,26 @@ async function loadPolicies() {
 }
 
 function policyRow(policy) {
+  const value = policyDisplayValue(policy.key, policy.value);
+  const min = policyDisplayValue(policy.key, policy.min);
+  const max = policyDisplayValue(policy.key, policy.max);
+  const unit = policyDisplayUnit(policy.key, policy.unit);
   return `
     <article class="policy-row" data-key="${escapeHtml(policy.key)}">
       <div class="policy-copy">
         <strong>${escapeHtml(policy.label)}</strong>
-        <small>${escapeHtml(policy.key)} · ${formatNumber(policy.min)}~${formatNumber(policy.max)} ${escapeHtml(policy.unit)}</small>
+        <small>${escapeHtml(policy.key)} · ${formatNumber(min)}~${formatNumber(max)} ${escapeHtml(unit)}</small>
       </div>
       <label>
         <span>값</span>
-        <input type="number" min="${policy.min}" max="${policy.max}" value="${escapeHtml(policy.value)}" data-value />
+        <input
+          type="number"
+          min="${escapeHtml(min)}"
+          max="${escapeHtml(max)}"
+          step="${escapeHtml(policyInputStep(policy.key))}"
+          value="${escapeHtml(value)}"
+          data-value
+        />
       </label>
       <label>
         <span>변경 사유</span>
@@ -774,13 +973,27 @@ function policyGroups() {
       description: "펫, SP 패키지, 친구 초대 보상",
       keys: ["companionPriceWon", "skillPointPackPriceWon", "skillPointPackAmount", "friendInviteRewardSkillPoints", "friendInviteLimit", "maxCharacterSlots"],
     },
+    {
+      title: "이상징후 기준",
+      description: "감지 기준, 유예 시간, 룰별 표시 수",
+      keys: [
+        "anomalyLimitPerRule",
+        "anomalyAdEventsPerHourWarning",
+        "anomalyRewardClaimsPerDayWarning",
+        "anomalyGoldThresholdMultiplier",
+        "anomalySkillPointsWarning",
+        "anomalyTimerGraceSeconds",
+      ],
+    },
   ];
 }
 
 async function savePolicy(row, resetToDefault) {
+  const key = row.dataset.key;
+  const displayValue = Number(row.querySelector("[data-value]").value);
   const body = {
-    key: row.dataset.key,
-    value: Number(row.querySelector("[data-value]").value),
+    key,
+    value: policyRequestValue(key, displayValue),
     resetToDefault,
     reason: row.querySelector("[data-reason]").value.trim(),
   };
@@ -802,6 +1015,58 @@ async function savePolicy(row, resetToDefault) {
   } finally {
     setPolicyRowBusy(row, false);
   }
+}
+
+async function loadServerMetrics() {
+  const [overview, metrics] = await Promise.all([
+    request("/api/admin/overview"),
+    request("/api/admin/server-metrics"),
+  ]);
+  state.overview = overview;
+  $("serverMetricsUpdatedAt").textContent = formatDate(metrics.generatedAt);
+  renderServerMetrics(metrics, overview);
+}
+
+function renderServerMetrics(metrics, overview) {
+  const heapRatio = metrics.heapMaxBytes > 0 ? metrics.heapUsedBytes / metrics.heapMaxBytes : 0;
+  const runtimeRatio = metrics.maxMemoryBytes > 0 ? (metrics.totalMemoryBytes - metrics.freeMemoryBytes) / metrics.maxMemoryBytes : 0;
+  const cards = [
+    ["업타임", formatDuration(metrics.uptimeMillis), "서버 프로세스 실행 시간"],
+    ["Heap 사용", `${formatBytes(metrics.heapUsedBytes)} / ${formatBytes(metrics.heapMaxBytes)}`, formatPercent(metrics.heapUsedBytes, metrics.heapMaxBytes)],
+    ["Runtime 메모리", `${formatBytes(metrics.totalMemoryBytes - metrics.freeMemoryBytes)} / ${formatBytes(metrics.maxMemoryBytes)}`, formatPercent(metrics.totalMemoryBytes - metrics.freeMemoryBytes, metrics.maxMemoryBytes)],
+    ["Non-Heap", formatBytes(metrics.nonHeapUsedBytes), "클래스/메타 영역"],
+    ["스레드", `${formatNumber(metrics.threadCount)}개`, `daemon ${formatNumber(metrics.daemonThreadCount)}개`],
+    ["CPU", `${formatNumber(metrics.availableProcessors)} core`, metrics.systemLoadAverage >= 0 ? `load ${metrics.systemLoadAverage.toFixed(2)}` : "load 미지원"],
+    ["Heap 상태", heapRatio >= 0.85 ? "주의" : "정상", `${Math.round(heapRatio * 100)}% 사용`],
+    ["Runtime 상태", runtimeRatio >= 0.85 ? "주의" : "정상", `${Math.round(runtimeRatio * 100)}% 사용`],
+  ];
+  $("serverMetricsGrid").innerHTML = cards.map(([label, value, detail]) => `
+    <article class="metric-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `).join("");
+  const statusItems = overview.runtimeStatusItems || [];
+  $("serverRuntimePanel").innerHTML = `
+    <div class="panel-head compact-head">
+      <div>
+        <h3>운영 기능 상태</h3>
+        <p>운영 모드면 초록, 테스트 모드거나 기능이 꺼져 있으면 빨간색으로 표시해요.</p>
+      </div>
+    </div>
+    <div class="runtime-status-grid">
+      ${statusItems.map((item) => `
+        <article class="runtime-status-card ${item.healthy ? "ok" : "blocked"}">
+          <div class="status-lamp" aria-hidden="true"></div>
+          <div>
+            <strong>${escapeHtml(item.label)}</strong>
+            <small>${escapeHtml(item.detail || item.status)}</small>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
 }
 
 async function loadAudits() {
@@ -954,6 +1219,64 @@ function severityLabel(severity) {
     WARNING: "주의",
     INFO: "관찰",
   }[severity] || severity;
+}
+
+function anomalyStatusLabel(status) {
+  return {
+    OPEN: "처리전",
+    IN_PROGRESS: "처리중",
+    RESOLVED: "처리완료",
+  }[status] || "처리전";
+}
+
+function policyDisplayValue(key, rawValue) {
+  const value = Number(rawValue || 0);
+  return hourPolicyKeys.has(key) ? Number((value / 3600).toFixed(2)) : value;
+}
+
+function policyRequestValue(key, displayValue) {
+  const value = Number(displayValue);
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return hourPolicyKeys.has(key) ? Math.round(value * 3600) : value;
+}
+
+function policyDisplayUnit(key, unit) {
+  return hourPolicyKeys.has(key) ? "시간" : unit;
+}
+
+function policyInputStep(key) {
+  return hourPolicyKeys.has(key) ? "0.1" : "1";
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) {
+    return `${bytes}B`;
+  }
+  const units = ["KB", "MB", "GB"];
+  let amount = bytes / 1024;
+  let unitIndex = 0;
+  while (amount >= 1024 && unitIndex < units.length - 1) {
+    amount /= 1024;
+    unitIndex += 1;
+  }
+  return `${amount.toFixed(amount >= 100 ? 0 : 1)}${units[unitIndex]}`;
+}
+
+function formatDuration(millis) {
+  const totalSeconds = Math.floor(Number(millis || 0) / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (days > 0) {
+    return `${days}일 ${hours}시간`;
+  }
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분`;
+  }
+  return `${minutes}분`;
 }
 
 function escapeHtml(value) {

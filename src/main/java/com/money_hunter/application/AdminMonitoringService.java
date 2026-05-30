@@ -9,10 +9,17 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import com.money_hunter.domain.AdminAnomalyCase;
+import com.money_hunter.domain.AdminAnomalyStatus;
 import com.money_hunter.domain.RewardClaimStatus;
 import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
+import com.money_hunter.infrastructure.persistence.AdminAnomalyActionRepository;
+import com.money_hunter.infrastructure.persistence.AdminAnomalyCaseRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
 import org.springframework.data.domain.PageRequest;
@@ -21,16 +28,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminMonitoringService {
 	private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-	private static final int ANOMALY_LIMIT_PER_RULE = 20;
-	private static final long AD_EVENTS_PER_HOUR_WARNING = 20;
-	private static final long REWARD_CLAIMS_PER_DAY_WARNING = 3;
-	private static final int SKILL_POINTS_WARNING = 100;
-	private static final long TIMER_GRACE_SECONDS = 120;
-	private static final long GOLD_THRESHOLD_MULTIPLIER = 3;
 
 	private final PlayerRepository playerRepository;
 	private final AdEventRepository adEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
+	private final AdminAnomalyCaseRepository anomalyCaseRepository;
+	private final AdminAnomalyActionRepository anomalyActionRepository;
 	private final RuntimeEconomyService economy;
 	private final AppProperties appProperties;
 	private final Clock clock = Clock.systemUTC();
@@ -39,12 +42,16 @@ public class AdminMonitoringService {
 			PlayerRepository playerRepository,
 			AdEventRepository adEventRepository,
 			RewardClaimRepository rewardClaimRepository,
+			AdminAnomalyCaseRepository anomalyCaseRepository,
+			AdminAnomalyActionRepository anomalyActionRepository,
 			RuntimeEconomyService economy,
 			AppProperties appProperties
 	) {
 		this.playerRepository = playerRepository;
 		this.adEventRepository = adEventRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
+		this.anomalyCaseRepository = anomalyCaseRepository;
+		this.anomalyActionRepository = anomalyActionRepository;
 		this.economy = economy;
 		this.appProperties = appProperties;
 	}
@@ -82,7 +89,8 @@ public class AdminMonitoringService {
 				estimatedAdRevenueWonToday,
 				estimatedRewardCostWonToday,
 				estimatedAdRevenueWonToday - estimatedRewardCostWonToday,
-				economy.snapshot()
+				economy.snapshot(),
+				runtimeStatusItems()
 		);
 	}
 
@@ -90,14 +98,19 @@ public class AdminMonitoringService {
 		Instant now = Instant.now(clock);
 		Instant oneHourAgo = now.minus(1, ChronoUnit.HOURS);
 		Instant today = LocalDate.now(SEOUL).atStartOfDay(SEOUL).toInstant();
-		var limit = PageRequest.of(0, ANOMALY_LIMIT_PER_RULE);
-		long suspiciousGold = multiplyCapped(economy.rewardGoldThreshold(), GOLD_THRESHOLD_MULTIPLIER);
-		Instant maxAutoHuntEnd = now.plusSeconds(economy.maxAdSeconds() + TIMER_GRACE_SECONDS);
-		Instant maxBoostEnd = now.plusSeconds(economy.maxAdSeconds() + TIMER_GRACE_SECONDS);
-		List<AdminAnomaly> anomalies = new ArrayList<>();
+		var limit = PageRequest.of(0, economy.anomalyLimitPerRule());
+		long adEventsPerHourWarning = economy.anomalyAdEventsPerHourWarning();
+		long rewardClaimsPerDayWarning = economy.anomalyRewardClaimsPerDayWarning();
+		long goldThresholdMultiplier = economy.anomalyGoldThresholdMultiplier();
+		int skillPointsWarning = economy.anomalySkillPointsWarning();
+		long timerGraceSeconds = economy.anomalyTimerGraceSeconds();
+		long suspiciousGold = multiplyCapped(economy.rewardGoldThreshold(), goldThresholdMultiplier);
+		Instant maxAutoHuntEnd = now.plusSeconds(economy.maxAdSeconds() + timerGraceSeconds);
+		Instant maxBoostEnd = now.plusSeconds(economy.maxAdSeconds() + timerGraceSeconds);
+		List<AdminAnomaly> detectedAnomalies = new ArrayList<>();
 
-		adEventRepository.findPlayerEventCountsSince(oneHourAgo, AD_EVENTS_PER_HOUR_WARNING, limit)
-				.forEach(row -> anomalies.add(new AdminAnomaly(
+		adEventRepository.findPlayerEventCountsSince(oneHourAgo, adEventsPerHourWarning, limit)
+				.forEach(row -> detectedAnomalies.add(anomaly(
 						"WARNING",
 						"HIGH_AD_EVENTS",
 						row.getUserKey(),
@@ -105,11 +118,11 @@ public class AdminMonitoringService {
 						"최근 1시간 동안 광고성 보상 이벤트가 " + row.getEventCount()
 								+ "회 발생했어요. 자동 호출이나 반복 클릭을 확인하세요.",
 						row.getEventCount(),
-						AD_EVENTS_PER_HOUR_WARNING,
+						adEventsPerHourWarning,
 						row.getLastOccurredAt())));
 
-		rewardClaimRepository.findPlayerClaimCountsSince(today, REWARD_CLAIMS_PER_DAY_WARNING, limit)
-				.forEach(row -> anomalies.add(new AdminAnomaly(
+		rewardClaimRepository.findPlayerClaimCountsSince(today, rewardClaimsPerDayWarning, limit)
+				.forEach(row -> detectedAnomalies.add(anomaly(
 						"CRITICAL",
 						"HIGH_REWARD_CLAIMS",
 						row.getUserKey(),
@@ -117,34 +130,36 @@ public class AdminMonitoringService {
 						"오늘 보상 수령이 " + row.getClaimCount() + "건, 총 " + row.getPointAmount()
 								+ "P로 집계됐어요. 실제 포인트 지급 전 검토가 필요해요.",
 						row.getClaimCount(),
-						REWARD_CLAIMS_PER_DAY_WARNING,
+						rewardClaimsPerDayWarning,
 						row.getLastClaimedAt())));
 
 		playerRepository.findPlayersWithGoldAtLeast(suspiciousGold, limit)
-				.forEach(row -> anomalies.add(new AdminAnomaly(
+				.forEach(row -> detectedAnomalies.add(anomaly(
 						"INFO",
 						"HIGH_GOLD_BALANCE",
 						row.getUserKey(),
 						"보유 골드 과다",
 						"현재 골드가 " + row.getGold() + "G예요. 정상 장기 미수령일 수 있지만 보상 기준의 "
-								+ GOLD_THRESHOLD_MULTIPLIER + "배를 넘어서 관찰 대상으로 표시했어요.",
+								+ goldThresholdMultiplier + "배를 넘어서 관찰 대상으로 표시했어요.",
 						row.getGold(),
 						suspiciousGold,
 						row.getUpdatedAt())));
 
-		playerRepository.findPlayersWithSkillPointsAtLeast(SKILL_POINTS_WARNING, limit)
-				.forEach(row -> anomalies.add(new AdminAnomaly(
+		playerRepository.findPlayersWithSkillPointsAtLeast(skillPointsWarning, limit)
+				.forEach(row -> detectedAnomalies.add(anomaly(
 						"INFO",
 						"HIGH_SKILL_POINTS",
 						row.getUserKey(),
 						"미사용 스킬 포인트 과다",
 						"미사용 SP가 " + row.getSkillPoints() + "개예요. 결제/초대/레벨업 누적이 정상인지 확인하세요.",
 						row.getSkillPoints(),
-						SKILL_POINTS_WARNING,
+						skillPointsWarning,
 						row.getUpdatedAt())));
 
 		playerRepository.findPlayersWithTimersBeyond(maxAutoHuntEnd, maxBoostEnd, limit)
-				.forEach(row -> anomalies.add(timerAnomaly(now, row)));
+				.forEach(row -> detectedAnomalies.add(timerAnomaly(now, row, timerGraceSeconds)));
+
+		List<AdminAnomaly> anomalies = new ArrayList<>(enrichAnomalyCases(detectedAnomalies));
 
 		anomalies.sort(Comparator
 				.comparingInt((AdminAnomaly anomaly) -> severityRank(anomaly.severity()))
@@ -158,12 +173,79 @@ public class AdminMonitoringService {
 				countSeverity(anomalies, "INFO"),
 				anomalies,
 				new AdminAnomalyThresholds(
-						AD_EVENTS_PER_HOUR_WARNING,
-						REWARD_CLAIMS_PER_DAY_WARNING,
+						adEventsPerHourWarning,
+						rewardClaimsPerDayWarning,
 						suspiciousGold,
-						SKILL_POINTS_WARNING,
+						skillPointsWarning,
 						economy.maxAdSeconds(),
-						TIMER_GRACE_SECONDS));
+						timerGraceSeconds),
+				List.of(
+						new AdminAnomalyRule(
+								"HIGH_AD_EVENTS",
+								"1시간 광고 이벤트 과다",
+								"최근 1시간 동안 유저별 광고 보상 이벤트 수가 기준 이상이면 표시해요.",
+								"WARNING",
+								adEventsPerHourWarning,
+								"회",
+								true,
+								"anomalyAdEventsPerHourWarning",
+								1,
+								10_000),
+						new AdminAnomalyRule(
+								"HIGH_REWARD_CLAIMS",
+								"일일 보상 수령 과다",
+								"하루 보상 수령 건수가 기준 이상이면 포인트 지급 전 확인 대상으로 표시해요.",
+								"CRITICAL",
+								rewardClaimsPerDayWarning,
+								"건",
+								true,
+								"anomalyRewardClaimsPerDayWarning",
+								1,
+								1_000),
+						new AdminAnomalyRule(
+								"HIGH_GOLD_BALANCE",
+								"보유 골드 과다",
+								"보상 신청 기준 골드에 배수를 곱한 값 이상 보유하면 장기 미수령/비정상 누적 확인 대상으로 표시해요.",
+								"INFO",
+								goldThresholdMultiplier,
+								"배",
+								true,
+								"anomalyGoldThresholdMultiplier",
+								1,
+								1_000),
+						new AdminAnomalyRule(
+								"HIGH_SKILL_POINTS",
+								"미사용 스킬 포인트 과다",
+								"미사용 SP가 기준 이상이면 결제/초대/레벨업 누적이 정상인지 확인해요.",
+								"INFO",
+								skillPointsWarning,
+								"SP",
+								true,
+								"anomalySkillPointsWarning",
+								1,
+								100_000),
+						new AdminAnomalyRule(
+								"TIMER_OVER_CAP",
+								"광고 시간 상한 초과",
+								"자동사냥/공속버프 남은 시간이 최대 누적 시간과 유예 시간을 초과하면 표시해요.",
+								"CRITICAL",
+								timerGraceSeconds,
+								"초 유예",
+								true,
+								"anomalyTimerGraceSeconds",
+								0,
+								86_400),
+						new AdminAnomalyRule(
+								"LIMIT_PER_RULE",
+								"룰별 최대 표시 수",
+								"각 이상징후 항목에서 한 번에 조회할 최대 유저 수예요.",
+								"INFO",
+								economy.anomalyLimitPerRule(),
+								"건",
+								true,
+								"anomalyLimitPerRule",
+								1,
+								200)));
 	}
 
 	public AdminPlayerGrowthReport playerGrowth(int days) {
@@ -184,21 +266,132 @@ public class AdminMonitoringService {
 		return new AdminPlayerGrowthReport(Instant.now(clock), safeDays, points);
 	}
 
-	private AdminAnomaly timerAnomaly(Instant now, PlayerRepository.PlayerTimerSnapshot row) {
+	public AdminServerMetrics serverMetrics() {
+		Runtime runtime = Runtime.getRuntime();
+		java.lang.management.MemoryMXBean memory = java.lang.management.ManagementFactory.getMemoryMXBean();
+		java.lang.management.ThreadMXBean threads = java.lang.management.ManagementFactory.getThreadMXBean();
+		java.lang.management.RuntimeMXBean runtimeMxBean = java.lang.management.ManagementFactory.getRuntimeMXBean();
+		java.lang.management.OperatingSystemMXBean os = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+		return new AdminServerMetrics(
+				Instant.now(clock),
+				runtimeMxBean.getUptime(),
+				memory.getHeapMemoryUsage().getUsed(),
+				memory.getHeapMemoryUsage().getMax(),
+				memory.getNonHeapMemoryUsage().getUsed(),
+				threads.getThreadCount(),
+				threads.getDaemonThreadCount(),
+				runtime.availableProcessors(),
+				os.getSystemLoadAverage(),
+				runtime.freeMemory(),
+				runtime.totalMemory(),
+				runtime.maxMemory());
+	}
+
+	private AdminAnomaly timerAnomaly(Instant now, PlayerRepository.PlayerTimerSnapshot row, long timerGraceSeconds) {
 		long autoHuntSeconds = secondsAfterNow(now, row.getAutoHuntEndsAt());
 		long boostSeconds = secondsAfterNow(now, row.getBoostEndsAt());
 		long observedSeconds = Math.max(autoHuntSeconds, boostSeconds);
 		String timerName = autoHuntSeconds >= boostSeconds ? "자동사냥" : "공속버프";
-		return new AdminAnomaly(
+		return anomaly(
 				"CRITICAL",
 				"TIMER_OVER_CAP",
 				row.getUserKey(),
 				timerName + " 시간 상한 초과",
 				timerName + " 남은 시간이 " + observedSeconds + "초로, 정책 상한 "
-						+ economy.maxAdSeconds() + "초와 유예 " + TIMER_GRACE_SECONDS + "초를 초과했어요.",
+						+ economy.maxAdSeconds() + "초와 유예 " + timerGraceSeconds + "초를 초과했어요.",
 				observedSeconds,
-				economy.maxAdSeconds() + TIMER_GRACE_SECONDS,
+				economy.maxAdSeconds() + timerGraceSeconds,
 				row.getUpdatedAt());
+	}
+
+	private AdminAnomaly anomaly(
+			String severity,
+			String category,
+			String userKey,
+			String title,
+			String detail,
+			long observedValue,
+			long thresholdValue,
+			Instant detectedAt
+	) {
+		String anomalyKey = anomalyKey(category, userKey);
+		return new AdminAnomaly(
+				anomalyKey,
+				severity,
+				category,
+				userKey,
+				title,
+				detail,
+				observedValue,
+				thresholdValue,
+				detectedAt,
+				AdminAnomalyStatus.OPEN,
+				null,
+				null,
+				List.of());
+	}
+
+	private List<AdminAnomaly> enrichAnomalyCases(List<AdminAnomaly> anomalies) {
+		if (anomalies.isEmpty()) {
+			return anomalies;
+		}
+		Map<String, AdminAnomalyCase> cases = anomalyCaseRepository
+				.findByAnomalyKeyIn(anomalies.stream().map(AdminAnomaly::anomalyKey).toList())
+				.stream()
+				.collect(Collectors.toMap(AdminAnomalyCase::getAnomalyKey, Function.identity()));
+		return anomalies.stream()
+				.map(anomaly -> {
+					AdminAnomalyCase anomalyCase = cases.get(anomaly.anomalyKey());
+					if (anomalyCase == null) {
+						return anomaly;
+					}
+					List<AdminAnomalyActionSummary> actions = anomalyActionRepository
+							.findByAnomalyCaseOrderByCreatedAtDesc(anomalyCase)
+							.stream()
+							.map(action -> new AdminAnomalyActionSummary(
+									action.getStatus(),
+									action.getNote(),
+									action.getActorFingerprint(),
+									action.getCreatedAt()))
+							.toList();
+					return new AdminAnomaly(
+							anomaly.anomalyKey(),
+							anomaly.severity(),
+							anomaly.category(),
+							anomaly.userKey(),
+							anomaly.title(),
+							anomaly.detail(),
+							anomaly.observedValue(),
+							anomaly.thresholdValue(),
+							anomaly.detectedAt(),
+							anomalyCase.getStatus(),
+							anomalyCase.getNote(),
+							anomalyCase.getUpdatedAt(),
+							actions);
+				})
+				.toList();
+	}
+
+	private String anomalyKey(String category, String userKey) {
+		return category + ":" + userKey;
+	}
+
+	private List<AdminRuntimeStatusItem> runtimeStatusItems() {
+		return List.of(
+				statusItem("review-tools", "심사용 테스트 도구", !appProperties.reviewToolsEnabled(), appProperties.reviewToolsEnabled() ? "테스트 도구 활성" : "비활성"),
+				statusItem("guest-user", "게스트 접속", !appProperties.guestUserEnabled(), appProperties.guestUserEnabled() ? "게스트 허용" : "비활성"),
+				statusItem("mock-monetization", "모의 수익화", !appProperties.mockMonetizationEnabled(), appProperties.mockMonetizationEnabled() ? "테스트 모드" : "비활성"),
+				statusItem("toss-identity", "토스 사용자 식별", appProperties.tossLoginEnabled() || appProperties.tossUserKeyEnabled(), appProperties.tossUserKeyEnabled() ? "userKey 사용" : "로그인/식별 확인 필요"),
+				statusItem("reward-ads", "리워드 광고", appProperties.realRewardAdsEnabled(), appProperties.realRewardAdsEnabled() ? "운영 광고" : "비활성/테스트"),
+				statusItem("banner-ads", "배너 광고", appProperties.realBannerAdsEnabled(), appProperties.realBannerAdsEnabled() ? "운영 광고" : "비활성/테스트"),
+				statusItem("payments", "인앱 결제", appProperties.realPaymentsEnabled(), appProperties.realPaymentsEnabled() ? "운영 결제" : "비활성/테스트"),
+				statusItem("point-rewards", "토스포인트 지급", appProperties.realTossPointRewardsEnabled(), appProperties.realTossPointRewardsEnabled() ? "운영 지급" : "비활성/테스트"),
+				statusItem("smart-message", "스마트 발송", appProperties.realSmartMessageEnabled(), appProperties.realSmartMessageEnabled() ? "운영 발송" : "비활성/테스트"),
+				statusItem("share-reward", "공유 리워드", appProperties.realShareRewardEnabled(), appProperties.realShareRewardEnabled() ? "운영 리워드" : "비활성/테스트"));
+	}
+
+	private AdminRuntimeStatusItem statusItem(String key, String label, boolean healthy, String detail) {
+		return new AdminRuntimeStatusItem(key, label, healthy ? "OK" : "BLOCKED", healthy, detail);
 	}
 
 	private long secondsAfterNow(Instant now, Instant target) {
@@ -250,7 +443,8 @@ public class AdminMonitoringService {
 			long estimatedAdRevenueWonToday,
 			long estimatedRewardCostWonToday,
 			long estimatedNetWonToday,
-			EconomyPolicySnapshot economy
+			EconomyPolicySnapshot economy,
+			List<AdminRuntimeStatusItem> runtimeStatusItems
 	) {
 	}
 
@@ -261,11 +455,13 @@ public class AdminMonitoringService {
 			long warningCount,
 			long infoCount,
 			List<AdminAnomaly> anomalies,
-			AdminAnomalyThresholds thresholds
+			AdminAnomalyThresholds thresholds,
+			List<AdminAnomalyRule> rules
 	) {
 	}
 
 	public record AdminAnomaly(
+			String anomalyKey,
 			String severity,
 			String category,
 			String userKey,
@@ -273,7 +469,33 @@ public class AdminMonitoringService {
 			String detail,
 			long observedValue,
 			long thresholdValue,
-			Instant detectedAt
+			Instant detectedAt,
+			AdminAnomalyStatus status,
+			String note,
+			Instant statusUpdatedAt,
+			List<AdminAnomalyActionSummary> actions
+	) {
+	}
+
+	public record AdminAnomalyRule(
+			String category,
+			String title,
+			String description,
+			String severity,
+			long thresholdValue,
+			String unit,
+			boolean editable,
+			String policyKey,
+			long min,
+			long max
+	) {
+	}
+
+	public record AdminAnomalyActionSummary(
+			AdminAnomalyStatus status,
+			String note,
+			String actorFingerprint,
+			Instant createdAt
 	) {
 	}
 
@@ -298,6 +520,31 @@ public class AdminMonitoringService {
 			String date,
 			long newPlayers,
 			long totalPlayers
+	) {
+	}
+
+	public record AdminRuntimeStatusItem(
+			String key,
+			String label,
+			String status,
+			boolean healthy,
+			String detail
+	) {
+	}
+
+	public record AdminServerMetrics(
+			Instant generatedAt,
+			long uptimeMillis,
+			long heapUsedBytes,
+			long heapMaxBytes,
+			long nonHeapUsedBytes,
+			int threadCount,
+			int daemonThreadCount,
+			int availableProcessors,
+			double systemLoadAverage,
+			long freeMemoryBytes,
+			long totalMemoryBytes,
+			long maxMemoryBytes
 	) {
 	}
 }

@@ -17,9 +17,12 @@ import com.jayway.jsonpath.JsonPath;
 import com.money_hunter.application.AdminMonitoringService;
 import com.money_hunter.application.AdminPlayerService;
 import com.money_hunter.application.RuntimeEconomyService;
+import com.money_hunter.domain.AdEvent;
+import com.money_hunter.domain.AdEventType;
 import com.money_hunter.domain.Player;
 import com.money_hunter.domain.PlayerSkill;
 import com.money_hunter.domain.SkillType;
+import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +44,9 @@ class ReviewProfileApiExposureTest {
 
 	@Autowired
 	private PlayerRepository playerRepository;
+
+	@Autowired
+	private AdEventRepository adEventRepository;
 
 	@Autowired
 	private AdminMonitoringService adminMonitoringService;
@@ -461,9 +467,9 @@ class ReviewProfileApiExposureTest {
 						.content("{\"job\":\"WARRIOR\"}"))
 				.andExpect(status().isOk());
 
-		for (int i = 0; i < 20; i++) {
-			mockMvc.perform(post("/api/player/ads/auto-hunt/complete"))
-					.andExpect(status().isOk());
+		Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+		for (int i = 0; i < economy.anomalyAdEventsPerHourWarning() + 1; i++) {
+			adEventRepository.save(new AdEvent(player, AdEventType.AUTO_HUNT, 3600, Instant.now()));
 		}
 
 		AdminMonitoringService.AdminAnomalyReport report = adminMonitoringService.anomalies();

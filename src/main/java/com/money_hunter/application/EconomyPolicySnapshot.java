@@ -14,7 +14,13 @@ public record EconomyPolicySnapshot(
 		long maxAdSeconds,
 		long skillPointAdCooldownSeconds,
 		long rewardGoldThreshold,
-		int rewardPointAmount
+		int rewardPointAmount,
+		int anomalyLimitPerRule,
+		long anomalyAdEventsPerHourWarning,
+		long anomalyRewardClaimsPerDayWarning,
+		long anomalyGoldThresholdMultiplier,
+		int anomalySkillPointsWarning,
+		long anomalyTimerGraceSeconds
 ) {
 	public void validate() {
 		range(adRevenuePerRewardAdWon, 1, 10_000, "리워드 광고 1회 매출");
@@ -31,6 +37,12 @@ public record EconomyPolicySnapshot(
 		range(skillPointAdCooldownSeconds, 0, 86_400, "SP 광고 보상 쿨타임");
 		range(rewardGoldThreshold, 1, 1_000_000_000_000L, "보상 수령 환산 골드");
 		range(rewardPointAmount, 1, 1_000_000, "보상 수령 포인트 기준");
+		range(anomalyLimitPerRule, 1, 200, "이상징후 룰별 표시 수");
+		range(anomalyAdEventsPerHourWarning, 1, 10_000, "1시간 광고 이벤트 이상징후 기준");
+		range(anomalyRewardClaimsPerDayWarning, 1, 1_000, "일일 보상 수령 이상징후 기준");
+		range(anomalyGoldThresholdMultiplier, 1, 1_000, "보유 골드 이상징후 배수");
+		range(anomalySkillPointsWarning, 1, 100_000, "미사용 SP 이상징후 기준");
+		range(anomalyTimerGraceSeconds, 0, 86_400, "버프 시간 이상징후 유예");
 		if (maxAdSeconds < autoHuntAdSeconds || maxAdSeconds < boostAdSeconds) {
 			throw new IllegalArgumentException("광고 보상 최대 누적 시간은 개별 보상 시간보다 작을 수 없어요.");
 		}

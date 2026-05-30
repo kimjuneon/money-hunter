@@ -197,7 +197,7 @@ public class PlayerService {
 		settle(player);
 		Instant now = clock.instant();
 		completeRewardAdSessionIfRequired(player, AdEventType.AUTO_HUNT, adSessionToken, requireAdSession, now);
-		player.setAutoHuntEndsAt(addCappedTime(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
+		player.setAutoHuntEndsAt(addRewardTimeOrReject(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
 		player.clearAutoHuntEndNotification();
 		clearUnreadAutoHuntEndNotifications(player, now);
 		adEventRepository.save(new AdEvent(player, AdEventType.AUTO_HUNT, (int) economy.autoHuntAdSeconds(), now));
@@ -226,7 +226,7 @@ public class PlayerService {
 		settle(player);
 		Instant now = clock.instant();
 		completeRewardAdSessionIfRequired(player, AdEventType.BOOST, adSessionToken, requireAdSession, now);
-		player.setBoostEndsAt(addCappedTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
+		player.setBoostEndsAt(addRewardTimeOrReject(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
 		adEventRepository.save(new AdEvent(player, AdEventType.BOOST, (int) economy.boostAdSeconds(), now));
 		log.info(
 				"공속버프 광고 보상 지급: userKey={}, seconds={}, boostEndsAt={}, adSessionRequired={}",
@@ -802,6 +802,12 @@ public class PlayerService {
 			requireSkillPointRewardAvailable(player);
 			requireSkillPointAdCooldownElapsed(player, now);
 		}
+		if (type == AdEventType.AUTO_HUNT) {
+			requireRewardTimeCanBeAdded(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now);
+		}
+		if (type == AdEventType.BOOST) {
+			requireRewardTimeCanBeAdded(player.getBoostEndsAt(), economy.boostAdSeconds(), now);
+		}
 		if (type == AdEventType.REWARD_CLAIM && player.getGold() < economy.rewardGoldThreshold()) {
 			throw new IllegalStateException("Reward gauge is not full.");
 		}
@@ -883,6 +889,20 @@ public class PlayerService {
 		return min(requestedEnd, cappedEnd);
 	}
 
+	private Instant addRewardTimeOrReject(Instant currentEnd, long secondsToAdd, Instant now) {
+		requireRewardTimeCanBeAdded(currentEnd, secondsToAdd, now);
+		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
+		return base.plusSeconds(secondsToAdd);
+	}
+
+	private void requireRewardTimeCanBeAdded(Instant currentEnd, long secondsToAdd, Instant now) {
+		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
+		long currentRemainingSeconds = Math.max(0, Duration.between(now, base).toSeconds());
+		if (currentRemainingSeconds + secondsToAdd > economy.maxAdSeconds()) {
+			throw new IllegalStateException("광고 보상 최대 누적 시간을 초과해 추가할 수 없어요.");
+		}
+	}
+
 	private Instant addUncappedTime(Instant currentEnd, long secondsToAdd, Instant now) {
 		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
 		return base.plusSeconds(secondsToAdd);
@@ -918,6 +938,9 @@ public class PlayerService {
 				player.getSkillPoints(),
 				!allSkillsMaxed(player),
 				nextSkillPointAdAvailableAt(player),
+				economy.autoHuntAdSeconds(),
+				economy.boostAdSeconds(),
+				economy.maxAdSeconds(),
 				player.getFriendInviteRewardCount(),
 				economy.friendInviteLimit(),
 				economy.friendInviteRewardSkillPoints(),

@@ -110,6 +110,12 @@ money-hunter:
     skill-point-ad-cooldown-seconds: 1800
     reward-gold-threshold: 1000
     reward-point-amount: 10
+    anomaly-limit-per-rule: 20
+    anomaly-ad-events-per-hour-warning: 20
+    anomaly-reward-claims-per-day-warning: 3
+    anomaly-gold-threshold-multiplier: 3
+    anomaly-skill-points-warning: 100
+    anomaly-timer-grace-seconds: 120
 
 ---
 spring:

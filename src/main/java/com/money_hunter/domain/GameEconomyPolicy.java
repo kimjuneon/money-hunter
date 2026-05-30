@@ -58,6 +58,24 @@ public class GameEconomyPolicy {
 	@Column(name = "reward_point_amount")
 	private Integer rewardPointAmount;
 
+	@Column(name = "anomaly_limit_per_rule")
+	private Integer anomalyLimitPerRule;
+
+	@Column(name = "anomaly_ad_events_per_hour_warning")
+	private Long anomalyAdEventsPerHourWarning;
+
+	@Column(name = "anomaly_reward_claims_per_day_warning")
+	private Long anomalyRewardClaimsPerDayWarning;
+
+	@Column(name = "anomaly_gold_threshold_multiplier")
+	private Long anomalyGoldThresholdMultiplier;
+
+	@Column(name = "anomaly_skill_points_warning")
+	private Integer anomalySkillPointsWarning;
+
+	@Column(name = "anomaly_timer_grace_seconds")
+	private Long anomalyTimerGraceSeconds;
+
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
 
@@ -128,6 +146,30 @@ public class GameEconomyPolicy {
 		return rewardPointAmount;
 	}
 
+	public Integer getAnomalyLimitPerRule() {
+		return anomalyLimitPerRule;
+	}
+
+	public Long getAnomalyAdEventsPerHourWarning() {
+		return anomalyAdEventsPerHourWarning;
+	}
+
+	public Long getAnomalyRewardClaimsPerDayWarning() {
+		return anomalyRewardClaimsPerDayWarning;
+	}
+
+	public Long getAnomalyGoldThresholdMultiplier() {
+		return anomalyGoldThresholdMultiplier;
+	}
+
+	public Integer getAnomalySkillPointsWarning() {
+		return anomalySkillPointsWarning;
+	}
+
+	public Long getAnomalyTimerGraceSeconds() {
+		return anomalyTimerGraceSeconds;
+	}
+
 	public Instant getUpdatedAt() {
 		return updatedAt;
 	}
@@ -148,6 +190,12 @@ public class GameEconomyPolicy {
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = value.longValue();
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = value.longValue();
 			case "rewardPointAmount" -> this.rewardPointAmount = value.intValue();
+			case "anomalyLimitPerRule" -> this.anomalyLimitPerRule = value.intValue();
+			case "anomalyAdEventsPerHourWarning" -> this.anomalyAdEventsPerHourWarning = value.longValue();
+			case "anomalyRewardClaimsPerDayWarning" -> this.anomalyRewardClaimsPerDayWarning = value.longValue();
+			case "anomalyGoldThresholdMultiplier" -> this.anomalyGoldThresholdMultiplier = value.longValue();
+			case "anomalySkillPointsWarning" -> this.anomalySkillPointsWarning = value.intValue();
+			case "anomalyTimerGraceSeconds" -> this.anomalyTimerGraceSeconds = value.longValue();
 			default -> throw new IllegalArgumentException("Unknown policy key.");
 		}
 		this.updatedAt = now;
@@ -169,6 +217,12 @@ public class GameEconomyPolicy {
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = null;
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = null;
 			case "rewardPointAmount" -> this.rewardPointAmount = null;
+			case "anomalyLimitPerRule" -> this.anomalyLimitPerRule = null;
+			case "anomalyAdEventsPerHourWarning" -> this.anomalyAdEventsPerHourWarning = null;
+			case "anomalyRewardClaimsPerDayWarning" -> this.anomalyRewardClaimsPerDayWarning = null;
+			case "anomalyGoldThresholdMultiplier" -> this.anomalyGoldThresholdMultiplier = null;
+			case "anomalySkillPointsWarning" -> this.anomalySkillPointsWarning = null;
+			case "anomalyTimerGraceSeconds" -> this.anomalyTimerGraceSeconds = null;
 			default -> throw new IllegalArgumentException("Unknown policy key.");
 		}
 		this.updatedAt = now;
