@@ -66,6 +66,20 @@ const state = {
 
 const combatSyncIntervalMs = 10_000;
 
+function applyRuntimeSafeAreaFallback() {
+  const ua = navigator.userAgent || "";
+  const isIos = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!isIos) {
+    document.documentElement.style.setProperty("--runtime-safe-top", "0px");
+    document.documentElement.style.setProperty("--runtime-safe-bottom", "0px");
+    return;
+  }
+
+  const tallScreen = Math.max(window.innerHeight || 0, window.screen?.height || 0) >= 800;
+  document.documentElement.style.setProperty("--runtime-safe-top", `${tallScreen ? 47 : 24}px`);
+  document.documentElement.style.setProperty("--runtime-safe-bottom", `${tallScreen ? 20 : 0}px`);
+}
+
 function readPendingIapProductIds() {
   try {
     const parsed = JSON.parse(localStorage.getItem(pendingIapProductStorageKey) || "{}");
@@ -1267,8 +1281,8 @@ function renderRewardPanel(player) {
   $("claimReward").innerHTML = player.rewardClaimable
     ? isOneStoreTarget()
       ? "<span>게임 보상 수령</span><small>심사용 즉시 지급</small>"
-      : `<span>토스포인트 받기</span><small>${availablePointAmount.toLocaleString("ko-KR")}P 수령 가능</small>`
-    : `<span>${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요</span><small>조건 달성 후 수령 가능</small>`;
+      : `<span>토스포인트 받기 · ${availablePointAmount.toLocaleString("ko-KR")}P 수령 가능</span>`
+    : `<span>${remainingPointAmount.toLocaleString("ko-KR")}P 더 필요 · 조건 달성 후 수령 가능</span>`;
   $("friendInviteRewardCopy").textContent = `초대 성공 시 SP ${inviteReward.toLocaleString("ko-KR")}개 지급`;
   $("friendInviteRewardStatus").textContent = `${inviteCount.toLocaleString("ko-KR")} / ${inviteLimit.toLocaleString("ko-KR")}명 완료`;
   $("claimFriendInviteReward").disabled = inviteCount >= inviteLimit;
@@ -2589,10 +2603,13 @@ function initializeDevPanel() {
 }
 
 initializeDevPanel();
+applyRuntimeSafeAreaFallback();
 syncBgmState();
 document.addEventListener("pointerdown", () => startBgm(), { once: true, passive: true });
 document.addEventListener("visibilitychange", () => handlePageVisibility(!document.hidden));
 window.addEventListener("focus", () => handlePageVisibility(true));
+window.addEventListener("resize", () => applyRuntimeSafeAreaFallback(), { passive: true });
+window.addEventListener("orientationchange", () => applyRuntimeSafeAreaFallback(), { passive: true });
 window.addEventListener("pagehide", () => {
   syncPageSoundState(false);
 });
