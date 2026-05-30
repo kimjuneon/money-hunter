@@ -7,10 +7,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "money-hunter.smart-message")
 public record SmartMessageProperties(
 		String autoHuntEndedTemplateSetCode,
+		String autoHuntEndedAgreementTemplateCode,
 		String landingUrl
 ) {
 	public String normalizedAutoHuntEndedTemplateSetCode() {
 		return value(autoHuntEndedTemplateSetCode);
+	}
+
+	public String normalizedAutoHuntEndedAgreementTemplateCode() {
+		return value(autoHuntEndedAgreementTemplateCode);
 	}
 
 	public Map<String, String> autoHuntEndedContext() {

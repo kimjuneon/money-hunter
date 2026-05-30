@@ -13,6 +13,8 @@ import java.util.Optional;
 import com.money_hunter.domain.AdminSession;
 import com.money_hunter.infrastructure.config.AdminProperties;
 import com.money_hunter.infrastructure.persistence.AdminSessionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AdminAuthService {
+	private static final Logger log = LoggerFactory.getLogger(AdminAuthService.class);
 	private static final int TOKEN_BYTES = 32;
 	private static final int SESSION_HOURS = 12;
 
@@ -50,6 +53,7 @@ public class AdminAuthService {
 		loginAttemptLimiter.requireAllowed(attemptKey);
 		if (!matchesUsername(loginId) || !matchesPassword(password)) {
 			loginAttemptLimiter.recordFailure(attemptKey);
+			log.warn("관리자 로그인 실패: loginId={}, client={}", mask(loginId), mask(clientFingerprint));
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않아요.");
 		}
 		loginAttemptLimiter.recordSuccess(attemptKey);
@@ -59,6 +63,7 @@ public class AdminAuthService {
 		String tokenHash = hash(token);
 		adminSessionRepository.deleteByExpiresAtBefore(now.minus(1, ChronoUnit.DAYS));
 		adminSessionRepository.save(new AdminSession(tokenHash, properties.username().trim(), now, expiresAt));
+		log.info("관리자 로그인 성공: username={}, client={}, expiresAt={}", properties.username().trim(), mask(clientFingerprint), expiresAt);
 		return new IssuedAdminSession(token, properties.username().trim(), expiresAt);
 	}
 
@@ -83,7 +88,21 @@ public class AdminAuthService {
 		}
 		adminSessionRepository.findByTokenHash(hash(token.trim()))
 				.filter(session -> session.isActive(clock.instant()))
-				.ifPresent(session -> session.revoke(clock.instant()));
+				.ifPresent(session -> {
+					session.revoke(clock.instant());
+					log.info("관리자 로그아웃: username={}", session.getUsername());
+				});
+	}
+
+	private String mask(String value) {
+		if (value == null || value.isBlank()) {
+			return "";
+		}
+		String normalized = value.trim();
+		if (normalized.length() <= 8) {
+			return "***" + normalized.charAt(normalized.length() - 1);
+		}
+		return normalized.substring(0, 4) + "..." + normalized.substring(normalized.length() - 4);
 	}
 
 	private boolean matchesUsername(String loginId) {

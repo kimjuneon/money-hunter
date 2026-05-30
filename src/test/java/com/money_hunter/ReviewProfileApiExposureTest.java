@@ -177,6 +177,53 @@ class ReviewProfileApiExposureTest {
 	}
 
 	@Test
+	void goldRatesIncreaseWithSharedSkillPetUnlockAndPetSkill() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		String chosen = mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"MAGE\"}"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		long baseGoldPerHour = readLong(chosen, "$.baseGoldPerHour");
+		long boostedGoldPerHour = readLong(chosen, "$.boostedGoldPerHour");
+		assertTrue(boostedGoldPerHour > baseGoldPerHour);
+
+		mockMvc.perform(post("/api/player/shop/skill-points/purchase"))
+				.andExpect(status().isOk());
+		String statUpgraded = mockMvc.perform(post("/api/player/skills/upgrade")
+						.contentType(APPLICATION_JSON)
+						.content("{\"type\":\"INTELLIGENCE\"}"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		long afterStatGoldPerHour = readLong(statUpgraded, "$.baseGoldPerHour");
+		assertTrue(afterStatGoldPerHour > baseGoldPerHour);
+
+		String petUnlocked = mockMvc.perform(post("/api/player/shop/companions/purchase"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		long afterPetGoldPerHour = readLong(petUnlocked, "$.baseGoldPerHour");
+		assertTrue(afterPetGoldPerHour > afterStatGoldPerHour);
+
+		String petSkillUpgraded = mockMvc.perform(post("/api/player/skills/upgrade")
+						.contentType(APPLICATION_JSON)
+						.content("{\"type\":\"PET_FLARE_ATTACK\"}"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		long afterPetSkillGoldPerHour = readLong(petSkillUpgraded, "$.baseGoldPerHour");
+		assertTrue(afterPetSkillGoldPerHour > afterPetGoldPerHour);
+		assertTrue(readLong(petSkillUpgraded, "$.boostedGoldPerHour") > afterPetSkillGoldPerHour);
+	}
+
+	@Test
 	void offlineAutoHuntSettlementResolvesCombatLikeOnlineTicks() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());
@@ -198,6 +245,14 @@ class ReviewProfileApiExposureTest {
 				.andExpect(jsonPath("$.gold", greaterThan(0)))
 				.andExpect(jsonPath("$.experience", greaterThan(0)))
 				.andExpect(jsonPath("$.monster.defeatedMonsters", greaterThan(0)));
+	}
+
+	@Test
+	void offlineSettlementUsesUpdatedSkillAndPetGoldRate() throws Exception {
+		long baseGold = settleFiveMinutesAndReadGold(false);
+		long upgradedGold = settleFiveMinutesAndReadGold(true);
+
+		assertTrue(upgradedGold > baseGold);
 	}
 
 	@Test
@@ -235,7 +290,7 @@ class ReviewProfileApiExposureTest {
 				.andExpect(status().isOk());
 
 		for (int i = 0; i < 20; i++) {
-			mockMvc.perform(post("/api/player/ads/skill-point/complete"))
+			mockMvc.perform(post("/api/player/ads/auto-hunt/complete"))
 					.andExpect(status().isOk());
 		}
 
@@ -243,5 +298,47 @@ class ReviewProfileApiExposureTest {
 		assertTrue(report.anomalies().stream().anyMatch(anomaly ->
 				"HIGH_AD_EVENTS".equals(anomaly.category())
 						&& "test-player".equals(anomaly.userKey())));
+	}
+
+	private long readLong(String json, String path) {
+		Number number = JsonPath.read(json, path);
+		return number.longValue();
+	}
+
+	private long settleFiveMinutesAndReadGold(boolean upgraded) throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"MAGE\"}"))
+				.andExpect(status().isOk());
+		if (upgraded) {
+			mockMvc.perform(post("/api/player/shop/skill-points/purchase"))
+					.andExpect(status().isOk());
+			mockMvc.perform(post("/api/player/skills/upgrade")
+							.contentType(APPLICATION_JSON)
+							.content("{\"type\":\"INTELLIGENCE\"}"))
+					.andExpect(status().isOk());
+			mockMvc.perform(post("/api/player/shop/companions/purchase"))
+					.andExpect(status().isOk());
+			mockMvc.perform(post("/api/player/skills/upgrade")
+							.contentType(APPLICATION_JSON)
+							.content("{\"type\":\"PET_FLARE_ATTACK\"}"))
+					.andExpect(status().isOk());
+		}
+
+		Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+		Instant now = Instant.now();
+		player.setLastSettledAt(now.minusSeconds(300));
+		player.setAutoHuntEndsAt(now.plusSeconds(300));
+		player.setBoostEndsAt(null);
+		playerRepository.saveAndFlush(player);
+
+		String settled = mockMvc.perform(get("/api/player"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		return readLong(settled, "$.gold");
 	}
 }

@@ -483,6 +483,36 @@ nav {
   color: var(--green);
 }
 
+.admin-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 100;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid rgba(22, 163, 74, 0.35);
+  border-radius: 8px;
+  background: #0f172a;
+  color: white;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
+  font-size: 14px;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.admin-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.admin-toast.error {
+  border-color: rgba(220, 38, 38, 0.48);
+  background: #450a0a;
+}
+
 .empty {
   color: var(--muted);
   text-align: center;

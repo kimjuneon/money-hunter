@@ -9,6 +9,9 @@ const state = {
   lastMonsterSignature: "",
   lastHitAt: 0,
   hitInFlight: false,
+  combatSyncInFlight: false,
+  lastCombatSyncAt: 0,
+  lastLocalGoldEstimateAt: 0,
   attackTimer: null,
   adAction: null,
   adTimer: null,
@@ -41,6 +44,9 @@ const state = {
   realBannerAdsEnabled: false,
   realPaymentsEnabled: false,
   realShareRewardEnabled: false,
+  realSmartMessageEnabled: false,
+  notificationAgreementTemplateCode: "",
+  notificationAgreementInFlight: false,
   adMode: "test",
   adGroupIds: {},
   iapProductIds: {},
@@ -49,12 +55,16 @@ const state = {
   shareRewardMessage: "친구에게 공유하고 SP 5개를 받아요",
   realAdInFlight: false,
   realPaymentInFlight: false,
+  tossAdsInitialized: false,
+  tossAdsInitializationPromise: null,
   pendingIapRestoreInFlight: false,
   pendingIapProductIdsByOrderId: readPendingIapProductIds(),
   shareRewardInFlight: false,
   loginInFlight: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
+
+const combatSyncIntervalMs = 10_000;
 
 function readPendingIapProductIds() {
   try {
@@ -165,8 +175,9 @@ const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
 const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
-const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.4.1/+esm";
-const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.4.1/dist/bridge.js/+esm";
+const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationAgreementStatus";
+const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
+const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
 let tossSdkPromise = null;
 let tossBridgePromise = null;
@@ -440,7 +451,7 @@ async function finishFeatureTutorial() {
   document.body.classList.remove("feature-tutorial-open");
   showContentPanel("skill");
   try {
-    state.player = await api("/api/player/tutorial/feature/complete", { method: "POST" });
+    setServerPlayer(await api("/api/player/tutorial/feature/complete", { method: "POST" }));
     render();
     setMessage("튜토리얼을 완료했어요. 이제 자유롭게 성장해보세요.");
   } catch (error) {
@@ -705,13 +716,47 @@ async function api(path, options = {}) {
 }
 
 async function refresh() {
-  state.player = await api("/api/player");
+  applyServerPlayer(await api("/api/player"));
   hideLoginGate();
-  state.displayGold = Math.max(state.displayGold, state.player.gold);
   if (state.player.job) {
     state.selectedJob = state.player.job;
   }
   render();
+}
+
+function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
+  const previousPlayer = state.player;
+  const ratesChanged = combatRatesChanged(previousPlayer, player);
+  const shouldPromptNotificationAgreement = shouldPromptAutoHuntNotificationAgreement(previousPlayer, player);
+  state.player = player;
+  const now = Date.now();
+  state.lastCombatSyncAt = now;
+  state.lastLocalGoldEstimateAt = now;
+  if (ratesChanged && isActiveAt(player.autoHuntEndsAt, now - 1)) {
+    state.lastHitAt = Math.min(state.lastHitAt, now - attackIntervalMillis(player));
+  }
+  state.displayGold = resetDisplayGold ? player.gold : Math.max(state.displayGold, player.gold);
+  if (shouldPromptNotificationAgreement) {
+    window.setTimeout(() => requestAutoHuntNotificationAgreementIfNeeded(), 450);
+  }
+}
+
+function setServerPlayer(player, options = {}) {
+  applyServerPlayer(player, options);
+  if (state.player?.job) {
+    state.selectedJob = state.player.job;
+  }
+}
+
+function combatRatesChanged(previousPlayer, nextPlayer) {
+  if (!previousPlayer || !nextPlayer) {
+    return false;
+  }
+  return previousPlayer.baseGoldPerHour !== nextPlayer.baseGoldPerHour
+    || previousPlayer.boostedGoldPerHour !== nextPlayer.boostedGoldPerHour
+    || previousPlayer.normalAttackIntervalMillis !== nextPlayer.normalAttackIntervalMillis
+    || previousPlayer.boostedAttackIntervalMillis !== nextPlayer.boostedAttackIntervalMillis
+    || previousPlayer.goldPerHour !== nextPlayer.goldPerHour;
 }
 
 function setAuthToken(token) {
@@ -771,6 +816,73 @@ async function loadTossBridge() {
   return tossBridgePromise;
 }
 
+function shouldUseRealSmartMessage() {
+  return !isOneStoreTarget() && !state.mockMonetizationEnabled && state.realSmartMessageEnabled;
+}
+
+function notificationAgreementStatus() {
+  return storedValue(notificationAgreementStatusStorageKey) || "";
+}
+
+function shouldPromptAutoHuntNotificationAgreement(previousPlayer, nextPlayer) {
+  if (!nextPlayer?.autoHuntEndsAt || !isActiveAt(nextPlayer.autoHuntEndsAt, Date.now() - 1)) {
+    return false;
+  }
+  return previousPlayer?.autoHuntEndsAt !== nextPlayer.autoHuntEndsAt;
+}
+
+function shouldRequestAutoHuntNotificationAgreement() {
+  if (!shouldUseRealSmartMessage() || !state.notificationAgreementTemplateCode || state.notificationAgreementInFlight) {
+    return false;
+  }
+  const status = notificationAgreementStatus();
+  return status !== "agreed" && status !== "rejected";
+}
+
+async function requestAutoHuntNotificationAgreementIfNeeded() {
+  if (!shouldRequestAutoHuntNotificationAgreement()) {
+    return;
+  }
+  state.notificationAgreementInFlight = true;
+  try {
+    const sdk = await loadTossSdk();
+    if (typeof sdk.requestNotificationAgreement !== "function") {
+      return;
+    }
+    await new Promise((resolve, reject) => {
+      let cleanup = null;
+      let settled = false;
+      const settle = (callback, value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup?.();
+        callback(value);
+      };
+      cleanup = sdk.requestNotificationAgreement({
+        options: { templateCode: state.notificationAgreementTemplateCode },
+        onEvent: (event) => {
+          if (event?.type === "newAgreement" || event?.type === "alreadyAgreed") {
+            storeValue(notificationAgreementStatusStorageKey, "agreed");
+          }
+          if (event?.type === "agreementRejected") {
+            storeValue(notificationAgreementStatusStorageKey, "rejected");
+          }
+          settle(resolve);
+        },
+        onError: (error) => {
+          settle(reject, error instanceof Error ? error : new Error("알림 동의 요청에 실패했어요."));
+        },
+      });
+    });
+  } catch {
+    // 알림 동의는 편의 기능이라 실패해도 자동사냥 흐름을 막지 않아요.
+  } finally {
+    state.notificationAgreementInFlight = false;
+  }
+}
+
 async function startTossLogin(options = {}) {
   if (state.loginInFlight) {
     return false;
@@ -822,6 +934,8 @@ async function loadAppConfig() {
     state.realBannerAdsEnabled = Boolean(config.realBannerAdsEnabled);
     state.realPaymentsEnabled = Boolean(config.realPaymentsEnabled);
     state.realShareRewardEnabled = Boolean(config.realShareRewardEnabled);
+    state.realSmartMessageEnabled = Boolean(config.realSmartMessageEnabled);
+    state.notificationAgreementTemplateCode = config.autoHuntEndedNotificationAgreementTemplateCode || "";
     state.adMode = config.adMode || "test";
     state.adGroupIds = config.adGroupIds || {};
     state.iapProductIds = config.iapProductIds || {};
@@ -838,6 +952,8 @@ async function loadAppConfig() {
     state.realBannerAdsEnabled = false;
     state.realPaymentsEnabled = false;
     state.realShareRewardEnabled = false;
+    state.realSmartMessageEnabled = false;
+    state.notificationAgreementTemplateCode = "";
     state.adMode = "test";
     state.adGroupIds = {};
     state.iapProductIds = {};
@@ -908,8 +1024,13 @@ function render() {
   $("huntTime").textContent = hunting ? `${remain(player.autoHuntEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
   $("boostTime").textContent = isActive(player.boostEndsAt) ? `${remain(player.boostEndsAt)} · 추가 가능` : `${rewardGateLabel()} · 1시간`;
   const spAvailable = skillPointRewardsAvailable(player);
-  $("skillAd").disabled = !spAvailable;
-  $("skillGateLabel").textContent = spAvailable ? rewardGateLabel() : "스킬 MAX";
+  const spCooldownReady = skillPointAdCooldownReady(player);
+  $("skillAd").disabled = !spAvailable || !spCooldownReady;
+  $("skillGateLabel").textContent = !spAvailable
+    ? "스킬 MAX"
+    : spCooldownReady
+      ? rewardGateLabel()
+      : `${remain(player.nextSkillPointAdAvailableAt)} 후`;
   renderMonster(player);
   renderExperience(player);
   renderDummyBanner();
@@ -950,14 +1071,7 @@ async function renderRealBannerAd() {
       slot.classList.add("hidden");
       return;
     }
-    await new Promise((resolve, reject) => {
-      tossAds.initialize({
-        callbacks: {
-          onInitialized: resolve,
-          onInitializationFailed: reject,
-        },
-      });
-    });
+    await initializeTossBannerAds(tossAds);
     slot.replaceChildren();
     bannerAdHandle = tossAds.attachBanner(groupId, slot, {
       theme: "auto",
@@ -974,6 +1088,29 @@ async function renderRealBannerAd() {
   } finally {
     bannerAdLoading = false;
   }
+}
+
+async function initializeTossBannerAds(tossAds) {
+  if (state.tossAdsInitialized) {
+    return;
+  }
+  if (!state.tossAdsInitializationPromise) {
+    state.tossAdsInitializationPromise = new Promise((resolve, reject) => {
+      tossAds.initialize({
+        callbacks: {
+          onInitialized: () => {
+            state.tossAdsInitialized = true;
+            resolve();
+          },
+          onInitializationFailed: (error) => {
+            state.tossAdsInitializationPromise = null;
+            reject(error);
+          },
+        },
+      });
+    });
+  }
+  await state.tossAdsInitializationPromise;
 }
 
 function destroyRealBannerAd() {
@@ -1034,8 +1171,7 @@ async function closeNotificationModal() {
     return;
   }
   try {
-    state.player = await api(`/api/player/notifications/${notificationId}/read`, { method: "POST" });
-    state.displayGold = Math.max(state.displayGold, state.player.gold);
+    setServerPlayer(await api(`/api/player/notifications/${notificationId}/read`, { method: "POST" }));
     render();
   } catch (error) {
     setMessage(error.message);
@@ -1092,7 +1228,17 @@ function renderExperience(player) {
 }
 
 function attackIntervalMillis(player = state.player) {
-  if (player?.attackIntervalMillis) {
+  if (!player) {
+    return 1500;
+  }
+  const boosted = isActive(player.boostEndsAt);
+  if (boosted && player.boostedAttackIntervalMillis) {
+    return player.boostedAttackIntervalMillis;
+  }
+  if (!boosted && player.normalAttackIntervalMillis) {
+    return player.normalAttackIntervalMillis;
+  }
+  if (player.attackIntervalMillis) {
     return player.attackIntervalMillis;
   }
   const rapidBonus = Math.min(900, skillLevel("RAPID_ATTACK") * 45);
@@ -1200,6 +1346,10 @@ function skillPointRewardsAvailable(player = state.player) {
   return !player.skills
     ?.filter((skill) => spendableTypes.has(skill.type))
     .every((skill) => skill.level >= 20);
+}
+
+function skillPointAdCooldownReady(player = state.player) {
+  return !player?.nextSkillPointAdAvailableAt || !isActive(player.nextSkillPointAdAvailableAt);
 }
 
 function showContentPanel(panel) {
@@ -1340,6 +1490,55 @@ function updateGoldViews() {
 
 function isActive(value) {
   return value && new Date(value).getTime() > Date.now();
+}
+
+function isActiveAt(value, timeMs) {
+  return value && new Date(value).getTime() > timeMs;
+}
+
+function boostedMillisBetween(player, fromMs, toMs) {
+  const boostEndsAt = player?.boostEndsAt ? new Date(player.boostEndsAt).getTime() : 0;
+  if (!boostEndsAt || boostEndsAt <= fromMs) {
+    return 0;
+  }
+  return Math.max(0, Math.min(toMs, boostEndsAt) - fromMs);
+}
+
+function localGoldPerHour(player, boosted) {
+  if (boosted) {
+    return player?.boostedGoldPerHour ?? player?.goldPerHour ?? 0;
+  }
+  if (player?.baseGoldPerHour !== undefined) {
+    return player.baseGoldPerHour;
+  }
+  return isActive(player?.boostEndsAt)
+    ? Math.round((player?.goldPerHour || 0) / 1.5)
+    : player?.goldPerHour || 0;
+}
+
+function accrueLocalCombatGold(now = Date.now()) {
+  const player = state.player;
+  if (!player || !isActiveAt(player.autoHuntEndsAt, now - 1)) {
+    state.lastLocalGoldEstimateAt = now;
+    return 0;
+  }
+  const fromMs = state.lastLocalGoldEstimateAt || state.lastCombatSyncAt || now;
+  const autoHuntEndsAt = new Date(player.autoHuntEndsAt).getTime();
+  const toMs = Math.min(now, autoHuntEndsAt);
+  if (toMs <= fromMs) {
+    state.lastLocalGoldEstimateAt = now;
+    return 0;
+  }
+
+  const boostedMillis = boostedMillisBetween(player, fromMs, toMs);
+  const normalMillis = toMs - fromMs - boostedMillis;
+  const gainedGold = (
+    localGoldPerHour(player, false) * normalMillis
+    + localGoldPerHour(player, true) * boostedMillis
+  ) / 3_600_000;
+  state.displayGold = Math.max(state.displayGold, player.gold) + Math.max(0, gainedGold);
+  state.lastLocalGoldEstimateAt = toMs;
+  return gainedGold;
 }
 
 function remain(value) {
@@ -1489,8 +1688,7 @@ async function runRealIapPurchase(action) {
     if (!result?.state) {
       throw new Error("상품 지급 결과를 확인하지 못했어요.");
     }
-    state.player = result.state;
-    state.displayGold = Math.max(state.displayGold, state.player.gold);
+    setServerPlayer(result.state);
     setMessage(action.message || "상품이 지급됐어요.");
     render();
   } catch (error) {
@@ -1501,8 +1699,7 @@ async function runRealIapPurchase(action) {
 }
 
 function applyGrantedIapState(stateAfterGrant, message = "상품이 지급됐어요.") {
-  state.player = stateAfterGrant;
-  state.displayGold = Math.max(state.displayGold, state.player.gold);
+  setServerPlayer(stateAfterGrant);
   setMessage(message);
   render();
 }
@@ -1637,8 +1834,7 @@ async function restorePendingIapOrders() {
         const stateAfterGrant = await grantIapProduct(order.orderId, productId);
         await completeIapProductGrantIfSupported(sdk, order.orderId);
         forgetPendingIapProduct(order.orderId);
-        state.player = stateAfterGrant;
-        state.displayGold = Math.max(state.displayGold, state.player.gold);
+        setServerPlayer(stateAfterGrant);
         setMessage("대기 중이던 구매 상품을 지급했어요.");
         render();
       } catch (error) {
@@ -1693,22 +1889,36 @@ async function requestTossShareReward() {
   if (typeof bridge.contactsViral === "function") {
     await new Promise((resolve, reject) => {
       let cleanup = null;
+      let settled = false;
+      let timeoutId = null;
+      const settle = (callback, value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeoutId);
+        cleanup?.();
+        callback(value);
+      };
+      timeoutId = window.setTimeout(() => {
+        settle(reject, new Error("공유 리워드 응답 시간이 초과됐어요. 다시 시도해 주세요."));
+      }, 60_000);
       cleanup = bridge.contactsViral({
         options: { moduleId: state.shareRewardModuleId },
         onEvent: (event) => {
           if (event.type === "sendViral") {
-            cleanup?.();
-            resolve(event);
+            settle(resolve, event);
             return;
           }
-          if (event.type === "close" && event.data?.closeReason === "noReward") {
-            cleanup?.();
-            reject(new Error("받을 수 있는 공유 리워드가 없어요."));
+          if (event.type === "close") {
+            const message = event.data?.closeReason === "noReward"
+              ? "받을 수 있는 공유 리워드가 없어요."
+              : "친구 초대 공유가 취소됐어요.";
+            settle(reject, new Error(message));
           }
         },
         onError: (error) => {
-          cleanup?.();
-          reject(error instanceof Error ? error : new Error("공유 리워드가 완료되지 않았어요."));
+          settle(reject, error instanceof Error ? error : new Error("공유 리워드가 완료되지 않았어요."));
         },
       });
     });
@@ -1760,12 +1970,10 @@ async function run(request, message) {
     setMessage("처리 중...");
     const result = await requestWithLoginRetry(request);
     if (result.state) {
-      state.player = result.state;
-      state.displayGold = state.player.gold;
+      setServerPlayer(result.state, { resetDisplayGold: true });
       setMessage(`${result.pointAmount} 토스포인트 수령을 신청했어요.`);
     } else {
-      state.player = result;
-      state.displayGold = Math.max(state.displayGold, state.player.gold);
+      setServerPlayer(result);
       setMessage(message);
     }
     if (state.player.job) {
@@ -1815,8 +2023,7 @@ function setDevBusy(isBusy) {
 }
 
 function applyDevPlayer(player, message) {
-  state.player = player;
-  state.displayGold = player.gold;
+  setServerPlayer(player, { resetDisplayGold: true });
   if (player.job) {
     state.selectedJob = player.job;
   }
@@ -1841,7 +2048,7 @@ async function ensureJobForTest(job = "WARRIOR") {
     return state.player;
   }
   const player = await chooseJobForTest(job);
-  state.player = player;
+  setServerPlayer(player);
   return player;
 }
 
@@ -1850,7 +2057,7 @@ async function buyAllPetsForTest(player = state.player) {
   const maxSlots = next?.maxCharacterSlots || 3;
   while ((next?.characterSlots || 1) < maxSlots) {
     next = await api("/api/player/shop/companions/purchase", { method: "POST" });
-    state.player = next;
+    setServerPlayer(next);
   }
   return next;
 }
@@ -1859,12 +2066,12 @@ async function battlePresetForTest() {
   let next = state.player;
   if (!next?.job) {
     next = await chooseJobForTest("WARRIOR");
-    state.player = next;
+    setServerPlayer(next);
   }
   next = await buyAllPetsForTest(next);
-  state.player = next;
+  setServerPlayer(next);
   next = await api("/api/player/ads/auto-hunt/complete", { method: "POST" });
-  state.player = next;
+  setServerPlayer(next);
   next = await api("/api/player/ads/boost/complete", { method: "POST" });
   return next;
 }
@@ -1887,35 +2094,25 @@ async function runDevAction(request, message) {
   }
 }
 
-async function simulateHit() {
+function shouldSyncCombat(now = Date.now()) {
+  return !state.combatSyncInFlight && (!state.lastCombatSyncAt || now - state.lastCombatSyncAt >= combatSyncIntervalMs);
+}
+
+async function syncCombatState() {
   const player = state.player;
-  if (!player || player.onboardingRequired || !isActive(player.autoHuntEndsAt) || state.hitInFlight) {
+  if (!player || player.onboardingRequired || state.combatSyncInFlight) {
     return;
   }
-  const now = Date.now();
-  const interval = attackIntervalMillis(player);
-  if (now - state.lastHitAt < interval) {
-    return;
-  }
-  state.lastHitAt = now;
-  state.hitInFlight = true;
-  const beforeGold = state.player.gold;
-  const beforeMonsterKey = state.player.monster?.key;
-  const beforeLevel = state.player.level;
+  state.combatSyncInFlight = true;
+  const beforeLevel = player.level || 1;
+  const beforeMonsterKey = player.monster?.key;
   try {
     const next = await api("/api/player/combat/hit", { method: "POST" });
     const impactJob = activeJob();
-    state.player = next;
-    state.displayGold = Math.max(state.displayGold, next.gold);
-    const gainedGold = Math.max(0, next.gold - beforeGold);
-    playAttackMotion();
-    spawnProjectile();
-    spawnSkillEffect();
-    spawnPetAttacks();
-    if (gainedGold > 0) {
-      spawnGoldPop(gainedGold);
+    setServerPlayer(next);
+    if (beforeMonsterKey && next.monster?.key && beforeMonsterKey !== next.monster.key) {
+      scheduleMonsterImpact(true, impactJob);
     }
-    scheduleMonsterImpact(beforeMonsterKey && beforeMonsterKey !== next.monster.key, impactJob);
     if (next.level > beforeLevel) {
       showLevelUpModal(next.level, next.level - beforeLevel);
       setMessage(`Lv.${next.level} 달성! 스킬 포인트 1개를 얻었어요.`);
@@ -1924,8 +2121,36 @@ async function simulateHit() {
   } catch (error) {
     setMessage(error.message);
   } finally {
-    state.hitInFlight = false;
+    state.combatSyncInFlight = false;
   }
+}
+
+function simulateHit() {
+  const player = state.player;
+  if (!player || player.onboardingRequired || !isActive(player.autoHuntEndsAt)) {
+    return;
+  }
+  const now = Date.now();
+  if (shouldSyncCombat(now)) {
+    syncCombatState();
+  }
+  const interval = attackIntervalMillis(player);
+  if (now - state.lastHitAt < interval) {
+    return;
+  }
+  state.lastHitAt = now;
+  const beforeDisplayGold = Math.floor(state.displayGold);
+  accrueLocalCombatGold(now);
+  const gainedGold = Math.max(0, Math.floor(state.displayGold) - beforeDisplayGold);
+  playAttackMotion();
+  spawnProjectile();
+  spawnSkillEffect();
+  spawnPetAttacks();
+  if (gainedGold > 0) {
+    spawnGoldPop(gainedGold);
+  }
+  scheduleMonsterImpact(false, activeJob());
+  render();
 }
 
 function attackMotionMs(job = activeJob()) {
@@ -2145,6 +2370,10 @@ $("skillAd").addEventListener("click", () => {
     setMessage("모든 스킬 강화가 완료되어 SP를 더 받을 수 없어요.");
     return;
   }
+  if (!skillPointAdCooldownReady()) {
+    setMessage(`SP 광고 보상은 ${remain(state.player?.nextSkillPointAdAvailableAt)} 후 다시 받을 수 있어요.`);
+    return;
+  }
   runRewardFlow(
     "스킬포인트 광고",
     isOneStoreTarget()
@@ -2324,7 +2553,7 @@ function initializeDevPanel() {
     async () => {
       await ensureJobForTest();
       if (!state.player.rewardClaimable) {
-        state.player = await api("/api/player/test/fill-reward-gauge", { method: "POST" });
+        setServerPlayer(await api("/api/player/test/fill-reward-gauge", { method: "POST" }));
       }
       return api("/api/player/reward/claim-after-ad", {
         method: "POST",

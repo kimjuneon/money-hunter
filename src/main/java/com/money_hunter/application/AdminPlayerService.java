@@ -14,6 +14,8 @@ import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
 import org.springframework.data.domain.PageRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AdminPlayerService {
+	private static final Logger log = LoggerFactory.getLogger(AdminPlayerService.class);
 	private static final int MAX_SEARCH_LIMIT = 100;
 
 	private final PlayerRepository playerRepository;
@@ -60,6 +63,7 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		player.suspend(reason, clock.instant());
 		loginSessionRepository.deleteByUserKey(userKey);
+		log.warn("관리자 유저 정지 처리: userKey={}, reason={}", mask(userKey), truncate(reason, 120));
 		return AdminPlayerResponse.from(player);
 	}
 
@@ -67,6 +71,7 @@ public class AdminPlayerService {
 	public AdminPlayerResponse resume(String userKey) {
 		Player player = player(userKey);
 		player.resume();
+		log.info("관리자 유저 정지 해제: userKey={}", mask(userKey));
 		return AdminPlayerResponse.from(player);
 	}
 
@@ -88,6 +93,15 @@ public class AdminPlayerService {
 			playerRepository.delete(player);
 			playerDeleted = true;
 		}
+		log.warn(
+				"관리자 유저 초기화 처리: userKey={}, playerDeleted={}, loginSessionsDeleted={}, adRewardSessionsDeleted={}, notificationsDeleted={}, rewardClaimsDeleted={}, adEventsDeleted={}",
+				mask(targetUserKey),
+				playerDeleted,
+				loginSessionsDeleted,
+				adRewardSessionsDeleted,
+				notificationsDeleted,
+				rewardClaimsDeleted,
+				adEventsDeleted);
 		return new AdminPlayerResetResponse(
 				targetUserKey,
 				playerDeleted,
@@ -115,5 +129,23 @@ public class AdminPlayerService {
 			return "";
 		}
 		return query.trim();
+	}
+
+	private String truncate(String value, int maxLength) {
+		if (value == null || value.length() <= maxLength) {
+			return value;
+		}
+		return value.substring(0, maxLength);
+	}
+
+	private String mask(String value) {
+		if (value == null || value.isBlank()) {
+			return "";
+		}
+		String normalized = value.trim();
+		if (normalized.length() <= 8) {
+			return "***" + normalized.charAt(normalized.length() - 1);
+		}
+		return normalized.substring(0, 4) + "..." + normalized.substring(normalized.length() - 4);
 	}
 }

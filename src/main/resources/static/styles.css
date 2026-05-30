@@ -1066,15 +1066,10 @@ button {
   width: 54px;
   height: 54px;
   place-items: center;
-  border: 2px solid #f59e0b;
+  border: 2px solid #8b5cf6;
   border-radius: 14px;
-  background:
-    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.9) 0 15%, transparent 16%),
-    linear-gradient(145deg, #facc15, #f97316);
-  color: #422006;
-  font-size: 18px;
-  font-weight: 1000;
-  box-shadow: inset 0 2px rgba(255, 255, 255, 0.42), 0 5px 10px rgba(245, 158, 11, 0.24);
+  background: url("/assets/skills/skill-point.png?v=20260530-04") center / 100% no-repeat #eef2ff;
+  box-shadow: inset 0 2px rgba(255, 255, 255, 0.52), 0 5px 10px rgba(124, 58, 237, 0.2);
 }
 
 .buy-skill-pack-button {
@@ -1173,15 +1168,10 @@ button {
   width: 52px;
   height: 52px;
   place-items: center;
-  border: 2px solid #22c7ee;
+  border: 2px solid #8b5cf6;
   border-radius: 14px;
-  background:
-    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.95) 0 15%, transparent 16%),
-    linear-gradient(145deg, #67e8f9, #2563eb);
-  color: white;
-  font-size: 18px;
-  font-weight: 1000;
-  box-shadow: inset 0 2px rgba(255, 255, 255, 0.42), 0 5px 10px rgba(37, 99, 235, 0.18);
+  background: url("/assets/skills/skill-point.png?v=20260530-04") center / 100% no-repeat #eef2ff;
+  box-shadow: inset 0 2px rgba(255, 255, 255, 0.52), 0 5px 10px rgba(124, 58, 237, 0.18);
 }
 
 .friend-invite-copy {
@@ -1263,7 +1253,7 @@ button {
   background-color: #f8fafc;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 116%;
+  background-size: 100%;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.82);
 }
 
@@ -1272,23 +1262,23 @@ button {
 }
 
 .skill-icon.strength-icon {
-  background-image: url("/assets/skills/skill-strength.svg?v=20260525-01");
+  background-image: url("/assets/skills/skill-strength.png?v=20260530-04");
 }
 
 .skill-icon.dexterity-icon {
-  background-image: url("/assets/skills/skill-dexterity.svg?v=20260525-01");
+  background-image: url("/assets/skills/skill-dexterity.png?v=20260530-04");
 }
 
 .skill-icon.intelligence-icon {
-  background-image: url("/assets/skills/skill-intelligence.svg?v=20260525-01");
+  background-image: url("/assets/skills/skill-intelligence.png?v=20260530-04");
 }
 
 .skill-icon.luck-icon {
-  background-image: url("/assets/skills/skill-luck.svg?v=20260525-01");
+  background-image: url("/assets/skills/skill-luck.png?v=20260530-04");
 }
 
 .skill-portrait.mining {
-  background-image: url("/assets/skills/skill-mining.svg?v=20260525-01");
+  background-image: url("/assets/skills/skill-mining.png?v=20260530-04");
 }
 
 .skill-portrait.hunt {
@@ -1298,11 +1288,11 @@ button {
 }
 
 .skill-portrait.rapid {
-  background-image: url("/assets/skills/skill-rapid.svg?v=20260525-01");
+  background-image: url("/assets/skills/skill-rapid.png?v=20260530-04");
 }
 
 .skill-portrait.reward {
-  background-image: url("/assets/skills/skill-reward.svg?v=20260525-01");
+  background-image: url("/assets/skills/skill-reward.png?v=20260530-04");
 }
 
 .skill-portrait.pet-flare-icon,

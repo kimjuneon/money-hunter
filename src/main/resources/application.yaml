@@ -66,6 +66,7 @@ money-hunter:
     message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 5개를 받아요}
   smart-message:
     auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:money_hunter_auto_hunt_ended}
+    auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:money_hunter_auto_hunt_ended}
     landing-url: ${TOSS_AUTO_HUNT_ENDED_LANDING_URL:intoss://gold-hunter}
   security:
     cors:
@@ -106,6 +107,7 @@ money-hunter:
     auto-hunt-ad-seconds: 3600
     boost-ad-seconds: 3600
     max-ad-seconds: 14400
+    skill-point-ad-cooldown-seconds: 1800
     reward-gold-threshold: 1000
     reward-point-amount: 10
 

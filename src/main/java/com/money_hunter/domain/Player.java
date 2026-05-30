@@ -70,7 +70,9 @@ public class Player {
 
     private Instant autoHuntEndNotifiedAt;
 
-    private Instant boostEndsAt;
+	private Instant boostEndsAt;
+
+	private Instant lastSkillPointAdClaimedAt;
 
 	private Instant tutorialRewardClaimedAt;
 
@@ -176,6 +178,11 @@ public class Player {
 
     public void addSkillPoint() {
 		this.skillPoints += 1;
+		touch();
+	}
+
+	public void markSkillPointAdClaimed(Instant now) {
+		this.lastSkillPointAdClaimedAt = now;
 		touch();
 	}
 
@@ -323,6 +330,7 @@ public class Player {
 		this.autoHuntEndsAt = null;
 		this.autoHuntEndNotifiedAt = null;
 		this.boostEndsAt = null;
+		this.lastSkillPointAdClaimedAt = null;
 		this.tutorialRewardClaimedAt = null;
 		this.featureTutorialCompletedAt = null;
 		this.lastSettledAt = now;

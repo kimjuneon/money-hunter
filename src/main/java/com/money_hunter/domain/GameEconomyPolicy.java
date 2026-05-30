@@ -49,6 +49,9 @@ public class GameEconomyPolicy {
 	@Column(name = "max_ad_seconds")
 	private Long maxAdSeconds;
 
+	@Column(name = "skill_point_ad_cooldown_seconds")
+	private Long skillPointAdCooldownSeconds;
+
 	@Column(name = "reward_gold_threshold")
 	private Long rewardGoldThreshold;
 
@@ -113,6 +116,10 @@ public class GameEconomyPolicy {
 		return maxAdSeconds;
 	}
 
+	public Long getSkillPointAdCooldownSeconds() {
+		return skillPointAdCooldownSeconds;
+	}
+
 	public Long getRewardGoldThreshold() {
 		return rewardGoldThreshold;
 	}
@@ -138,6 +145,7 @@ public class GameEconomyPolicy {
 			case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = value.longValue();
 			case "boostAdSeconds" -> this.boostAdSeconds = value.longValue();
 			case "maxAdSeconds" -> this.maxAdSeconds = value.longValue();
+			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = value.longValue();
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = value.longValue();
 			case "rewardPointAmount" -> this.rewardPointAmount = value.intValue();
 			default -> throw new IllegalArgumentException("Unknown policy key.");
@@ -158,6 +166,7 @@ public class GameEconomyPolicy {
 			case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = null;
 			case "boostAdSeconds" -> this.boostAdSeconds = null;
 			case "maxAdSeconds" -> this.maxAdSeconds = null;
+			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = null;
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = null;
 			case "rewardPointAmount" -> this.rewardPointAmount = null;
 			default -> throw new IllegalArgumentException("Unknown policy key.");

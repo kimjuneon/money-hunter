@@ -5,6 +5,7 @@ import com.money_hunter.infrastructure.config.AdProperties;
 import com.money_hunter.application.dto.response.AppConfigResponse;
 import com.money_hunter.infrastructure.config.IapProperties;
 import com.money_hunter.infrastructure.config.ShareRewardProperties;
+import com.money_hunter.infrastructure.config.SmartMessageProperties;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,17 +17,20 @@ public class AppConfigController {
 	private final AdProperties adProperties;
 	private final IapProperties iapProperties;
 	private final ShareRewardProperties shareRewardProperties;
+	private final SmartMessageProperties smartMessageProperties;
 
 	public AppConfigController(
 			AppProperties appProperties,
 			AdProperties adProperties,
 			IapProperties iapProperties,
-			ShareRewardProperties shareRewardProperties
+			ShareRewardProperties shareRewardProperties,
+			SmartMessageProperties smartMessageProperties
 	) {
 		this.appProperties = appProperties;
 		this.adProperties = adProperties;
 		this.iapProperties = iapProperties;
 		this.shareRewardProperties = shareRewardProperties;
+		this.smartMessageProperties = smartMessageProperties;
 	}
 
 	@GetMapping("/config")
@@ -52,7 +56,8 @@ public class AppConfigController {
 				adProperties.clientAdGroupIds(),
 				iapProperties.clientProductIds(),
 				shareRewardProperties.normalizedModuleId(),
-				shareRewardProperties.normalizedMessage()
+				shareRewardProperties.normalizedMessage(),
+				smartMessageProperties.normalizedAutoHuntEndedAgreementTemplateCode()
 		);
 	}
 }

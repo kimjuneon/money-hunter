@@ -37,6 +37,8 @@ import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.MonsterResponse;
 import com.money_hunter.application.dto.response.RewardClaimResponse;
 import com.money_hunter.application.dto.response.SkillResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class PlayerService {
+	private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
 	private static final long GOLD_MICROS = 1_000_000L;
 	private static final long HOUR_MILLIS = 3_600_000L;
 	private static final double BOOST_REWARD_MULTIPLIER = 1.5;
@@ -152,6 +155,7 @@ public class PlayerService {
 		if (firstJob) {
 			claimTutorialStarterReward(player, clock.instant());
 		}
+		log.info("직업 선택 완료: userKey={}, job={}, firstJob={}", mask(userKey), job, firstJob);
 		return toState(player);
 	}
 
@@ -161,14 +165,15 @@ public class PlayerService {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
-		requireRewardAvailable(player, type);
 		Instant now = clock.instant();
+		requireRewardAvailable(player, type, now);
 		AdRewardSession session = adRewardSessionRepository.save(new AdRewardSession(
 				player,
 				type,
 				UUID.randomUUID().toString(),
 				now,
 				now.plus(AD_SESSION_TTL)));
+		log.info("광고 보상 세션 생성: userKey={}, type={}, expiresAt={}", mask(userKey), type, now.plus(AD_SESSION_TTL));
 		return new AdRewardSessionResponse(type, session.getSessionToken(), now.plus(AD_SESSION_TTL));
 	}
 
@@ -192,6 +197,12 @@ public class PlayerService {
 		player.clearAutoHuntEndNotification();
 		clearUnreadAutoHuntEndNotifications(player, now);
 		adEventRepository.save(new AdEvent(player, AdEventType.AUTO_HUNT, (int) economy.autoHuntAdSeconds(), now));
+		log.info(
+				"자동사냥 광고 보상 지급: userKey={}, seconds={}, autoHuntEndsAt={}, adSessionRequired={}",
+				mask(userKey),
+				economy.autoHuntAdSeconds(),
+				player.getAutoHuntEndsAt(),
+				requireAdSession);
 		return toState(player);
 	}
 
@@ -213,6 +224,12 @@ public class PlayerService {
 		completeRewardAdSessionIfRequired(player, AdEventType.BOOST, adSessionToken, requireAdSession, now);
 		player.setBoostEndsAt(addCappedTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
 		adEventRepository.save(new AdEvent(player, AdEventType.BOOST, (int) economy.boostAdSeconds(), now));
+		log.info(
+				"공속버프 광고 보상 지급: userKey={}, seconds={}, boostEndsAt={}, adSessionRequired={}",
+				mask(userKey),
+				economy.boostAdSeconds(),
+				player.getBoostEndsAt(),
+				requireAdSession);
 		return toState(player);
 	}
 
@@ -232,9 +249,16 @@ public class PlayerService {
 		settle(player);
 		Instant now = clock.instant();
 		requireSkillPointRewardAvailable(player);
+		requireSkillPointAdCooldownElapsed(player, now);
 		completeRewardAdSessionIfRequired(player, AdEventType.SKILL_POINT, adSessionToken, requireAdSession, now);
 		player.addSkillPoint();
+		player.markSkillPointAdClaimed(now);
 		adEventRepository.save(new AdEvent(player, AdEventType.SKILL_POINT, 1, now));
+		log.info(
+				"스킬포인트 광고 보상 지급: userKey={}, amount=1, skillPoints={}, adSessionRequired={}",
+				mask(userKey),
+				player.getSkillPoints(),
+				requireAdSession);
 		return toState(player);
 	}
 
@@ -262,7 +286,9 @@ public class PlayerService {
 		settle(player);
 		requirePetUnlocked(player, type);
 		if (isStatSkill(type)) {
-			return upgradeSharedStatSkill(player);
+			PlayerStateResponse response = upgradeSharedStatSkill(player);
+			log.info("공유 능력치 스킬 강화: userKey={}, type={}, level={}", mask(userKey), type, sharedStatLevel(player));
+			return response;
 		}
 		PlayerSkill skill = player.getOrCreateSkill(type);
 		if (skill.isMaxLevel()) {
@@ -270,6 +296,7 @@ public class PlayerService {
 		}
 		player.spendSkillPoint();
 		skill.levelUp();
+		log.info("스킬 강화: userKey={}, type={}, level={}, remainingSp={}", mask(userKey), type, skill.getLevel(), player.getSkillPoints());
 		return toState(player);
 	}
 
@@ -299,10 +326,16 @@ public class PlayerService {
 		settle(player);
 		player.claimFriendInviteReward(economy.friendInviteLimit(), economy.friendInviteRewardSkillPoints());
 		adEventRepository.save(new AdEvent(
-				player,
-				AdEventType.FRIEND_INVITE_REWARD,
+			player,
+			AdEventType.FRIEND_INVITE_REWARD,
+			economy.friendInviteRewardSkillPoints(),
+			clock.instant()));
+		log.info(
+				"친구 초대 보상 지급: userKey={}, amount={}, count={}/{}",
+				mask(userKey),
 				economy.friendInviteRewardSkillPoints(),
-				clock.instant()));
+				player.getFriendInviteRewardCount(),
+				economy.friendInviteLimit());
 		return toState(player);
 	}
 
@@ -316,6 +349,11 @@ public class PlayerService {
 		String normalizedOrderId = normalize(orderId);
 		String productType = iapProperties.productType(normalizedProductId);
 		if (productType.isBlank()) {
+			log.warn(
+					"인앱 결제 지급 거부: userKey={}, orderId={}, productId={}, reason=unknown-product",
+					mask(userKey),
+					mask(normalizedOrderId),
+					mask(normalizedProductId));
 			throw new IllegalArgumentException("지원하지 않는 인앱 상품이에요.");
 		}
 
@@ -328,11 +366,17 @@ public class PlayerService {
 							normalizedProductId,
 							productType,
 							now));
-				});
+		});
 		if (!order.getUserKey().equals(userKey) || !order.getProductId().equals(normalizedProductId)) {
+			log.warn(
+					"인앱 결제 주문 불일치: userKey={}, orderId={}, productId={}",
+					mask(userKey),
+					mask(normalizedOrderId),
+					mask(normalizedProductId));
 			throw new IllegalStateException("인앱 결제 주문 정보가 일치하지 않아요.");
 		}
 		if (order.isGranted()) {
+			log.info("인앱 결제 중복 지급 요청 무시: userKey={}, orderId={}, productType={}", mask(userKey), mask(normalizedOrderId), productType);
 			return toState(player);
 		}
 
@@ -345,6 +389,12 @@ public class PlayerService {
 			default -> throw new IllegalArgumentException("지원하지 않는 인앱 상품이에요.");
 		}
 		order.markGranted(now);
+		log.info(
+				"인앱 결제 상품 지급 완료: userKey={}, orderId={}, productType={}, productId={}",
+				mask(userKey),
+				mask(normalizedOrderId),
+				productType,
+				mask(normalizedProductId));
 		return toState(player);
 	}
 
@@ -371,6 +421,13 @@ public class PlayerService {
 		RewardClaim claim = rewardClaimRepository.findByPlayerAndIdempotencyKey(player, idempotencyKey)
 				.orElseGet(() -> createRewardClaim(player, idempotencyKey));
 		adEventRepository.save(new AdEvent(player, AdEventType.REWARD_CLAIM, claim.getPointAmount(), clock.instant()));
+		log.info(
+				"토스포인트 보상 수령 신청: userKey={}, claimId={}, pointAmount={}, goldAmount={}, status={}",
+				mask(userKey),
+				claim.getId(),
+				claim.getPointAmount(),
+				rewardGoldAmount(claim.getPointAmount()),
+				claim.getStatus());
 		return new RewardClaimResponse(
 				claim.getId(),
 				claim.getPointAmount(),
@@ -394,6 +451,11 @@ public class PlayerService {
 				AdEventType.REWARD_CLAIM,
 				economy.friendInviteRewardSkillPoints(),
 				clock.instant()));
+		log.info(
+				"원스토어 게임 내 보상 지급: userKey={}, spentGold={}, skillPointsAdded={}",
+				mask(userKey),
+				economy.rewardGoldThreshold(),
+				economy.friendInviteRewardSkillPoints());
 		return toState(player);
 	}
 
@@ -449,6 +511,9 @@ public class PlayerService {
 			settle(player);
 			publishAutoHuntEndNotificationIfDue(player, now);
 		});
+		if (!players.isEmpty()) {
+			log.info("자동사냥 종료 알림 스케줄러 처리: targetCount={}", players.size());
+		}
 		return players.size();
 	}
 
@@ -500,6 +565,17 @@ public class PlayerService {
 
 	private String normalize(String value) {
 		return value == null ? "" : value.trim();
+	}
+
+	private String mask(String value) {
+		String normalized = normalize(value);
+		if (normalized.isBlank()) {
+			return "";
+		}
+		if (normalized.length() <= 8) {
+			return "***" + normalized.charAt(normalized.length() - 1);
+		}
+		return normalized.substring(0, 4) + "..." + normalized.substring(normalized.length() - 4);
 	}
 
 	private void requireActivePlayer(Player player) {
@@ -620,9 +696,10 @@ public class PlayerService {
 		}
 	}
 
-	private void requireRewardAvailable(Player player, AdEventType type) {
+	private void requireRewardAvailable(Player player, AdEventType type, Instant now) {
 		if (type == AdEventType.SKILL_POINT) {
 			requireSkillPointRewardAvailable(player);
+			requireSkillPointAdCooldownElapsed(player, now);
 		}
 		if (type == AdEventType.REWARD_CLAIM && player.getGold() < economy.rewardGoldThreshold()) {
 			throw new IllegalStateException("Reward gauge is not full.");
@@ -633,6 +710,28 @@ public class PlayerService {
 		if (allSkillsMaxed(player)) {
 			throw new IllegalStateException("모든 스킬 강화가 완료되어 SP를 더 받을 수 없어요.");
 		}
+	}
+
+	private void requireSkillPointAdCooldownElapsed(Player player, Instant now) {
+		Instant nextAvailableAt = nextSkillPointAdAvailableAt(player);
+		if (nextAvailableAt != null && nextAvailableAt.isAfter(now)) {
+			throw new IllegalStateException("SP 광고 보상은 " + remainingMinutes(now, nextAvailableAt) + "분 후 다시 받을 수 있어요.");
+		}
+	}
+
+	private Instant nextSkillPointAdAvailableAt(Player player) {
+		Instant lastClaimedAt = player.getLastSkillPointAdClaimedAt();
+		long cooldownSeconds = economy.skillPointAdCooldownSeconds();
+		if (lastClaimedAt == null || cooldownSeconds <= 0) {
+			return null;
+		}
+		Instant nextAvailableAt = lastClaimedAt.plusSeconds(cooldownSeconds);
+		return nextAvailableAt.isAfter(clock.instant()) ? nextAvailableAt : null;
+	}
+
+	private long remainingMinutes(Instant now, Instant target) {
+		long seconds = Math.max(1, Duration.between(now, target).toSeconds());
+		return (seconds + 59) / 60;
 	}
 
 	private boolean allSkillsMaxed(Player player) {
@@ -652,20 +751,28 @@ public class PlayerService {
 			return;
 		}
 		if (adSessionToken == null || adSessionToken.isBlank()) {
+			log.warn("광고 보상 세션 검증 실패: userKey={}, type={}, reason=missing-token", mask(player.getUserKey()), type);
 			throw new IllegalArgumentException("광고 세션이 필요해요.");
 		}
 		AdRewardSession session = adRewardSessionRepository.findBySessionToken(adSessionToken.trim())
-				.orElseThrow(() -> new IllegalStateException("광고 세션을 찾을 수 없어요."));
+				.orElseThrow(() -> {
+					log.warn("광고 보상 세션 검증 실패: userKey={}, type={}, reason=not-found", mask(player.getUserKey()), type);
+					return new IllegalStateException("광고 세션을 찾을 수 없어요.");
+				});
 		if (!session.getPlayer().getId().equals(player.getId()) || session.getType() != type) {
+			log.warn("광고 보상 세션 검증 실패: userKey={}, type={}, reason=mismatch", mask(player.getUserKey()), type);
 			throw new IllegalStateException("광고 세션 정보가 일치하지 않아요.");
 		}
 		if (session.isCompleted()) {
+			log.warn("광고 보상 세션 검증 실패: userKey={}, type={}, reason=already-completed", mask(player.getUserKey()), type);
 			throw new IllegalStateException("이미 사용한 광고 세션이에요.");
 		}
 		if (session.isExpired(now)) {
+			log.warn("광고 보상 세션 검증 실패: userKey={}, type={}, reason=expired", mask(player.getUserKey()), type);
 			throw new IllegalStateException("광고 세션이 만료됐어요. 다시 시청해 주세요.");
 		}
 		session.complete(now);
+		log.info("광고 보상 세션 검증 완료: userKey={}, type={}", mask(player.getUserKey()), type);
 	}
 
 	private Instant addCappedTime(Instant currentEnd, long secondsToAdd, Instant now) {
@@ -704,15 +811,20 @@ public class PlayerService {
 				player.getGold() >= threshold,
 				player.getSkillPoints(),
 				!allSkillsMaxed(player),
+				nextSkillPointAdAvailableAt(player),
 				player.getFriendInviteRewardCount(),
 				economy.friendInviteLimit(),
 				economy.friendInviteRewardSkillPoints(),
 				player.getLevel(),
-				player.getExperience(),
-				player.getNextLevelExperience(),
-				currentGoldPerHour(player),
-				attackIntervalMillis(player),
-				player.getAutoHuntEndsAt(),
+					player.getExperience(),
+					player.getNextLevelExperience(),
+					currentGoldPerHour(player),
+					baseGoldPerHour(player),
+					boostedGoldPerHour(player),
+					attackIntervalMillis(player),
+					normalAttackIntervalMillis(player),
+					boostedAttackIntervalMillis(player),
+					player.getAutoHuntEndsAt(),
 				player.getBoostEndsAt(),
 				monsterResponse(player),
 				skills,
@@ -743,6 +855,7 @@ public class PlayerService {
 				now));
 		sendAutoHuntEndedSmartMessage(player);
 		player.markAutoHuntEndNotified(now);
+		log.info("자동사냥 종료 인앱 알림 생성: userKey={}, endedAt={}", mask(player.getUserKey()), autoHuntEndsAt);
 	}
 
 	private void sendAutoHuntEndedSmartMessage(Player player) {
@@ -755,7 +868,9 @@ public class PlayerService {
 					player.getUserKey(),
 					templateSetCode,
 					smartMessageProperties.autoHuntEndedContext());
-		} catch (RuntimeException ignored) {
+			log.info("자동사냥 종료 스마트메시지 발송 요청 완료: userKey={}, templateSetCode={}", mask(player.getUserKey()), templateSetCode);
+		} catch (RuntimeException exception) {
+			log.warn("자동사냥 종료 스마트메시지 발송 실패: userKey={}, templateSetCode={}, message={}", mask(player.getUserKey()), templateSetCode, exception.getMessage());
 			// The in-app notification is still persisted; the scheduler will not spam retries for this hunt session.
 		}
 	}

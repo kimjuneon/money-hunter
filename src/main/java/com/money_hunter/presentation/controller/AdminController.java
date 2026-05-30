@@ -84,15 +84,15 @@ public class AdminController {
 			HttpServletRequest request
 	) {
 		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
-		requireReason(requestBody.reason());
-		AdminPlayerResponse player = adminPlayerService.suspend(userKey, requestBody.reason().trim());
+		String reason = optionalReason(requestBody.reason());
+		AdminPlayerResponse player = adminPlayerService.suspend(userKey, reason);
 		adminAuditService.record(
 				admin,
 				"USER_SUSPEND",
 				player.userKey(),
 				"ACTIVE",
 				"SUSPENDED",
-				requestBody.reason(),
+				reason,
 				request);
 		return player;
 	}
@@ -104,7 +104,7 @@ public class AdminController {
 			HttpServletRequest request
 	) {
 		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
-		requireReason(requestBody.reason());
+		String reason = optionalReason(requestBody.reason());
 		AdminPlayerResponse player = adminPlayerService.resume(userKey);
 		adminAuditService.record(
 				admin,
@@ -112,7 +112,7 @@ public class AdminController {
 				player.userKey(),
 				"SUSPENDED",
 				"ACTIVE",
-				requestBody.reason(),
+				reason,
 				request);
 		return player;
 	}
@@ -124,7 +124,7 @@ public class AdminController {
 			HttpServletRequest request
 	) {
 		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
-		requireReason(requestBody.reason());
+		String reason = optionalReason(requestBody.reason());
 		AdminPlayerResetResponse result = adminPlayerService.resetFromLogin(userKey);
 		adminAuditService.record(
 				admin,
@@ -132,7 +132,7 @@ public class AdminController {
 				result.userKey(),
 				"EXISTS",
 				result.playerDeleted() ? "DELETED" : "NO_PLAYER",
-				requestBody.reason(),
+				reason,
 				request);
 		return result;
 	}
@@ -152,7 +152,7 @@ public class AdminController {
 			HttpServletRequest request
 	) {
 		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
-		requireReason(requestBody.reason());
+		String reason = optionalReason(requestBody.reason());
 		PolicyChangeResult result = requestBody.resetToDefault()
 				? economyService.reset(requestBody.key())
 				: economyService.update(requestBody.key(), requireValue(requestBody.value()));
@@ -162,7 +162,7 @@ public class AdminController {
 				result.key(),
 				String.valueOf(result.beforeValue()),
 				String.valueOf(result.afterValue()),
-				requestBody.reason(),
+				reason,
 				request);
 		return policies(request);
 	}
@@ -206,9 +206,10 @@ public class AdminController {
 		return value;
 	}
 
-	private void requireReason(String reason) {
+	private String optionalReason(String reason) {
 		if (reason == null || reason.isBlank()) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "변경 사유를 입력해야 해요.");
+			return null;
 		}
+		return reason.trim();
 	}
 }

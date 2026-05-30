@@ -12,6 +12,7 @@ public record EconomyPolicySnapshot(
 		long autoHuntAdSeconds,
 		long boostAdSeconds,
 		long maxAdSeconds,
+		long skillPointAdCooldownSeconds,
 		long rewardGoldThreshold,
 		int rewardPointAmount
 ) {
@@ -27,6 +28,7 @@ public record EconomyPolicySnapshot(
 		range(autoHuntAdSeconds, 60, 86_400, "자동사냥 광고 보상 시간");
 		range(boostAdSeconds, 60, 86_400, "공속버프 광고 보상 시간");
 		range(maxAdSeconds, 3_600, 86_400, "광고 보상 최대 누적 시간");
+		range(skillPointAdCooldownSeconds, 0, 86_400, "SP 광고 보상 쿨타임");
 		range(rewardGoldThreshold, 1, 1_000_000_000_000L, "보상 수령 환산 골드");
 		range(rewardPointAmount, 1, 1_000_000, "보상 수령 포인트 기준");
 		if (maxAdSeconds < autoHuntAdSeconds || maxAdSeconds < boostAdSeconds) {

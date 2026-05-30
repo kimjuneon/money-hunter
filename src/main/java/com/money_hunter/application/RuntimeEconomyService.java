@@ -10,11 +10,14 @@ import com.money_hunter.domain.GameEconomyPolicy;
 import com.money_hunter.infrastructure.config.EconomyProperties;
 import com.money_hunter.infrastructure.persistence.GameEconomyPolicyRepository;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RuntimeEconomyService {
+	private static final Logger log = LoggerFactory.getLogger(RuntimeEconomyService.class);
 	private static final List<PolicyDefinition> DEFINITIONS = List.of(
 			new PolicyDefinition("adRevenuePerRewardAdWon", "리워드 광고 1회 예상 매출", "원", 1, 10_000),
 			new PolicyDefinition("goldPerTossPoint", "토스포인트 1P당 골드", "골드", 1, 1_000_000),
@@ -27,6 +30,7 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("autoHuntAdSeconds", "자동사냥 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("boostAdSeconds", "공속버프 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("maxAdSeconds", "광고 보상 최대 누적 시간", "초", 3_600, 86_400),
+			new PolicyDefinition("skillPointAdCooldownSeconds", "SP 광고 보상 쿨타임", "초", 0, 86_400),
 			new PolicyDefinition("rewardPointAmount", "보상 수령 포인트 기준", "P", 1, 1_000_000)
 	);
 
@@ -80,6 +84,7 @@ public class RuntimeEconomyService {
 		repository.save(row);
 		cache.set(after);
 		cacheLoadedAt = Instant.now(clock);
+		log.info("운영 정책 변경: key={}, before={}, after={}", key, valueOf(before, key), valueOf(after, key));
 		return new PolicyChangeResult(key, valueOf(before, key), valueOf(after, key), false);
 	}
 
@@ -94,6 +99,7 @@ public class RuntimeEconomyService {
 		repository.save(row);
 		cache.set(after);
 		cacheLoadedAt = Instant.now(clock);
+		log.info("운영 정책 기본값 복원: key={}, before={}, after={}", key, valueOf(before, key), valueOf(after, key));
 		return new PolicyChangeResult(key, valueOf(before, key), valueOf(after, key), true);
 	}
 
@@ -121,6 +127,7 @@ public class RuntimeEconomyService {
 				nvl(row.getAutoHuntAdSeconds(), defaults.autoHuntAdSeconds()),
 				nvl(row.getBoostAdSeconds(), defaults.boostAdSeconds()),
 				nvl(row.getMaxAdSeconds(), defaults.maxAdSeconds()),
+				nvl(row.getSkillPointAdCooldownSeconds(), defaults.skillPointAdCooldownSeconds()),
 				rewardGoldThreshold(goldPerTossPoint, rewardPointAmount),
 				rewardPointAmount
 		);
@@ -140,6 +147,7 @@ public class RuntimeEconomyService {
 				defaults.autoHuntAdSeconds(),
 				defaults.boostAdSeconds(),
 				defaults.maxAdSeconds(),
+				defaults.skillPointAdCooldownSeconds(),
 				rewardGoldThreshold,
 				defaults.rewardPointAmount()
 		);
@@ -201,6 +209,10 @@ public class RuntimeEconomyService {
 		return snapshot().maxAdSeconds();
 	}
 
+	public long skillPointAdCooldownSeconds() {
+		return snapshot().skillPointAdCooldownSeconds();
+	}
+
 	public long rewardGoldThreshold() {
 		return snapshot().rewardGoldThreshold();
 	}
@@ -222,6 +234,7 @@ public class RuntimeEconomyService {
 			case "autoHuntAdSeconds" -> snapshot.autoHuntAdSeconds();
 			case "boostAdSeconds" -> snapshot.boostAdSeconds();
 			case "maxAdSeconds" -> snapshot.maxAdSeconds();
+			case "skillPointAdCooldownSeconds" -> snapshot.skillPointAdCooldownSeconds();
 			case "rewardGoldThreshold" -> snapshot.rewardGoldThreshold();
 			case "rewardPointAmount" -> snapshot.rewardPointAmount();
 			default -> throw new IllegalArgumentException("Unknown policy key.");

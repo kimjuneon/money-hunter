@@ -15,6 +15,7 @@ public record EconomyProperties(
 		long autoHuntAdSeconds,
 		long boostAdSeconds,
 		long maxAdSeconds,
+		long skillPointAdCooldownSeconds,
 		long rewardGoldThreshold,
 		int rewardPointAmount
 ) {

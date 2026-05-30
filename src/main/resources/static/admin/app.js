@@ -4,6 +4,7 @@ const state = {
   view: "dashboardView",
   auditPage: 0,
   auditSize: 30,
+  toastTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -267,24 +268,28 @@ async function runPlayerAction(button) {
   if (action === "reset" && !confirm(`${userKey} 유저의 세션과 게임 데이터를 모두 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) {
     return;
   }
-  const reason = prompt(`${labels[action]} 사유를 입력해 주세요.`);
-  if (!reason || !reason.trim()) {
-    $("playerResult").textContent = "사유를 입력해야 처리할 수 있어요.";
-    $("playerResult").classList.add("error-text");
+  const reason = prompt(`${labels[action]} 사유를 입력해 주세요. (선택)`, "");
+  if (reason === null) {
     return;
   }
   $("playerResult").textContent = "";
   $("playerResult").classList.remove("error-text");
+  setButtonBusy(button, true);
   try {
     await request(`/api/admin/players/${encodeURIComponent(userKey)}/${action}`, {
       method: "POST",
       body: { reason: reason.trim() },
     });
-    $("playerResult").textContent = `${userKey} 유저 ${labels[action]} 처리를 완료했어요.`;
+    const successMessage = `${userKey} 유저 ${labels[action]} 처리를 완료했어요.`;
+    $("playerResult").textContent = successMessage;
+    showToast(successMessage);
     await loadPlayers();
   } catch (error) {
     $("playerResult").textContent = error.message;
     $("playerResult").classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
   }
 }
 
@@ -298,7 +303,7 @@ async function loadPolicies() {
         <small>${escapeHtml(policy.key)} · ${formatNumber(policy.min)}~${formatNumber(policy.max)} ${escapeHtml(policy.unit)}</small>
       </div>
       <input type="number" min="${policy.min}" max="${policy.max}" value="${escapeHtml(policy.value)}" data-value />
-      <input type="text" placeholder="변경 사유" data-reason />
+      <input type="text" placeholder="변경 사유(선택)" data-reason />
       <div class="actions">
         <button class="secondary" data-save>저장</button>
         <button class="ghost" data-reset>기본값</button>
@@ -322,13 +327,21 @@ async function savePolicy(row, resetToDefault) {
   };
   $("policyResult").textContent = "";
   $("policyResult").classList.remove("error-text");
+  setPolicyRowBusy(row, true);
   try {
     await request("/api/admin/policies", { method: "PATCH", body });
-    $("policyResult").textContent = `${body.key} 정책을 저장했어요.`;
+    const successMessage = resetToDefault
+      ? `${body.key} 정책을 기본값으로 복원했어요.`
+      : `${body.key} 정책을 저장했어요.`;
+    $("policyResult").textContent = successMessage;
+    showToast(successMessage);
     await loadPolicies();
   } catch (error) {
     $("policyResult").textContent = error.message;
     $("policyResult").classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setPolicyRowBusy(row, false);
   }
 }
 
@@ -382,6 +395,37 @@ async function send(url, options = {}) {
     throw new Error(data?.message || "요청 처리에 실패했어요.");
   }
   return data;
+}
+
+function setButtonBusy(button, busy) {
+  button.disabled = busy;
+  button.setAttribute("aria-busy", String(busy));
+}
+
+function setPolicyRowBusy(row, busy) {
+  row.querySelectorAll("input, button").forEach((element) => {
+    element.disabled = busy;
+    element.setAttribute("aria-busy", String(busy));
+  });
+}
+
+function showToast(message, type = "success") {
+  let toast = document.querySelector(".admin-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "admin-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.remove("success", "error", "visible");
+  toast.classList.add(type === "error" ? "error" : "success");
+  window.requestAnimationFrame(() => toast.classList.add("visible"));
+  window.clearTimeout(state.toastTimer);
+  state.toastTimer = window.setTimeout(() => {
+    toast.classList.remove("visible");
+  }, 2600);
 }
 
 function formatNumber(value) {

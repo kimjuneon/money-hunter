@@ -8,10 +8,14 @@ import com.money_hunter.infrastructure.persistence.AdminAuditLogRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AdminAuditService {
+	private static final Logger log = LoggerFactory.getLogger(AdminAuditService.class);
+
 	private final AdminAuditLogRepository repository;
 	private final Clock clock = Clock.systemUTC();
 
@@ -38,6 +42,7 @@ public class AdminAuditService {
 				truncate(clientIp(request), 80),
 				truncate(request.getHeader("User-Agent"), 300),
 				Instant.now(clock)));
+		log.info("관리자 감사 로그 기록: action={}, target={}, actor={}", action, target, admin.actorFingerprint());
 	}
 
 	public Page<AdminAuditLog> recent(int page, int size) {
