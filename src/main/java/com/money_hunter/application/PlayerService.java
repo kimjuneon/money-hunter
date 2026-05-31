@@ -67,8 +67,28 @@ public class PlayerService {
 	private static final int MAX_RAPID_DAMAGE_BONUS = 40;
 	private static final int MAX_STAT_DAMAGE_BONUS = 60;
 	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
+	private static final Duration SAME_TIME_REWARD_AD_COOLDOWN = Duration.ofMinutes(3);
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
+	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
+	private static final Set<String> PET_SKIN_KEYS = Set.of(
+			"FIRE_FOX",
+			"ICE",
+			"BIRD",
+			"GREEN_TURTLE",
+			"EASTER_EGG_JUNEON",
+			"EASTER_EGG_EULGIN",
+			"EASTER_EGG_GYUDONG",
+			"EASTER_EGG_MINGYU",
+			"EASTER_EGG_JAESEO"
+	);
+	private static final Set<String> EASTER_EGG_PET_SKINS = Set.of(
+			"EASTER_EGG_JUNEON",
+			"EASTER_EGG_EULGIN",
+			"EASTER_EGG_GYUDONG",
+			"EASTER_EGG_MINGYU",
+			"EASTER_EGG_JAESEO"
+	);
 	private static final Map<String, Integer> MONSTER_BASE_HP = Map.of(
 			"BOSS_ROCK", 120,
 			"BOSS_FROST", 135,
@@ -197,15 +217,19 @@ public class PlayerService {
 		requireOnboarded(player);
 		settle(player);
 		Instant now = clock.instant();
+		requireTimeRewardAdCooldownElapsed(player, AdEventType.AUTO_HUNT, now);
 		completeRewardAdSessionIfRequired(player, AdEventType.AUTO_HUNT, adSessionToken, requireAdSession, now);
-		player.setAutoHuntEndsAt(addRewardTimeOrReject(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
+		RewardTimeGrant grant = addCappedRewardTime(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now);
+		player.setAutoHuntEndsAt(grant.endsAt());
+		player.markAutoHuntAdClaimed(now);
 		player.clearAutoHuntEndNotification();
 		clearUnreadAutoHuntEndNotifications(player, now);
-		adEventRepository.save(new AdEvent(player, AdEventType.AUTO_HUNT, (int) economy.autoHuntAdSeconds(), now));
+		adEventRepository.save(new AdEvent(player, AdEventType.AUTO_HUNT, (int) grant.grantedSeconds(), now));
 		log.info(
-				"자동사냥 광고 보상 지급: userKey={}, seconds={}, autoHuntEndsAt={}, adSessionRequired={}",
+				"자동사냥 광고 보상 지급: userKey={}, requestedSeconds={}, grantedSeconds={}, autoHuntEndsAt={}, adSessionRequired={}",
 				mask(userKey),
 				economy.autoHuntAdSeconds(),
+				grant.grantedSeconds(),
 				player.getAutoHuntEndsAt(),
 				requireAdSession);
 		return toState(player);
@@ -226,13 +250,17 @@ public class PlayerService {
 		requireOnboarded(player);
 		settle(player);
 		Instant now = clock.instant();
+		requireTimeRewardAdCooldownElapsed(player, AdEventType.BOOST, now);
 		completeRewardAdSessionIfRequired(player, AdEventType.BOOST, adSessionToken, requireAdSession, now);
-		player.setBoostEndsAt(addRewardTimeOrReject(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
-		adEventRepository.save(new AdEvent(player, AdEventType.BOOST, (int) economy.boostAdSeconds(), now));
+		RewardTimeGrant grant = addCappedRewardTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now);
+		player.setBoostEndsAt(grant.endsAt());
+		player.markBoostAdClaimed(now);
+		adEventRepository.save(new AdEvent(player, AdEventType.BOOST, (int) grant.grantedSeconds(), now));
 		log.info(
-				"공속버프 광고 보상 지급: userKey={}, seconds={}, boostEndsAt={}, adSessionRequired={}",
+				"공속버프 광고 보상 지급: userKey={}, requestedSeconds={}, grantedSeconds={}, boostEndsAt={}, adSessionRequired={}",
 				mask(userKey),
 				economy.boostAdSeconds(),
+				grant.grantedSeconds(),
 				player.getBoostEndsAt(),
 				requireAdSession);
 		return toState(player);
@@ -321,6 +349,45 @@ public class PlayerService {
 		settle(player);
 		requireSkillPointRewardAvailable(player);
 		player.addSkillPoints(economy.skillPointPackAmount());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse purchasePetSkin(String userKey, String skinKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		String normalizedSkinKey = normalizePetSkinKey(skinKey);
+		if (player.getCharacterSlots() < 2) {
+			throw new IllegalStateException("동료 펫을 먼저 데려와야 스킨을 해금할 수 있어요.");
+		}
+		if (EASTER_EGG_PET_SKINS.contains(normalizedSkinKey)) {
+			throw new IllegalStateException("숨겨진 펫 스킨은 이스터에그로만 해금할 수 있어요.");
+		}
+		player.purchasePetSkin(normalizedSkinKey, PET_SKIN_PRICE_GOLD);
+		log.info("펫 스킨 구매: userKey={}, skinKey={}, priceGold={}", mask(userKey), normalizedSkinKey, PET_SKIN_PRICE_GOLD);
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse equipPetSkin(String userKey, String skinKey, int slot) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		String normalizedSkinKey = normalizePetSkinKey(skinKey);
+		player.equipPetSkin(slot, normalizedSkinKey);
+		log.info("펫 스킨 착용: userKey={}, slot={}, skinKey={}", mask(userKey), slot, normalizedSkinKey);
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse unlockEasterEggPetSkins(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		if (player.getCharacterSlots() < 2) {
+			throw new IllegalStateException("동료 펫을 먼저 데려와야 숨겨진 스킨을 해금할 수 있어요.");
+		}
+		player.unlockEasterEggPetSkins(EASTER_EGG_PET_SKINS);
+		log.info("이스터에그 펫 스킨 해금: userKey={}, skinCount={}", mask(userKey), EASTER_EGG_PET_SKINS.size());
 		return toState(player);
 	}
 
@@ -674,6 +741,14 @@ public class PlayerService {
 		return value == null ? "" : value.trim();
 	}
 
+	private String normalizePetSkinKey(String skinKey) {
+		String normalized = normalize(skinKey).toUpperCase();
+		if (!PET_SKIN_KEYS.contains(normalized)) {
+			throw new IllegalArgumentException("지원하지 않는 펫 스킨이에요.");
+		}
+		return normalized;
+	}
+
 	private String mask(String value) {
 		String normalized = normalize(value);
 		if (normalized.isBlank()) {
@@ -813,10 +888,10 @@ public class PlayerService {
 			requireSkillPointAdCooldownElapsed(player, now);
 		}
 		if (type == AdEventType.AUTO_HUNT) {
-			requireRewardTimeCanBeAdded(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now);
+			requireTimeRewardAdCooldownElapsed(player, type, now);
 		}
 		if (type == AdEventType.BOOST) {
-			requireRewardTimeCanBeAdded(player.getBoostEndsAt(), economy.boostAdSeconds(), now);
+			requireTimeRewardAdCooldownElapsed(player, type, now);
 		}
 		if (type == AdEventType.REWARD_CLAIM && player.getGold() < economy.rewardGoldThreshold()) {
 			throw new IllegalStateException("Reward gauge is not full.");
@@ -836,6 +911,27 @@ public class PlayerService {
 		}
 	}
 
+	private void requireTimeRewardAdCooldownElapsed(Player player, AdEventType type, Instant now) {
+		Instant nextAvailableAt = nextTimeRewardAdAvailableAt(player, type);
+		if (nextAvailableAt != null && nextAvailableAt.isAfter(now)) {
+			String rewardName = type == AdEventType.AUTO_HUNT ? "자동사냥" : "공속버프";
+			throw new IllegalStateException(rewardName + " 광고 보상은 " + remainingSeconds(now, nextAvailableAt) + "초 후 다시 받을 수 있어요.");
+		}
+	}
+
+	private Instant nextTimeRewardAdAvailableAt(Player player, AdEventType type) {
+		Instant lastClaimedAt = switch (type) {
+			case AUTO_HUNT -> player.getLastAutoHuntAdClaimedAt();
+			case BOOST -> player.getLastBoostAdClaimedAt();
+			default -> null;
+		};
+		if (lastClaimedAt == null || SAME_TIME_REWARD_AD_COOLDOWN.isZero() || SAME_TIME_REWARD_AD_COOLDOWN.isNegative()) {
+			return null;
+		}
+		Instant nextAvailableAt = lastClaimedAt.plus(SAME_TIME_REWARD_AD_COOLDOWN);
+		return nextAvailableAt.isAfter(clock.instant()) ? nextAvailableAt : null;
+	}
+
 	private Instant nextSkillPointAdAvailableAt(Player player) {
 		Instant lastClaimedAt = player.getLastSkillPointAdClaimedAt();
 		long cooldownSeconds = economy.skillPointAdCooldownSeconds();
@@ -849,6 +945,10 @@ public class PlayerService {
 	private long remainingMinutes(Instant now, Instant target) {
 		long seconds = Math.max(1, Duration.between(now, target).toSeconds());
 		return (seconds + 59) / 60;
+	}
+
+	private long remainingSeconds(Instant now, Instant target) {
+		return Math.max(1, Duration.between(now, target).toSeconds());
 	}
 
 	private boolean allSkillsMaxed(Player player) {
@@ -899,23 +999,19 @@ public class PlayerService {
 		return min(requestedEnd, cappedEnd);
 	}
 
-	private Instant addRewardTimeOrReject(Instant currentEnd, long secondsToAdd, Instant now) {
-		requireRewardTimeCanBeAdded(currentEnd, secondsToAdd, now);
+	private RewardTimeGrant addCappedRewardTime(Instant currentEnd, long secondsToAdd, Instant now) {
 		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
-		return base.plusSeconds(secondsToAdd);
-	}
-
-	private void requireRewardTimeCanBeAdded(Instant currentEnd, long secondsToAdd, Instant now) {
-		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
-		long currentRemainingSeconds = Math.max(0, Duration.between(now, base).toSeconds());
-		if (currentRemainingSeconds + secondsToAdd > economy.maxAdSeconds()) {
-			throw new IllegalStateException("광고 보상 최대 누적 시간을 초과해 추가할 수 없어요.");
-		}
+		Instant endsAt = addCappedTime(currentEnd, secondsToAdd, now);
+		long grantedSeconds = Math.max(0, Duration.between(base, endsAt).toSeconds());
+		return new RewardTimeGrant(endsAt, grantedSeconds);
 	}
 
 	private Instant addUncappedTime(Instant currentEnd, long secondsToAdd, Instant now) {
 		Instant base = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
 		return base.plusSeconds(secondsToAdd);
+	}
+
+	private record RewardTimeGrant(Instant endsAt, long grantedSeconds) {
 	}
 
 	private PlayerStateResponse toState(Player player) {
@@ -937,6 +1033,10 @@ public class PlayerService {
 				player.getCharacterSlots(),
 				economy.maxCharacterSlots(),
 				economy.companionPriceWon(),
+				PET_SKIN_PRICE_GOLD,
+				player.ownedPetSkinKeyList(),
+				player.getPetOneSkinKey(),
+				player.getPetTwoSkinKey(),
 				economy.skillPointPackPriceWon(),
 				economy.skillPointPackAmount(),
 				player.getGold(),
@@ -950,6 +1050,8 @@ public class PlayerService {
 				player.getGold() >= threshold,
 				player.getSkillPoints(),
 				!allSkillsMaxed(player),
+				nextTimeRewardAdAvailableAt(player, AdEventType.AUTO_HUNT),
+				nextTimeRewardAdAvailableAt(player, AdEventType.BOOST),
 				nextSkillPointAdAvailableAt(player),
 				economy.autoHuntAdSeconds(),
 				economy.boostAdSeconds(),

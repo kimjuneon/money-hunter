@@ -69,6 +69,9 @@ const state = {
   shareRewardInFlight: false,
   gameProfileInFlight: false,
   loginInFlight: false,
+  petEasterEggTapCount: 0,
+  petEasterEggTapStartedAt: 0,
+  petEasterEggPasswordOpen: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
 
@@ -166,21 +169,22 @@ const attackMotionMsByJob = {
   ROGUE: 740,
 };
 
+const petAssetVersion = "20260601-01";
+const petSkinMeta = {
+  FIRE_FOX: { key: "FIRE_FOX", name: "해빛냥", image: `/assets/pets/pet-fire-fox.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "불꽃 발톱으로 추가 공격" },
+  ICE: { key: "ICE", name: "얼음몽", image: `/assets/pets/pet-ice.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-ice.png?v=${petAssetVersion}`, copy: "빙결 결정으로 추가 공격" },
+  BIRD: { key: "BIRD", name: "번개삐오", image: `/assets/pets/pet-bird.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-bird.png?v=${petAssetVersion}`, copy: "번개 깃털로 추가 공격" },
+  GREEN_TURTLE: { key: "GREEN_TURTLE", name: "초록거북", image: `/assets/pets/pet-green-tutle.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-green-tutle.png?v=${petAssetVersion}`, copy: "숲의 기운으로 추가 공격" },
+  EASTER_EGG_JUNEON: { key: "EASTER_EGG_JUNEON", name: "준언", image: `/assets/pets/easter-egg-juneon.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
+  EASTER_EGG_EULGIN: { key: "EASTER_EGG_EULGIN", name: "을긴", image: `/assets/pets/easter-egg-eulgin.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
+  EASTER_EGG_GYUDONG: { key: "EASTER_EGG_GYUDONG", name: "규동", image: `/assets/pets/easter-egg-gyudong.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
+  EASTER_EGG_MINGYU: { key: "EASTER_EGG_MINGYU", name: "민규", image: `/assets/pets/easter-egg-mingyu.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
+  EASTER_EGG_JAESEO: { key: "EASTER_EGG_JAESEO", name: "재서", image: `/assets/pets/easter-egg-jaeseo.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
+};
+const petSkinOrder = ["FIRE_FOX", "ICE", "BIRD", "GREEN_TURTLE", "EASTER_EGG_JUNEON", "EASTER_EGG_EULGIN", "EASTER_EGG_GYUDONG", "EASTER_EGG_MINGYU", "EASTER_EGG_JAESEO"];
 const petMeta = [
-  {
-    key: "flare",
-    name: "해빛냥",
-    skill: "PET_FLARE_ATTACK",
-    image: "/assets/pet-flarefox.svg?v=20260525-01",
-    attack: "/assets/pet-flarefox-attack.svg?v=20260525-01",
-  },
-  {
-    key: "aqua",
-    name: "물방울토",
-    skill: "PET_AQUA_ATTACK",
-    image: "/assets/pet-aquabun.svg?v=20260525-01",
-    attack: "/assets/pet-aquabun-attack.svg?v=20260525-01",
-  },
+  { key: "flare", skill: "PET_FLARE_ATTACK", defaultSkin: "FIRE_FOX", imageId: "petFlare", shopImageId: "petOneShopImage", shopNameId: "petOneShopName", shopCopyId: "petOneShopCopy", statusId: "petOneStatus" },
+  { key: "aqua", skill: "PET_AQUA_ATTACK", defaultSkin: "ICE", imageId: "petAqua", shopImageId: "petTwoShopImage", shopNameId: "petTwoShopName", shopCopyId: "petTwoShopCopy", statusId: "petTwoStatus" },
 ];
 
 const effectAssetVersion = "20260525-02";
@@ -652,6 +656,7 @@ function handlePageVisibility(visible = !document.hidden) {
   refresh()
     .catch((error) => setMessage(error.message))
     .finally(() => {
+      restoreBattleVisualAssets();
       state.resumeRefreshInFlight = false;
     });
 }
@@ -1121,15 +1126,25 @@ function render() {
   renderPets(player);
   const autoHuntReward = timeRewardAvailability(player.autoHuntEndsAt, player.autoHuntAdSeconds, player.maxAdSeconds);
   const boostReward = timeRewardAvailability(player.boostEndsAt, player.boostAdSeconds, player.maxAdSeconds);
-  $("autoHuntAd").disabled = !autoHuntReward.available;
-  $("boostAd").disabled = !boostReward.available;
-  $("huntTime").textContent = autoHuntReward.available
-    ? hunting
+  const autoHuntCooldownReady = timeRewardAdCooldownReady("AUTO_HUNT", player);
+  const boostCooldownReady = timeRewardAdCooldownReady("BOOST", player);
+  $("autoHuntAd").disabled = !autoHuntCooldownReady;
+  $("boostAd").disabled = !boostCooldownReady;
+  $("huntTime").textContent = !autoHuntCooldownReady
+    ? `${remain(nextTimeRewardAdAvailableAt("AUTO_HUNT", player))} 후`
+    : autoHuntReward.available
+    ? autoHuntReward.capped
+      ? autoHuntReward.label
+      : hunting
       ? `${remain(player.autoHuntEndsAt)} · 추가 가능`
       : `${rewardGateLabel()} · ${secondsLabel(player.autoHuntAdSeconds)}`
     : autoHuntReward.label;
-  $("boostTime").textContent = boostReward.available
-    ? isActive(player.boostEndsAt)
+  $("boostTime").textContent = !boostCooldownReady
+    ? `${remain(nextTimeRewardAdAvailableAt("BOOST", player))} 후`
+    : boostReward.available
+    ? boostReward.capped
+      ? boostReward.label
+      : isActive(player.boostEndsAt)
       ? `${remain(player.boostEndsAt)} · 추가 가능`
       : `${rewardGateLabel()} · ${secondsLabel(player.boostAdSeconds)}`
     : boostReward.label;
@@ -1303,6 +1318,49 @@ function renderMonster(player) {
   $("monsterHp").style.width = `${Math.max(0, Math.min(100, monster.hp * 100 / monster.maxHp))}%`;
 }
 
+function refreshImageSource(elementId, src) {
+  const image = $(elementId);
+  if (!image || !src) {
+    return;
+  }
+  const currentSrc = image.getAttribute("src") || "";
+  if (currentSrc !== src) {
+    image.src = src;
+    return;
+  }
+  if (image.complete && image.naturalWidth > 0) {
+    return;
+  }
+  image.removeAttribute("src");
+  window.requestAnimationFrame(() => {
+    image.src = src;
+  });
+}
+
+function restoreBattleVisualAssets() {
+  if (!state.player) {
+    return;
+  }
+  const job = jobMeta[state.selectedJob || state.player.job || "WARRIOR"] || jobMeta.WARRIOR;
+  const monster = displayMonster(state.player);
+  const monsterAsset = monsterMeta[monster.key] || monsterMeta.BOSS_ROCK;
+  applyBattleBackground(monster);
+  const screen = document.querySelector(".battle-screen");
+  const background = battleBackgrounds[state.battleBackgroundIndex];
+  if (screen && background) {
+    screen.style.backgroundImage = "none";
+    window.requestAnimationFrame(() => {
+      screen.style.backgroundImage = `url("${background}")`;
+    });
+  }
+  refreshImageSource("heroImage", job.image);
+  refreshImageSource("armImage", job.arm);
+  refreshImageSource("monsterImage", monsterAsset.image);
+  petMeta.forEach((pet, index) => {
+    refreshImageSource(pet.imageId, petSkinForSlot(index + 1, state.player).image);
+  });
+}
+
 function monsterSignature(monster) {
   return `${monster.key}:${monster.defeatedMonsters}`;
 }
@@ -1414,7 +1472,6 @@ function renderRewardPanel(player) {
     ? "심사용 게임 기록으로 랭킹을 확인해요"
     : `${nickname || "게임 프로필"} 닉네임으로 랭킹에 참여해요`;
   $("leaderboardStatus").textContent = `누적 골드 ${leaderboardGoldScore(player).toLocaleString("ko-KR")}G 기준`;
-  $("editGameNickname").disabled = !shouldUseGameCenter() || state.profileEditorInFlight;
 }
 
 function availableRewardPointAmount(player = state.player) {
@@ -1434,11 +1491,15 @@ function renderShopPanel(player) {
   $("companionCount").textContent = `${pets}/${maxPets}`;
   petMeta.forEach((pet, index) => {
     const unlocked = pets > index;
+    const skin = petSkinForSlot(index + 1, player);
     const shopCard = $(`pet${index + 1 === 1 ? "One" : "Two"}Shop`);
-    const status = $(`pet${index + 1 === 1 ? "One" : "Two"}Status`);
+    const status = $(pet.statusId);
+    $(pet.shopImageId).src = skin.image;
+    $(pet.shopNameId).textContent = skin.name;
+    $(pet.shopCopyId).textContent = skin.copy;
     shopCard.classList.toggle("locked", !unlocked);
     status.textContent = unlocked
-      ? `동행 중 · ${pet.name} 공격 가능`
+      ? `동행 중 · ${skin.name} 공격 가능`
       : isOneStoreTarget()
         ? "잠김 · 심사용 잠금 해제"
         : `잠김 · ${iapDisplayAmount(index === 0 ? "flarePet" : "aquaPet", price)}`;
@@ -1447,8 +1508,8 @@ function renderShopPanel(player) {
   $("buyCompanion").innerHTML = pets >= maxPets
     ? "<span>동료 펫 MAX · 모든 펫 동행 중</span>"
     : isOneStoreTarget()
-      ? `<span>${petMeta[pets]?.name || "동료 펫"} 잠금 해제 · 심사용</span>`
-      : `<span>${petMeta[pets]?.name || "동료 펫"} 구매 · ${iapDisplayAmount(pets === 0 ? "flarePet" : "aquaPet", price)}</span>`;
+      ? `<span>${petSkinForSlot(pets + 1, player).name || "동료 펫"} 잠금 해제 · 심사용</span>`
+      : `<span>${petSkinForSlot(pets + 1, player).name || "동료 펫"} 구매 · ${iapDisplayAmount(pets === 0 ? "flarePet" : "aquaPet", price)}</span>`;
   $("skillPointPackCopy").textContent = `SP ${packAmount.toLocaleString("ko-KR")}개 즉시 지급`;
   const spAvailable = skillPointRewardsAvailable(player);
   $("skillPointPackStatus").textContent = spAvailable
@@ -1462,6 +1523,87 @@ function renderShopPanel(player) {
       ? `<span>SP ${packAmount.toLocaleString("ko-KR")} 받기 · 심사용</span>`
       : `<span>SP ${packAmount.toLocaleString("ko-KR")} 구매 · ${iapDisplayAmount("skillPointPack", packPrice)}</span>`
     : "<span>SP 구매 비활성 · 모든 스킬 MAX</span>";
+  renderPetSkinShop(player);
+}
+
+function renderPetSkinShop(player) {
+  const pets = unlockedPetCount(player);
+  const shop = $("petSkinShop");
+  const list = $("petSkinList");
+  shop.classList.toggle("hidden", pets < 1);
+  if (pets < 1) {
+    list.replaceChildren();
+    return;
+  }
+
+  const owned = ownedPetSkinKeys(player);
+  const priceGold = Number(player.petSkinPriceGold || 30000);
+  const selectedBySlot = {
+    1: petSkinKeyForSlot(1, player),
+    2: petSkinKeyForSlot(2, player),
+  };
+  list.replaceChildren(...petSkinOrder
+    .filter((skinKey) => {
+      const skin = petSkinByKey(skinKey);
+      return !skin.easterEgg || owned.has(skinKey);
+    })
+    .map((skinKey) => {
+      const skin = petSkinByKey(skinKey);
+      const ownedSkin = owned.has(skinKey);
+      const card = document.createElement("article");
+      card.className = "pet-skin-card";
+      card.classList.toggle("locked", !ownedSkin);
+
+      const image = document.createElement("img");
+      image.src = skin.image;
+      image.alt = "";
+      card.appendChild(image);
+
+      const copy = document.createElement("div");
+      copy.className = "pet-skin-copy";
+      const title = document.createElement("strong");
+      title.textContent = skin.name;
+      const description = document.createElement("p");
+      description.textContent = skin.copy;
+      const status = document.createElement("small");
+      status.textContent = ownedSkin
+        ? equippedPetSkinLabel(skinKey, selectedBySlot)
+        : `${priceGold.toLocaleString("ko-KR")}G로 해금`;
+      copy.append(title, description, status);
+      card.appendChild(copy);
+
+      const actions = document.createElement("div");
+      actions.className = "pet-skin-actions";
+      if (!ownedSkin) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.petSkinAction = "purchase";
+        button.dataset.skinKey = skinKey;
+        button.disabled = player.gold < priceGold;
+        button.textContent = player.gold < priceGold ? "골드 부족" : `${priceGold.toLocaleString("ko-KR")}G 구매`;
+        actions.appendChild(button);
+      } else {
+        for (let slot = 1; slot <= pets; slot += 1) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.petSkinAction = "equip";
+          button.dataset.skinKey = skinKey;
+          button.dataset.slot = String(slot);
+          button.disabled = selectedBySlot[slot] === skinKey;
+          button.textContent = selectedBySlot[slot] === skinKey ? `${slot}번 착용 중` : `${slot}번 펫 착용`;
+          actions.appendChild(button);
+        }
+      }
+      card.appendChild(actions);
+      return card;
+    }));
+}
+
+function equippedPetSkinLabel(skinKey, selectedBySlot) {
+  const equippedSlots = Object.entries(selectedBySlot)
+    .filter(([, selectedSkinKey]) => selectedSkinKey === skinKey)
+    .map(([slot]) => `${slot}번`);
+  return equippedSlots.length > 0 ? `${equippedSlots.join(", ")} 펫 착용 중` : "보유 중";
 }
 
 function iapProduct(productKey) {
@@ -1472,14 +1614,42 @@ function iapDisplayAmount(productKey, fallbackWon) {
   return iapProduct(productKey)?.displayAmount || `₩${Number(fallbackWon || 0).toLocaleString("ko-KR")}`;
 }
 
+function petSkinByKey(skinKey) {
+  return petSkinMeta[skinKey] || petSkinMeta.FIRE_FOX;
+}
+
+function petSkinKeyForSlot(slot, player = state.player) {
+  if (slot === 2) {
+    return player?.petTwoSkinKey || "ICE";
+  }
+  return player?.petOneSkinKey || "FIRE_FOX";
+}
+
+function petSkinForSlot(slot, player = state.player) {
+  return petSkinByKey(petSkinKeyForSlot(slot, player));
+}
+
+function ownedPetSkinKeys(player = state.player) {
+  const keys = Array.isArray(player?.ownedPetSkinKeys) && player.ownedPetSkinKeys.length > 0
+    ? player.ownedPetSkinKeys
+    : ["FIRE_FOX", "ICE"];
+  return new Set(keys);
+}
+
 function unlockedPetCount(player = state.player) {
   return Math.max(0, (player?.characterSlots || 1) - 1);
 }
 
 function renderPets(player) {
   const pets = unlockedPetCount(player);
-  $("petFlare").classList.toggle("hidden", pets < 1);
-  $("petAqua").classList.toggle("hidden", pets < 2);
+  petMeta.forEach((pet, index) => {
+    const visible = pets > index;
+    const element = $(pet.imageId);
+    element.classList.toggle("hidden", !visible);
+    if (visible) {
+      element.src = petSkinForSlot(index + 1, player).image;
+    }
+  });
 }
 
 function skillPointRewardsAvailable(player = state.player) {
@@ -1499,19 +1669,44 @@ function skillPointAdCooldownReady(player = state.player) {
   return !player?.nextSkillPointAdAvailableAt || !isActive(player.nextSkillPointAdAvailableAt);
 }
 
+function timeRewardAdCooldownReady(type, player = state.player) {
+  const nextAvailableAt = type === "AUTO_HUNT"
+    ? player?.nextAutoHuntAdAvailableAt
+    : player?.nextBoostAdAvailableAt;
+  return !nextAvailableAt || !isActive(nextAvailableAt);
+}
+
+function nextTimeRewardAdAvailableAt(type, player = state.player) {
+  return type === "AUTO_HUNT"
+    ? player?.nextAutoHuntAdAvailableAt
+    : player?.nextBoostAdAvailableAt;
+}
+
 function timeRewardAvailability(currentEndAt, rewardSeconds, maxSeconds) {
   const reward = Number(rewardSeconds || 3600);
   const max = Number(maxSeconds || 14400);
   const remainingSeconds = remainingSecondsFrom(currentEndAt);
+  if (remainingSeconds >= max) {
+    return {
+      available: true,
+      label: `${remainingSeconds > 0 ? remain(currentEndAt) : "꺼짐"} · 최대`,
+      capped: true,
+      grantedSeconds: 0,
+    };
+  }
   if (remainingSeconds + reward > max) {
     return {
-      available: false,
-      label: `${remainingSeconds > 0 ? remain(currentEndAt) : "꺼짐"} · 최대`,
+      available: true,
+      label: `${remain(new Date(Date.now() + max * 1000).toISOString())} · 최대 충전`,
+      capped: true,
+      grantedSeconds: Math.max(0, max - remainingSeconds),
     };
   }
   return {
     available: true,
     label: "",
+    capped: false,
+    grantedSeconds: reward,
   };
 }
 
@@ -1595,6 +1790,16 @@ function renderSkills(player) {
     const effectElement = document.querySelector(`[data-skill-effect="${skill.type}"]`);
     const tierElement = document.querySelector(`[data-skill-tier="${skill.type}"]`);
     const iconElement = document.querySelector(`[data-effect-icon="${skill.type}"]`);
+    const labelElement = document.querySelector(`[data-skill-label="${skill.type}"]`);
+    if (labelElement && meta.petIndex) {
+      labelElement.textContent = `${petSkinForSlot(meta.petIndex, player).name} 공격`;
+      const portrait = document
+        .querySelector(`[data-skill-row="${skill.type}"]`)
+        ?.querySelector(".skill-portrait");
+      if (portrait) {
+        portrait.style.backgroundImage = `url("${petSkinForSlot(meta.petIndex, player).image}")`;
+      }
+    }
     if (levelElement) {
       levelElement.textContent = `Lv.${skill.level}`;
     }
@@ -1614,7 +1819,9 @@ function renderSkills(player) {
         ? `${meta.petIndex}번째 동료 펫을 상점에서 구매해야 해요`
         : meta.effectPrefix
         ? `이펙트 ${skill.effectTier}단계`
-        : meta.description;
+        : meta.petIndex
+          ? `${petSkinForSlot(meta.petIndex, player).name} 공격 피해량이 올라가요`
+          : meta.description;
     }
     if (iconElement) {
       const previewTier = Math.max(0, skill.effectTier || 0);
@@ -1651,9 +1858,10 @@ function petSkillEffectText(skill, maxLevel, meta) {
   const maxDamage = meta.maxDamage || 40;
   const damage = Math.round((maxDamage * skill.level) / maxLevel);
   const nextDamage = Math.round((maxDamage * Math.min(maxLevel, skill.level + 1)) / maxLevel);
+  const skinName = meta.petIndex ? petSkinForSlot(meta.petIndex).name : "펫";
   return skill.level >= maxLevel
-    ? `피해량 +${damage} · MAX`
-    : `피해량 +${damage} → +${nextDamage}`;
+    ? `${skinName} 피해량 +${damage} · MAX`
+    : `${skinName} 피해량 +${damage} → +${nextDamage}`;
 }
 
 function skillLevel(type) {
@@ -2357,6 +2565,12 @@ async function openGameProfileEditor() {
     setMessage("토스 게임 프로필은 토스 앱에서 수정할 수 있어요.");
     return;
   }
+  if (gameProfileNickname()) {
+    await syncGameProfileIfNeeded({ force: true });
+    setMessage("이미 게임 프로필이 있어요. 현재 SDK에서는 앱 안 닉네임 수정 화면을 직접 열 수 없어요.");
+    renderRewardPanel(state.player);
+    return;
+  }
   if (state.profileEditorInFlight) {
     setMessage("게임 프로필을 여는 중이에요.");
     return;
@@ -2555,6 +2769,65 @@ async function requestWithLoginRetry(request) {
   }
 }
 
+async function purchasePetSkin(skinKey) {
+  const skin = petSkinByKey(skinKey);
+  await run(
+    () => api(`/api/player/shop/pet-skins/${encodeURIComponent(skinKey)}/purchase`, { method: "POST" }),
+    `${skin.name} 스킨을 해금했어요.`
+  );
+}
+
+async function equipPetSkin(skinKey, slot) {
+  const skin = petSkinByKey(skinKey);
+  await run(
+    () => api(`/api/player/shop/pet-skins/${encodeURIComponent(skinKey)}/equip`, {
+      method: "POST",
+      body: JSON.stringify({ slot }),
+    }),
+    `${slot}번 펫이 ${skin.name} 스킨을 착용했어요.`
+  );
+}
+
+async function unlockPetEasterEggSkins() {
+  await run(
+    () => api("/api/player/shop/pet-skins/easter-eggs/unlock", { method: "POST" }),
+    "숨겨진 펫 스킨이 열렸어요."
+  );
+}
+
+function openPetEasterEggPasswordModal() {
+  const modal = $("petEasterEggPasswordModal");
+  const input = $("petEasterPasswordInput");
+  if (!modal || !input) {
+    return;
+  }
+  state.petEasterEggPasswordOpen = true;
+  input.value = "";
+  modal.classList.remove("hidden");
+  window.setTimeout(() => input.focus(), 40);
+}
+
+function closePetEasterEggPasswordModal() {
+  const modal = $("petEasterEggPasswordModal");
+  if (!modal) {
+    return;
+  }
+  state.petEasterEggPasswordOpen = false;
+  modal.classList.add("hidden");
+}
+
+function submitPetEasterEggPassword() {
+  const input = $("petEasterPasswordInput");
+  const password = String(input?.value || "").trim();
+  if (password !== "1234") {
+    closePetEasterEggPasswordModal();
+    setMessage("히든 스킨 비밀번호가 맞지 않아요.");
+    return;
+  }
+  closePetEasterEggPasswordModal();
+  unlockPetEasterEggSkins();
+}
+
 function setDevStatus(message) {
   $("devStatus").textContent = message;
 }
@@ -2751,11 +3024,12 @@ function spawnSkillEffect() {
 function spawnPetAttacks() {
   const pets = unlockedPetCount();
   petMeta.slice(0, pets).forEach((pet, index) => {
+    const skin = petSkinForSlot(index + 1);
     const delayMs = 340 + index * 140;
     window.setTimeout(() => {
       const attack = document.createElement("img");
       attack.className = `pet-attack pet-${pet.key}-attack`;
-      attack.src = pet.attack;
+      attack.src = skin.attack;
       attack.alt = "";
       $("petAttackLayer").appendChild(attack);
       window.setTimeout(() => attack.remove(), 960);
@@ -2873,20 +3147,26 @@ $("showRewardPanel").addEventListener("click", () => showContentPanel("reward"))
 $("showShopPanel").addEventListener("click", () => showContentPanel("shop"));
 
 $("autoHuntAd").addEventListener("click", () => {
+  if (!timeRewardAdCooldownReady("AUTO_HUNT")) {
+    setMessage(`자동사냥 광고 보상은 ${remain(nextTimeRewardAdAvailableAt("AUTO_HUNT"))} 후 다시 받을 수 있어요.`);
+    return;
+  }
   const availability = timeRewardAvailability(
     state.player?.autoHuntEndsAt,
     state.player?.autoHuntAdSeconds,
     state.player?.maxAdSeconds,
   );
-  if (!availability.available) {
-    setMessage("자동사냥 시간이 최대 누적 시간에 가까워 추가할 수 없어요.");
-    return;
+  if (availability.capped) {
+    setMessage(availability.grantedSeconds > 0 ? "최대 누적 시간까지만 충전돼요." : "자동사냥 시간이 이미 최대치예요.");
   }
+  const grantLabel = availability.grantedSeconds > 0
+    ? secondsLabel(availability.grantedSeconds || state.player?.autoHuntAdSeconds)
+    : "최대 시간";
   runRewardFlow(
     "자동사냥 광고",
     isOneStoreTarget()
-      ? `게임 내 보상으로 자동사냥 시간이 ${secondsLabel(state.player?.autoHuntAdSeconds)} 충전돼요.`
-      : `완료하면 자동사냥 시간이 ${secondsLabel(state.player?.autoHuntAdSeconds)} 충전돼요.`,
+      ? `게임 내 보상으로 자동사냥 시간이 ${grantLabel}까지 충전돼요.`
+      : `완료하면 자동사냥 시간이 ${grantLabel}까지 충전돼요.`,
     {
       adGroupKey: "autoHunt",
       adEventType: "AUTO_HUNT",
@@ -2897,26 +3177,34 @@ $("autoHuntAd").addEventListener("click", () => {
         method: "POST",
         body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
       }),
-      message: `자동사냥 시간이 ${secondsLabel(state.player?.autoHuntAdSeconds)} 충전됐어요.`,
+      message: availability.grantedSeconds > 0
+        ? `자동사냥 시간이 ${grantLabel} 충전됐어요.`
+        : "자동사냥 시간이 최대치로 유지돼요.",
     }
   );
 });
 
 $("boostAd").addEventListener("click", () => {
+  if (!timeRewardAdCooldownReady("BOOST")) {
+    setMessage(`공속버프 광고 보상은 ${remain(nextTimeRewardAdAvailableAt("BOOST"))} 후 다시 받을 수 있어요.`);
+    return;
+  }
   const availability = timeRewardAvailability(
     state.player?.boostEndsAt,
     state.player?.boostAdSeconds,
     state.player?.maxAdSeconds,
   );
-  if (!availability.available) {
-    setMessage("공속버프 시간이 최대 누적 시간에 가까워 추가할 수 없어요.");
-    return;
+  if (availability.capped) {
+    setMessage(availability.grantedSeconds > 0 ? "최대 누적 시간까지만 충전돼요." : "공속버프 시간이 이미 최대치예요.");
   }
+  const grantLabel = availability.grantedSeconds > 0
+    ? secondsLabel(availability.grantedSeconds || state.player?.boostAdSeconds)
+    : "최대 시간";
   runRewardFlow(
     "공속버프 광고",
     isOneStoreTarget()
-      ? `게임 내 보상으로 공격 모션과 골드 획득 속도가 ${secondsLabel(state.player?.boostAdSeconds)} 동안 빨라져요.`
-      : `완료하면 공격 모션과 골드 획득 속도가 ${secondsLabel(state.player?.boostAdSeconds)} 동안 빨라져요.`,
+      ? `게임 내 보상으로 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`
+      : `완료하면 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`,
     {
       adGroupKey: "boost",
       adEventType: "BOOST",
@@ -2927,7 +3215,9 @@ $("boostAd").addEventListener("click", () => {
         method: "POST",
         body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
       }),
-      message: `공격 속도 부스터가 ${secondsLabel(state.player?.boostAdSeconds)} 충전됐어요.`,
+      message: availability.grantedSeconds > 0
+        ? `공격 속도 부스터가 ${grantLabel} 충전됐어요.`
+        : "공격 속도 부스터 시간이 최대치로 유지돼요.",
     }
   );
 });
@@ -2998,12 +3288,50 @@ $("openLeaderboard").addEventListener("click", async () => {
   }
 });
 
-$("editGameNickname").addEventListener("click", () => openGameProfileEditor());
 $("closeProfileNoticeModal").addEventListener("click", closeProfileNoticeModal);
 $("dismissProfileNotice").addEventListener("click", closeProfileNoticeModal);
-$("editProfileFromNotice").addEventListener("click", () => {
-  closeProfileNoticeModal();
-  openGameProfileEditor();
+$("editProfileFromNotice").addEventListener("click", closeProfileNoticeModal);
+
+$("petSkinList").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-pet-skin-action]");
+  if (!button) {
+    return;
+  }
+  const skinKey = button.dataset.skinKey;
+  if (button.dataset.petSkinAction === "purchase") {
+    purchasePetSkin(skinKey);
+    return;
+  }
+  equipPetSkin(skinKey, Number(button.dataset.slot || 1));
+});
+
+$("unlockPetEasterEgg").addEventListener("click", () => {
+  if (unlockedPetCount() < 1) {
+    return;
+  }
+  const now = Date.now();
+  if (now - state.petEasterEggTapStartedAt > 3000) {
+    state.petEasterEggTapStartedAt = now;
+    state.petEasterEggTapCount = 0;
+  }
+  state.petEasterEggTapCount += 1;
+  if (state.petEasterEggTapCount === 8) {
+    setMessage("상점 어딘가에서 숨겨진 기운이 느껴져요.");
+  }
+  if (state.petEasterEggTapCount >= 10) {
+    state.petEasterEggTapCount = 0;
+    state.petEasterEggTapStartedAt = 0;
+    openPetEasterEggPasswordModal();
+  }
+});
+
+$("closePetEasterEggPasswordModal").addEventListener("click", closePetEasterEggPasswordModal);
+$("cancelPetEasterEggPassword").addEventListener("click", closePetEasterEggPasswordModal);
+$("confirmPetEasterEggPassword").addEventListener("click", submitPetEasterEggPassword);
+$("petEasterPasswordInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    submitPetEasterEggPassword();
+  }
 });
 
 $("adSkip").addEventListener("click", () => finishDummyAd());
@@ -3171,6 +3499,7 @@ window.addEventListener("pagehide", () => {
 });
 window.addEventListener("pageshow", () => {
   syncPageSoundState(!document.hidden);
+  restoreBattleVisualAssets();
   schedulePendingIapRestoreRetries();
 });
 

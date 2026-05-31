@@ -10,6 +10,7 @@ import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
 import com.money_hunter.presentation.dto.request.FriendInviteRewardClaimRequest;
 import com.money_hunter.presentation.dto.request.GameProfileRequest;
 import com.money_hunter.presentation.dto.request.IapGrantRequest;
+import com.money_hunter.presentation.dto.request.PetSkinEquipRequest;
 import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
@@ -130,6 +131,25 @@ public class PlayerController {
 		String userKey = userKey(principal);
 		requireMockMonetization();
 		return playerService.purchaseSkillPointPack(userKey);
+	}
+
+	@PostMapping("/shop/pet-skins/{skinKey}/purchase")
+	public PlayerStateResponse purchasePetSkin(Principal principal, @PathVariable String skinKey) {
+		return playerService.purchasePetSkin(userKey(principal), skinKey);
+	}
+
+	@PostMapping("/shop/pet-skins/{skinKey}/equip")
+	public PlayerStateResponse equipPetSkin(
+			Principal principal,
+			@PathVariable String skinKey,
+			@Valid @RequestBody PetSkinEquipRequest request
+	) {
+		return playerService.equipPetSkin(userKey(principal), skinKey, request.slot());
+	}
+
+	@PostMapping("/shop/pet-skins/easter-eggs/unlock")
+	public PlayerStateResponse unlockEasterEggPetSkins(Principal principal) {
+		return playerService.unlockEasterEggPetSkins(userKey(principal));
 	}
 
 	@PostMapping("/shop/iap/grant")

@@ -3,7 +3,10 @@ package com.money_hunter.domain;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -78,6 +81,10 @@ public class Player {
 
 	private Instant boostEndsAt;
 
+	private Instant lastAutoHuntAdClaimedAt;
+
+	private Instant lastBoostAdClaimedAt;
+
 	private Instant lastSkillPointAdClaimedAt;
 
 	private Instant tutorialRewardClaimedAt;
@@ -96,6 +103,15 @@ public class Player {
 
 	@Column(nullable = false)
 	private boolean adminFavorite = false;
+
+	@Column(nullable = false, length = 600)
+	private String ownedPetSkinKeys = "FIRE_FOX,ICE";
+
+	@Column(nullable = false, length = 40)
+	private String petOneSkinKey = "FIRE_FOX";
+
+	@Column(nullable = false, length = 40)
+	private String petTwoSkinKey = "ICE";
 
     @Column(nullable = false)
 	private Instant lastSettledAt;
@@ -322,6 +338,11 @@ public class Player {
 		touch();
 	}
 
+	public void markAutoHuntAdClaimed(Instant claimedAt) {
+		this.lastAutoHuntAdClaimedAt = claimedAt;
+		touch();
+	}
+
     public void clearAutoHuntEndNotification() {
 		this.autoHuntEndNotifiedAt = null;
 		touch();
@@ -334,6 +355,11 @@ public class Player {
 
     public void setBoostEndsAt(Instant boostEndsAt) {
 		this.boostEndsAt = boostEndsAt;
+		touch();
+	}
+
+	public void markBoostAdClaimed(Instant claimedAt) {
+		this.lastBoostAdClaimedAt = claimedAt;
 		touch();
 	}
 
@@ -383,6 +409,64 @@ public class Player {
 		touch();
 	}
 
+	public List<String> ownedPetSkinKeyList() {
+		if (ownedPetSkinKeys == null || ownedPetSkinKeys.isBlank()) {
+			return List.of();
+		}
+		return Arrays.stream(ownedPetSkinKeys.split(","))
+				.map(String::trim)
+				.filter(value -> !value.isBlank())
+				.distinct()
+				.toList();
+	}
+
+	public boolean ownsPetSkin(String skinKey) {
+		return ownedPetSkinKeyList().contains(normalizePetSkinKey(skinKey));
+	}
+
+	public void purchasePetSkin(String skinKey, long priceGold) {
+		String normalized = normalizePetSkinKey(skinKey);
+		if (ownsPetSkin(normalized)) {
+			throw new IllegalStateException("이미 보유한 펫 스킨이에요.");
+		}
+		spendGold(priceGold);
+		addOwnedPetSkin(normalized);
+	}
+
+	public void unlockPetSkin(String skinKey) {
+		String normalized = normalizePetSkinKey(skinKey);
+		if (!ownsPetSkin(normalized)) {
+			addOwnedPetSkin(normalized);
+		}
+	}
+
+	public void equipPetSkin(int slot, String skinKey) {
+		String normalized = normalizePetSkinKey(skinKey);
+		if (!ownsPetSkin(normalized)) {
+			throw new IllegalStateException("보유하지 않은 펫 스킨이에요.");
+		}
+		if (slot == 1) {
+			if (characterSlots < 2) {
+				throw new IllegalStateException("첫 번째 동료 펫을 먼저 데려와야 해요.");
+			}
+			this.petOneSkinKey = normalized;
+		} else if (slot == 2) {
+			if (characterSlots < 3) {
+				throw new IllegalStateException("두 번째 동료 펫을 먼저 데려와야 해요.");
+			}
+			this.petTwoSkinKey = normalized;
+		} else {
+			throw new IllegalArgumentException("펫 슬롯은 1 또는 2만 사용할 수 있어요.");
+		}
+		touch();
+	}
+
+	public void unlockEasterEggPetSkins(Set<String> skinKeys) {
+		for (String skinKey : skinKeys) {
+			unlockPetSkin(skinKey);
+		}
+	}
+
     public void setLastSettledAt(Instant lastSettledAt) {
 		this.lastSettledAt = lastSettledAt;
 		touch();
@@ -421,15 +505,35 @@ public class Player {
 		this.autoHuntEndsAt = null;
 		this.autoHuntEndNotifiedAt = null;
 		this.boostEndsAt = null;
+		this.lastAutoHuntAdClaimedAt = null;
+		this.lastBoostAdClaimedAt = null;
 		this.lastSkillPointAdClaimedAt = null;
 		this.tutorialRewardClaimedAt = null;
 		this.featureTutorialCompletedAt = null;
 		this.gameProfileNickname = null;
 		this.gameProfileUpdatedAt = null;
 		this.adminFavorite = false;
+		this.ownedPetSkinKeys = "FIRE_FOX,ICE";
+		this.petOneSkinKey = "FIRE_FOX";
+		this.petTwoSkinKey = "ICE";
 		this.lastSettledAt = now;
 		this.skills.forEach(PlayerSkill::resetLevel);
 		touch();
+	}
+
+	private void addOwnedPetSkin(String skinKey) {
+		LinkedHashSet<String> keys = new LinkedHashSet<>(ownedPetSkinKeyList());
+		keys.add(normalizePetSkinKey(skinKey));
+		this.ownedPetSkinKeys = String.join(",", keys);
+		touch();
+	}
+
+	private String normalizePetSkinKey(String skinKey) {
+		String normalized = skinKey == null ? "" : skinKey.trim().toUpperCase();
+		if (normalized.isBlank()) {
+			throw new IllegalArgumentException("펫 스킨을 선택해 주세요.");
+		}
+		return normalized;
 	}
 
 	private int nextLevelExperience(int level) {
