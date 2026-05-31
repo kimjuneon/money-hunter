@@ -117,6 +117,18 @@ public class AdminPlayerService {
 	}
 
 	@Transactional
+	public AdminPlayerResponse removePet(String userKey) {
+		Player player = player(userKey);
+		int refundedSkillPoints = player.removePetAndRefundSkillPoints();
+		log.warn(
+				"관리자 펫 제거: userKey={}, characterSlots={}, refundedSkillPoints={}",
+				mask(userKey),
+				player.getCharacterSlots(),
+				refundedSkillPoints);
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
 	public AdminPlayerResetResponse resetFromLogin(String userKey) {
 		String targetUserKey = requiredUserKey(userKey);
 		long loginSessionsDeleted = loginSessionRepository.deleteByUserKey(targetUserKey);

@@ -53,6 +53,7 @@ const state = {
   realSmartMessageEnabled: false,
   notificationAgreementTemplateCode: "",
   notificationAgreementInFlight: false,
+  profileEditorInFlight: false,
   adMode: "test",
   adGroupIds: {},
   iapProductIds: {},
@@ -203,6 +204,8 @@ const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationAgreementStatus";
+const defaultNicknameNoticeStoragePrefix = "moneyHunter.defaultNicknameNotice.";
+const gameProfileWebviewUrl = "servicetoss://game-center/profile";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
@@ -433,7 +436,7 @@ function runPurchaseFlow(action) {
   return showDummyPayment(action);
 }
 
-function setMessage(message, durationMs = 2400) {
+function setMessage(message, durationMs = 4200) {
   state.noticeMessage = message;
   state.noticeExpiresAt = Date.now() + durationMs;
   renderBattleTip(isActive(state.player?.autoHuntEndsAt));
@@ -751,7 +754,7 @@ async function refresh() {
     state.selectedJob = state.player.job;
   }
   render();
-  window.setTimeout(() => syncGameProfileIfNeeded(), 350);
+  window.setTimeout(() => syncGameProfileIfNeeded().finally(() => maybeShowDefaultNicknameNotice()), 350);
 }
 
 function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
@@ -1406,7 +1409,12 @@ function renderRewardPanel(player) {
   $("claimFriendInviteReward").innerHTML = inviteCount >= inviteLimit
     ? "<span>초대 보상 MAX</span>"
     : `<span>친구 초대하기 · ${inviteLimit - inviteCount}명 남음</span>`;
+  const nickname = gameProfileNickname(player);
+  $("leaderboardProfileText").textContent = isOneStoreTarget()
+    ? "심사용 게임 기록으로 랭킹을 확인해요"
+    : `${nickname || "게임 프로필"} 닉네임으로 랭킹에 참여해요`;
   $("leaderboardStatus").textContent = `누적 골드 ${leaderboardGoldScore(player).toLocaleString("ko-KR")}G 기준`;
+  $("editGameNickname").disabled = !shouldUseGameCenter() || state.profileEditorInFlight;
 }
 
 function availableRewardPointAmount(player = state.player) {
@@ -2223,8 +2231,98 @@ function shouldUseGameCenter() {
   return !isOneStoreTarget() && Boolean(state.tossLoginEnabled);
 }
 
-async function syncGameProfileIfNeeded() {
-  if (!shouldUseGameCenter() || state.gameProfileInFlight || state.player?.gameProfileNickname) {
+function gameProfileNickname(player = state.player) {
+  return String(player?.gameProfileNickname || "").trim();
+}
+
+function isDefaultGameNickname(nickname) {
+  return /^플레이어\d{4,}$/.test(String(nickname || "").trim());
+}
+
+function defaultNicknameNoticeKey(player = state.player) {
+  return `${defaultNicknameNoticeStoragePrefix}${player?.userKey || "guest"}`;
+}
+
+function maybeShowDefaultNicknameNotice() {
+  if (
+    !shouldUseGameCenter()
+    || !state.player?.job
+    || state.player?.onboardingRequired
+    || !isDefaultGameNickname(gameProfileNickname())
+  ) {
+    return;
+  }
+  const noticeKey = defaultNicknameNoticeKey();
+  if (storedValue(noticeKey) === "shown") {
+    return;
+  }
+  storeValue(noticeKey, "shown");
+  $("profileNoticeModal").classList.remove("hidden");
+}
+
+function closeProfileNoticeModal() {
+  $("profileNoticeModal").classList.add("hidden");
+}
+
+function appsInTossAppName() {
+  return String(window.__appsInToss?.appName || "gold-hunter").trim() || "gold-hunter";
+}
+
+function gameProfileEditorUrl() {
+  const url = new URL(gameProfileWebviewUrl);
+  url.searchParams.set("appName", appsInTossAppName());
+  url.searchParams.set("referrer", `appsintoss.${appsInTossAppName()}`);
+  return url.toString();
+}
+
+async function openTransparentServiceWeb(innerUrl, onClose) {
+  const bridge = await loadTossBridge();
+  const sdk = window.MoneyHunterTossSdk || {};
+  const openURL = bridge.openURL || sdk.openURL || (await loadTossSdk()).openURL;
+  if (typeof openURL !== "function") {
+    throw new Error("토스 앱에서 프로필 화면을 열 수 없어요.");
+  }
+
+  const url = new URL("supertoss://transparent-service-web");
+  url.searchParams.set("url", innerUrl);
+  if (typeof bridge.onVisibilityChangedByTransparentServiceWeb === "function") {
+    const callbackId = `moneyHunterProfile_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    url.searchParams.set("onVisibilityChangeCallback", callbackId);
+    return new Promise((resolve, reject) => {
+      let finished = false;
+      let cleanup = null;
+      const finish = () => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        cleanup?.();
+        Promise.resolve(onClose?.()).then(resolve, reject);
+      };
+      cleanup = bridge.onVisibilityChangedByTransparentServiceWeb({
+        options: { callbackId },
+        onEvent(value) {
+          if (value === true) {
+            finish();
+          }
+        },
+      });
+      Promise.resolve(openURL(url.toString())).catch((error) => {
+        cleanup?.();
+        reject(error);
+      });
+    });
+  }
+
+  await openURL(url.toString());
+  return new Promise((resolve, reject) => {
+    window.setTimeout(() => Promise.resolve(onClose?.()).then(resolve, reject), 1400);
+  });
+}
+
+async function syncGameProfileIfNeeded(options = {}) {
+  const force = Boolean(options.force);
+  if (!shouldUseGameCenter() || state.gameProfileInFlight || (!force && state.player?.gameProfileNickname)) {
     return;
   }
   state.gameProfileInFlight = true;
@@ -2246,10 +2344,37 @@ async function syncGameProfileIfNeeded() {
       body: JSON.stringify({ nickname }),
     }));
     render();
+    maybeShowDefaultNicknameNotice();
   } catch {
     // 게임 프로필은 랭킹용 보조 정보라 실패해도 기본 플레이를 막지 않아요.
   } finally {
     state.gameProfileInFlight = false;
+  }
+}
+
+async function openGameProfileEditor() {
+  if (!shouldUseGameCenter()) {
+    setMessage("토스 게임 프로필은 토스 앱에서 수정할 수 있어요.");
+    return;
+  }
+  if (state.profileEditorInFlight) {
+    setMessage("게임 프로필을 여는 중이에요.");
+    return;
+  }
+  state.profileEditorInFlight = true;
+  renderRewardPanel(state.player);
+  setMessage("토스 게임 프로필을 여는 중...");
+  try {
+    await openTransparentServiceWeb(gameProfileEditorUrl(), async () => {
+      await syncGameProfileIfNeeded({ force: true });
+      render();
+      setMessage("게임 프로필을 확인했어요.");
+    });
+  } catch (error) {
+    setMessage(error.message || "게임 프로필을 열지 못했어요.");
+  } finally {
+    state.profileEditorInFlight = false;
+    renderRewardPanel(state.player);
   }
 }
 
@@ -2871,6 +2996,14 @@ $("openLeaderboard").addEventListener("click", async () => {
   } catch (error) {
     setMessage(error.message);
   }
+});
+
+$("editGameNickname").addEventListener("click", () => openGameProfileEditor());
+$("closeProfileNoticeModal").addEventListener("click", closeProfileNoticeModal);
+$("dismissProfileNotice").addEventListener("click", closeProfileNoticeModal);
+$("editProfileFromNotice").addEventListener("click", () => {
+  closeProfileNoticeModal();
+  openGameProfileEditor();
 });
 
 $("adSkip").addEventListener("click", () => finishDummyAd());

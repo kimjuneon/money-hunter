@@ -718,6 +718,15 @@ nav {
   gap: 8px;
 }
 
+.detail-toggle {
+  width: 100%;
+}
+
+.extra-detail-grid {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
 .kv {
   min-width: 0;
   padding: 10px;
@@ -769,7 +778,7 @@ nav {
 
 .cs-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
 }
@@ -790,6 +799,12 @@ nav {
 
 .wide-action {
   width: 100%;
+}
+
+.pet-cs-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .action-row {

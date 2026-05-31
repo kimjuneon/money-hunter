@@ -132,6 +132,24 @@ public class Player {
 		touch();
 	}
 
+	public int removePetAndRefundSkillPoints() {
+		if (characterSlots <= 1) {
+			throw new IllegalStateException("제거할 동료 펫이 없어요.");
+		}
+		SkillType removedSkillType = characterSlots >= 3
+				? SkillType.PET_AQUA_ATTACK
+				: SkillType.PET_FLARE_ATTACK;
+		PlayerSkill removedPetSkill = getOrCreateSkill(removedSkillType);
+		int refundSkillPoints = removedPetSkill.getLevel();
+		if (refundSkillPoints > 0) {
+			this.skillPoints += refundSkillPoints;
+			removedPetSkill.resetLevel();
+		}
+		this.characterSlots -= 1;
+		touch();
+		return refundSkillPoints;
+	}
+
 	public void addGold(long amount) {
 		this.gold += amount;
 		touch();

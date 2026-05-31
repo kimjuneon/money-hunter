@@ -8,6 +8,7 @@ const state = {
   overview: null,
   players: [],
   selectedUserKey: "",
+  playerDetailExpanded: false,
   policies: [],
   growthDays: 30,
   loadingTimer: null,
@@ -713,6 +714,7 @@ async function loadPlayers() {
   state.players = players;
   if (!players.some((player) => player.userKey === state.selectedUserKey)) {
     state.selectedUserKey = players[0]?.userKey || "";
+    state.playerDetailExpanded = false;
   }
   renderPlayers();
 }
@@ -733,10 +735,14 @@ function renderPlayers() {
     || `<p class="empty">검색 결과가 없어요.</p>`;
   if (!players.some((player) => player.userKey === state.selectedUserKey)) {
     state.selectedUserKey = players[0]?.userKey || "";
+    state.playerDetailExpanded = false;
   }
   renderSelectedPlayerDetail();
   document.querySelectorAll("[data-player-select]").forEach((row) => {
     row.addEventListener("click", () => {
+      if (state.selectedUserKey !== row.dataset.userKey) {
+        state.playerDetailExpanded = false;
+      }
       state.selectedUserKey = row.dataset.userKey;
       renderPlayers();
     });
@@ -822,6 +828,31 @@ function renderSelectedPlayerDetail() {
   const statusClass = player.suspended ? "suspended" : "active";
   const progress = player.onboardingRequired ? "직업 미선택" : "게임 시작";
   const displayName = playerDisplayName(player);
+  const basicDetails = [
+    ["유저 식별 ID", player.userKey],
+    ["게임 프로필", player.gameProfileNickname || "미동기화"],
+    ["골드", `${formatNumber(player.gold)}G`],
+    ["누적 골드", `${formatNumber(player.cumulativeGoldEarned || player.gold)}G`],
+    ["SP", formatNumber(player.skillPoints)],
+    ["레벨", `Lv.${formatNumber(player.level)}`],
+    ["경험치", `${formatNumber(player.experience)} / ${formatNumber(player.nextLevelExperience)}`],
+    ["펫 슬롯", `${formatNumber(player.characterSlots)} / 3`],
+    ["초대 보상", `${formatNumber(player.friendInviteRewardCount)}회`],
+  ];
+  const extraDetails = [
+    ["처치 몬스터", formatNumber(player.defeatedMonsters)],
+    ["현재 몬스터", `${player.currentMonsterKey || "-"} · HP ${formatNumber(player.currentMonsterHp)}`],
+    ["튜토리얼 보상", player.tutorialRewardClaimed ? "완료" : "미수령"],
+    ["기능 튜토리얼", player.featureTutorialCompleted ? "완료" : "미완료"],
+    ["마지막 정산", formatDate(player.lastSettledAt)],
+    ["최근 SP 광고", formatDate(player.lastSkillPointAdClaimedAt)],
+    ["자동사냥 종료", formatDate(player.autoHuntEndsAt)],
+    ["공속버프 종료", formatDate(player.boostEndsAt)],
+    ["게임 프로필 갱신", formatDate(player.gameProfileUpdatedAt)],
+    ["즐겨찾기", player.adminFavorite ? "예" : "아니오"],
+    ["가입", formatDate(player.createdAt)],
+    ["수정", formatDate(player.updatedAt)],
+  ];
   $("playerDetail").innerHTML = `
     <div class="detail-head">
       <div>
@@ -840,28 +871,14 @@ function renderSelectedPlayerDetail() {
         <button class="ghost" type="button" data-copy-user-key="${escapeHtml(player.userKey)}">유저 키 복사</button>
       </div>
     </div>
-    <div class="detail-grid">
-      ${kv("유저 식별 ID", player.userKey)}
-      ${kv("게임 프로필", player.gameProfileNickname || "미동기화")}
-      ${kv("골드", `${formatNumber(player.gold)}G`)}
-      ${kv("누적 골드", `${formatNumber(player.cumulativeGoldEarned || player.gold)}G`)}
-      ${kv("SP", formatNumber(player.skillPoints))}
-      ${kv("레벨", `Lv.${formatNumber(player.level)}`)}
-      ${kv("경험치", `${formatNumber(player.experience)} / ${formatNumber(player.nextLevelExperience)}`)}
-      ${kv("펫 슬롯", `${formatNumber(player.characterSlots)} / 3`)}
-      ${kv("초대 보상", `${formatNumber(player.friendInviteRewardCount)}회`)}
-      ${kv("처치 몬스터", formatNumber(player.defeatedMonsters))}
-      ${kv("현재 몬스터", `${player.currentMonsterKey || "-"} · HP ${formatNumber(player.currentMonsterHp)}`)}
-      ${kv("튜토리얼 보상", player.tutorialRewardClaimed ? "완료" : "미수령")}
-      ${kv("기능 튜토리얼", player.featureTutorialCompleted ? "완료" : "미완료")}
-      ${kv("마지막 정산", formatDate(player.lastSettledAt))}
-      ${kv("최근 SP 광고", formatDate(player.lastSkillPointAdClaimedAt))}
-      ${kv("자동사냥 종료", formatDate(player.autoHuntEndsAt))}
-      ${kv("공속버프 종료", formatDate(player.boostEndsAt))}
-      ${kv("게임 프로필 갱신", formatDate(player.gameProfileUpdatedAt))}
-      ${kv("즐겨찾기", player.adminFavorite ? "예" : "아니오")}
-      ${kv("가입", formatDate(player.createdAt))}
-      ${kv("수정", formatDate(player.updatedAt))}
+    <div class="detail-grid compact-detail-grid">
+      ${basicDetails.map(([label, value]) => kv(label, value)).join("")}
+    </div>
+    <button class="ghost detail-toggle" type="button" data-detail-toggle>
+      ${state.playerDetailExpanded ? "간략히 보기" : "상세보기"}
+    </button>
+    <div class="detail-grid extra-detail-grid ${state.playerDetailExpanded ? "" : "hidden"}">
+      ${extraDetails.map(([label, value]) => kv(label, value)).join("")}
     </div>
     ${player.suspended ? `<p class="note danger-note">정지 사유: ${escapeHtml(player.suspensionReason || "-")}</p>` : ""}
     <div class="action-panel">
@@ -883,37 +900,30 @@ function renderSelectedPlayerDetail() {
       </div>
       <div class="cs-grid">
         <label>
-          <span>골드 처리</span>
-          <select id="csGoldMode">
-            <option value="ADD">더하기/빼기</option>
-            <option value="SET">지정값으로 설정</option>
-          </select>
-        </label>
-        <label>
-          <span>골드 수량</span>
-          <input id="csGoldAmount" type="number" step="1" value="0" />
+          <span>골드 증감수량</span>
+          <input id="csGoldAmount" type="number" step="1" value="0" placeholder="예: 100 또는 -100" />
         </label>
         <button class="secondary" type="button" data-player-cs="gold" data-user-key="${escapeHtml(player.userKey)}">골드 반영</button>
         <label>
-          <span>SP 처리</span>
-          <select id="csSkillPointMode">
-            <option value="ADD">더하기/빼기</option>
-            <option value="SET">지정값으로 설정</option>
-          </select>
-        </label>
-        <label>
-          <span>SP 수량</span>
-          <input id="csSkillPointAmount" type="number" step="1" value="0" />
+          <span>SP 증감수량</span>
+          <input id="csSkillPointAmount" type="number" step="1" value="0" placeholder="예: 5 또는 -2" />
         </label>
         <button class="secondary" type="button" data-player-cs="skill-points" data-user-key="${escapeHtml(player.userKey)}">SP 반영</button>
       </div>
-      <button class="secondary wide-action" type="button" data-player-cs="pet" data-user-key="${escapeHtml(player.userKey)}">동료 펫 1마리 지급</button>
+      <div class="pet-cs-actions">
+        <button class="secondary wide-action" type="button" data-player-cs="pet-grant" data-user-key="${escapeHtml(player.userKey)}" ${player.characterSlots >= 3 ? "disabled" : ""}>동료 펫 지급</button>
+        <button class="ghost danger-ghost wide-action" type="button" data-player-cs="pet-remove" data-user-key="${escapeHtml(player.userKey)}" ${player.characterSlots <= 1 ? "disabled" : ""}>동료 펫 제거</button>
+      </div>
     </div>
   `;
   const copyButton = document.querySelector("[data-copy-user-key]");
   copyButton?.addEventListener("click", async () => {
     await navigator.clipboard?.writeText(player.userKey);
     showToast("유저 키를 복사했어요.");
+  });
+  document.querySelector("[data-detail-toggle]")?.addEventListener("click", () => {
+    state.playerDetailExpanded = !state.playerDetailExpanded;
+    renderSelectedPlayerDetail();
   });
   document.querySelectorAll("#playerDetail [data-player-action]").forEach((button) => {
     button.addEventListener("click", () => runPlayerAction(button));
@@ -988,16 +998,17 @@ async function runPlayerCsAction(button) {
   if (action === "gold") {
     endpoint = "cs/gold";
     label = "골드";
-    payload.mode = $("csGoldMode").value;
+    payload.mode = "ADD";
     payload.amount = Number($("csGoldAmount").value);
   } else if (action === "skill-points") {
     endpoint = "cs/skill-points";
     label = "SP";
-    payload.mode = $("csSkillPointMode").value;
+    payload.mode = "ADD";
     payload.amount = Number($("csSkillPointAmount").value);
-  } else if (action === "pet") {
+  } else if (action === "pet-grant" || action === "pet-remove") {
     endpoint = "cs/pet";
-    label = "동료 펫";
+    payload.action = action === "pet-remove" ? "REMOVE" : "GRANT";
+    label = action === "pet-remove" ? "동료 펫 제거" : "동료 펫 지급";
   }
 
   if (!endpoint) {

@@ -17,6 +17,7 @@ import com.money_hunter.domain.AdminAuditLog;
 import com.money_hunter.presentation.dto.request.AdminAnomalyActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerFavoriteRequest;
+import com.money_hunter.presentation.dto.request.AdminPlayerPetActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerResourceAdjustRequest;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
 import com.money_hunter.presentation.dto.request.AdminRevenueCalibrationRequest;
@@ -248,18 +249,21 @@ public class AdminController {
 	}
 
 	@PostMapping("/players/{userKey}/cs/pet")
-	public AdminPlayerResponse grantPlayerPet(
+	public AdminPlayerResponse adjustPlayerPet(
 			@PathVariable String userKey,
-			@Valid @RequestBody AdminPlayerActionRequest requestBody,
+			@Valid @RequestBody AdminPlayerPetActionRequest requestBody,
 			HttpServletRequest request
 	) {
 		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
-		AdminPlayerResponse player = adminPlayerService.grantPet(userKey, economyService.maxCharacterSlots());
+		String action = normalizePetAction(requestBody.action());
+		AdminPlayerResponse player = "REMOVE".equals(action)
+				? adminPlayerService.removePet(userKey)
+				: adminPlayerService.grantPet(userKey, economyService.maxCharacterSlots());
 		adminAuditService.record(
 				admin,
-				"USER_CS_PET",
+				"REMOVE".equals(action) ? "USER_CS_PET_REMOVE" : "USER_CS_PET_GRANT",
 				player.userKey(),
-				null,
+				action,
 				String.valueOf(player.characterSlots()),
 				optionalReason(requestBody.reason()),
 				request);
@@ -369,6 +373,14 @@ public class AdminController {
 			return null;
 		}
 		return reason.trim();
+	}
+
+	private String normalizePetAction(String action) {
+		String normalized = action == null ? "" : action.trim().toUpperCase();
+		if ("GRANT".equals(normalized) || "REMOVE".equals(normalized)) {
+			return normalized;
+		}
+		throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 펫 처리 유형이에요.");
 	}
 
 	private AdminAnomalyStatus parseAnomalyStatus(String status) {

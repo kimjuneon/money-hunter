@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260531-02" />
+    <link rel="stylesheet" href="/styles.css?v=20260531-04" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -213,12 +213,17 @@
             <div class="leaderboard-icon" aria-hidden="true">R</div>
             <div class="leaderboard-copy">
               <strong>누적 골드 랭킹</strong>
-              <p>내 헌터 레벨을 기준으로 다른 유저와 비교해요</p>
+              <p id="leaderboardProfileText">게임 프로필을 기준으로 랭킹에 참여해요</p>
               <small id="leaderboardStatus">누적 0G 기준</small>
             </div>
-            <button id="openLeaderboard" class="leaderboard-button" type="button">
-              <span>랭킹 보기</span>
-            </button>
+            <div class="leaderboard-actions">
+              <button id="openLeaderboard" class="leaderboard-button" type="button">
+                <span>랭킹 보기</span>
+              </button>
+              <button id="editGameNickname" class="leaderboard-button secondary-leaderboard-button" type="button">
+                <span>닉네임 수정</span>
+              </button>
+            </div>
           </article>
           </section>
 
@@ -407,6 +412,19 @@
         </div>
       </section>
 
+      <section id="profileNoticeModal" class="profile-notice-modal hidden" role="dialog" aria-modal="true" aria-labelledby="profileNoticeTitle">
+        <div class="profile-notice-card">
+          <button id="closeProfileNoticeModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <p class="modal-kicker">GAME PROFILE</p>
+          <h2 id="profileNoticeTitle">기본 게임 닉네임을 사용 중이에요</h2>
+          <p id="profileNoticeBody">현재 닉네임이 기본값으로 설정되어 있어요. 원하면 토스 게임 프로필에서 원하는 닉네임으로 바꿀 수 있어요.</p>
+          <div class="profile-notice-actions">
+            <button id="dismissProfileNotice" class="profile-notice-secondary" type="button">나중에</button>
+            <button id="editProfileFromNotice" class="profile-notice-primary" type="button">닉네임 수정</button>
+          </div>
+        </div>
+      </section>
+
       <audio id="bgmAudio" src="/assets/audio/bgm-corporate-timeline.mp3?v=20260529-01" preload="auto" loop></audio>
     </main>
 
@@ -446,6 +464,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260531-02"></script>
+    <script src="/app.js?v=20260531-04"></script>
   </body>
 </html>
