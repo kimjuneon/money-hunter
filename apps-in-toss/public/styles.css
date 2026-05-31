@@ -1185,7 +1185,8 @@ img {
   cursor: not-allowed;
 }
 
-.friend-invite-card {
+.friend-invite-card,
+.leaderboard-card {
   display: grid;
   grid-template-columns: 54px 1fr;
   align-items: center;
@@ -1197,7 +1198,8 @@ img {
   background: linear-gradient(135deg, #f8fafc, #eef2ff 58%, #ecfeff);
 }
 
-.friend-invite-icon {
+.friend-invite-icon,
+.leaderboard-icon {
   display: grid;
   width: 52px;
   height: 52px;
@@ -1208,25 +1210,42 @@ img {
   box-shadow: inset 0 2px rgba(255, 255, 255, 0.52), 0 5px 10px rgba(124, 58, 237, 0.18);
 }
 
-.friend-invite-copy {
+.leaderboard-card {
+  background: linear-gradient(135deg, #f8fafc, #e0f2fe 58%, #eff6ff);
+}
+
+.leaderboard-icon {
+  border-color: #38bdf8;
+  background: linear-gradient(145deg, #0ea5e9, #2563eb);
+  color: white;
+  font-size: 24px;
+  font-weight: 1000;
+  box-shadow: inset 0 2px rgba(255, 255, 255, 0.42), 0 5px 10px rgba(14, 165, 233, 0.18);
+}
+
+.friend-invite-copy,
+.leaderboard-copy {
   min-width: 0;
 }
 
-.friend-invite-copy strong {
+.friend-invite-copy strong,
+.leaderboard-copy strong {
   display: block;
   color: #172033;
   font-size: 15px;
   font-weight: 1000;
 }
 
-.friend-invite-copy p {
+.friend-invite-copy p,
+.leaderboard-copy p {
   margin: 4px 0 0;
   color: #315a9f;
   font-size: 13px;
   font-weight: 900;
 }
 
-.friend-invite-copy small {
+.friend-invite-copy small,
+.leaderboard-copy small {
   display: block;
   margin-top: 3px;
   color: #64748b;
@@ -1234,7 +1253,8 @@ img {
   font-weight: 900;
 }
 
-.reward-panel .friend-invite-button {
+.reward-panel .friend-invite-button,
+.reward-panel .leaderboard-button {
   grid-column: 1 / -1;
   margin-top: 0;
   border-color: #93c5fd;
@@ -1520,6 +1540,7 @@ img {
 .ad-modal,
 .notification-modal,
 .levelup-modal,
+.reward-confirm-modal,
 .login-modal {
   position: fixed;
   inset: 0;
@@ -1535,6 +1556,7 @@ img {
 .job-sheet,
 .ad-card,
 .levelup-card,
+.reward-confirm-card,
 .login-card {
   position: relative;
   width: 100%;
@@ -1550,6 +1572,37 @@ img {
 .login-card {
   padding: 24px 22px;
   text-align: center;
+}
+
+.reward-confirm-card {
+  padding: 24px 22px 20px;
+  text-align: center;
+}
+
+.reward-confirm-card h2 {
+  margin: 8px 0 9px;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.18;
+}
+
+.reward-confirm-card > p:not(.modal-kicker) {
+  margin: 0 auto 18px;
+  max-width: 310px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.reward-confirm-primary {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #3182f6, #1b64da);
+  color: white;
+  font-weight: 1000;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.28), 0 10px 22px rgba(49, 130, 246, 0.24);
 }
 
 .modal-kicker,
@@ -1900,6 +1953,14 @@ img {
   color: #64748b;
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.35;
+}
+
+.notification-summary small {
+  display: block;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 1000;
   line-height: 1.35;
 }
 

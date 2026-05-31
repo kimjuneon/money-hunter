@@ -51,9 +51,9 @@ public class AdminPlayerService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<AdminPlayerResponse> search(String query, int limit) {
+	public List<AdminPlayerResponse> search(String query, int limit, boolean favoritesOnly) {
 		int safeLimit = Math.max(1, Math.min(limit, MAX_SEARCH_LIMIT));
-		return playerRepository.searchPlayers(normalize(query), PageRequest.of(0, safeLimit)).stream()
+		return playerRepository.searchPlayers(normalize(query), favoritesOnly, PageRequest.of(0, safeLimit)).stream()
 				.map(AdminPlayerResponse::from)
 				.toList();
 	}
@@ -72,6 +72,47 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		player.resume();
 		log.info("관리자 유저 정지 해제: userKey={}", mask(userKey));
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
+	public AdminPlayerResponse setFavorite(String userKey, boolean favorite) {
+		Player player = player(userKey);
+		player.setAdminFavorite(favorite);
+		log.info("관리자 유저 즐겨찾기 변경: userKey={}, favorite={}", mask(userKey), favorite);
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
+	public AdminPlayerResponse adjustGold(String userKey, String mode, long amount) {
+		Player player = player(userKey);
+		if (isSetMode(mode)) {
+			player.setGold(amount);
+		} else {
+			player.adjustGold(amount);
+		}
+		log.warn("관리자 골드 조정: userKey={}, mode={}, amount={}, result={}", mask(userKey), normalizedMode(mode), amount, player.getGold());
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
+	public AdminPlayerResponse adjustSkillPoints(String userKey, String mode, long amount) {
+		Player player = player(userKey);
+		int safeAmount = toIntAmount(amount);
+		if (isSetMode(mode)) {
+			player.setSkillPoints(safeAmount);
+		} else {
+			player.adjustSkillPoints(safeAmount);
+		}
+		log.warn("관리자 SP 조정: userKey={}, mode={}, amount={}, result={}", mask(userKey), normalizedMode(mode), safeAmount, player.getSkillPoints());
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
+	public AdminPlayerResponse grantPet(String userKey, int maxCharacterSlots) {
+		Player player = player(userKey);
+		player.purchaseCharacterSlot(maxCharacterSlots);
+		log.warn("관리자 펫 지급: userKey={}, characterSlots={}", mask(userKey), player.getCharacterSlots());
 		return AdminPlayerResponse.from(player);
 	}
 
@@ -129,6 +170,22 @@ public class AdminPlayerService {
 			return "";
 		}
 		return query.trim();
+	}
+
+	private boolean isSetMode(String mode) {
+		return "SET".equals(normalizedMode(mode));
+	}
+
+	private String normalizedMode(String mode) {
+		String normalized = mode == null ? "" : mode.trim().toUpperCase();
+		return "SET".equals(normalized) ? "SET" : "ADD";
+	}
+
+	private int toIntAmount(long amount) {
+		if (amount > Integer.MAX_VALUE || amount < Integer.MIN_VALUE) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SP 조정값 범위가 너무 커요.");
+		}
+		return (int) amount;
 	}
 
 	private String truncate(String value, int maxLength) {

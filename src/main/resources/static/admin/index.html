@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260530-04" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260531-02" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -87,7 +87,7 @@
               <span id="playerCount" class="muted"></span>
             </div>
             <form id="playerSearchForm" class="player-search">
-              <input id="playerSearchInput" type="search" placeholder="유저 키 검색" autocomplete="off" />
+              <input id="playerSearchInput" type="search" placeholder="닉네임 또는 유저 키 검색" autocomplete="off" />
               <select id="playerFilterStatus" aria-label="상태 필터">
                 <option value="ALL">전체 상태</option>
                 <option value="ACTIVE">정상</option>
@@ -99,6 +99,10 @@
                 <option value="NEEDS_JOB">직업 미선택</option>
                 <option value="FEATURE_TUTORIAL_DONE">튜토리얼 완료</option>
               </select>
+              <label class="favorite-filter">
+                <input id="playerFavoritesOnly" type="checkbox" />
+                <span>즐겨찾기</span>
+              </label>
               <button class="secondary" type="submit">검색</button>
               <button id="playerFilterClearButton" class="ghost" type="button">초기화</button>
             </form>
@@ -157,6 +161,6 @@
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260530-04"></script>
+    <script src="/admin/app.js?v=20260531-02"></script>
   </body>
 </html>

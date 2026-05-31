@@ -7,11 +7,17 @@ const state = {
   selectedJob: "WARRIOR",
   battleBackgroundIndex: 0,
   lastMonsterSignature: "",
+  localMonster: null,
+  localLevel: null,
+  localExperience: null,
+  localNextLevelExperience: null,
   lastHitAt: 0,
   hitInFlight: false,
   combatSyncInFlight: false,
   lastCombatSyncAt: 0,
   lastLocalGoldEstimateAt: 0,
+  lastServerGold: null,
+  lastSettlementGold: 0,
   attackTimer: null,
   adAction: null,
   adTimer: null,
@@ -52,7 +58,7 @@ const state = {
   iapProductIds: {},
   iapProducts: {},
   shareRewardModuleId: "",
-  shareRewardMessage: "친구에게 공유하고 SP 5개를 받아요",
+  shareRewardMessage: "친구에게 공유하고 SP 1개를 받아요",
   realAdInFlight: false,
   realPaymentInFlight: false,
   tossAdsInitialized: false,
@@ -60,6 +66,7 @@ const state = {
   pendingIapRestoreInFlight: false,
   pendingIapProductIdsByOrderId: readPendingIapProductIds(),
   shareRewardInFlight: false,
+  gameProfileInFlight: false,
   loginInFlight: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
@@ -144,6 +151,12 @@ const monsterMeta = {
   BOSS_FROST: { name: "빙결 발톱수", image: "/assets/boss-frost.png" },
   BOSS_TREANT: { name: "심록의 고목왕", image: "/assets/boss-treant.png" },
 };
+const monsterKeys = ["BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"];
+const monsterBaseHp = {
+  BOSS_ROCK: 120,
+  BOSS_FROST: 135,
+  BOSS_TREANT: 150,
+};
 
 const attackMotionMsByJob = {
   WARRIOR: 820,
@@ -174,8 +187,8 @@ const goldPerTossPoint = 100;
 const companionPriceWon = 4900;
 const skillPointPackPriceWon = 999;
 const skillPointPackAmount = 10;
-const friendInviteRewardSkillPoints = 5;
-const friendInviteLimit = 3;
+const friendInviteRewardSkillPoints = 1;
+const friendInviteLimit = 5;
 const battleBackgrounds = [
   "/assets/background-options/option-1-sunny-ruins.png?v=20260525-01",
   "/assets/background-options/option-2-crystal-cave.png?v=20260525-01",
@@ -738,23 +751,89 @@ async function refresh() {
     state.selectedJob = state.player.job;
   }
   render();
+  window.setTimeout(() => syncGameProfileIfNeeded(), 350);
 }
 
 function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
   const previousPlayer = state.player;
   const ratesChanged = combatRatesChanged(previousPlayer, player);
   const shouldPromptNotificationAgreement = shouldPromptAutoHuntNotificationAgreement(previousPlayer, player);
+  const previousServerGold = state.lastServerGold ?? previousPlayer?.gold ?? player.gold;
   state.player = player;
   const now = Date.now();
   state.lastCombatSyncAt = now;
   state.lastLocalGoldEstimateAt = now;
+  const serverGoldGained = Math.max(0, Math.floor(player.gold - previousServerGold));
+  if (serverGoldGained > 0) {
+    state.lastSettlementGold = serverGoldGained;
+  }
+  state.lastServerGold = player.gold;
   if (ratesChanged && isActiveAt(player.autoHuntEndsAt, now - 1)) {
     state.lastHitAt = Math.min(state.lastHitAt, now - attackIntervalMillis(player));
   }
   state.displayGold = resetDisplayGold ? player.gold : Math.max(state.displayGold, player.gold);
+  syncLocalCombatView(player, Boolean(previousPlayer) && !resetDisplayGold);
   if (shouldPromptNotificationAgreement) {
     window.setTimeout(() => requestAutoHuntNotificationAgreementIfNeeded(), 450);
   }
+}
+
+function resetLocalCombatView(player) {
+  state.localMonster = cloneMonster(player?.monster);
+  state.localLevel = player?.level ?? null;
+  state.localExperience = player?.experience ?? null;
+  state.localNextLevelExperience = player?.nextLevelExperience ?? null;
+}
+
+function syncLocalCombatView(player, preserveAhead = false) {
+  if (!preserveAhead) {
+    resetLocalCombatView(player);
+    return;
+  }
+  const serverMonster = cloneMonster(player?.monster);
+  if (!serverMonster) {
+    state.localMonster = null;
+  } else if (!state.localMonster) {
+    state.localMonster = serverMonster;
+  } else if ((state.localMonster.defeatedMonsters || 0) > (serverMonster.defeatedMonsters || 0)) {
+    state.localMonster = {
+      ...state.localMonster,
+      maxHp: Math.max(state.localMonster.maxHp || 0, serverMonster.maxHp || 0),
+    };
+  } else if (
+    state.localMonster.key === serverMonster.key
+    && (state.localMonster.defeatedMonsters || 0) === (serverMonster.defeatedMonsters || 0)
+  ) {
+    state.localMonster = {
+      ...serverMonster,
+      hp: Math.min(state.localMonster.hp ?? serverMonster.hp, serverMonster.hp),
+    };
+  } else {
+    state.localMonster = serverMonster;
+  }
+
+  const serverLevel = player?.level ?? 1;
+  const serverExperience = player?.experience ?? 0;
+  const serverNext = player?.nextLevelExperience ?? nextLevelExperience(serverLevel);
+  if ((state.localLevel ?? 0) > serverLevel) {
+    state.localNextLevelExperience = state.localNextLevelExperience ?? nextLevelExperience(state.localLevel);
+    return;
+  }
+  if ((state.localLevel ?? 0) === serverLevel) {
+    state.localExperience = Math.max(state.localExperience ?? serverExperience, serverExperience);
+    state.localNextLevelExperience = serverNext;
+    return;
+  }
+  state.localLevel = serverLevel;
+  state.localExperience = serverExperience;
+  state.localNextLevelExperience = serverNext;
+}
+
+function cloneMonster(monster) {
+  if (!monster) {
+    return null;
+  }
+  return { ...monster };
 }
 
 function setServerPlayer(player, options = {}) {
@@ -1032,7 +1111,7 @@ function render() {
   renderBattleTip(hunting);
 
   updateGoldViews();
-  $("levelText").textContent = `Lv.${player.level}`;
+  $("levelText").textContent = `Lv.${displayLevel(player)}`;
   $("skillPointsTop").textContent = player.skillPoints;
   renderRewardPanel(player);
   renderShopPanel(player);
@@ -1188,6 +1267,9 @@ function renderNotification(player) {
   $("notificationModal").dataset.notificationId = notification.id;
   $("notificationTitle").textContent = notification.title;
   $("notificationBody").textContent = notification.body;
+  $("settledGoldAmount").textContent = state.lastSettlementGold > 0
+    ? `${state.lastSettlementGold.toLocaleString("ko-KR")} 골드를 벌었어요`
+    : "이번 정산에서 추가 골드는 없어요";
   $("notificationMeta").textContent = notification.sentAt
     ? `알림 도착 · ${formatShortTime(notification.sentAt)}`
     : "자동사냥 종료 안내";
@@ -1210,7 +1292,7 @@ async function closeNotificationModal() {
 }
 
 function renderMonster(player) {
-  const monster = player.monster || { key: "BOSS_ROCK", hp: 120, maxHp: 120, defeatedMonsters: 0 };
+  const monster = displayMonster(player);
   const meta = monsterMeta[monster.key] || monsterMeta.BOSS_ROCK;
   applyBattleBackground(monster);
   $("monsterImage").src = meta.image;
@@ -1253,9 +1335,27 @@ function applyBattleBackground(monster) {
 }
 
 function renderExperience(player) {
-  const percent = Math.max(0, Math.min(100, player.experience * 100 / player.nextLevelExperience));
+  const experience = displayExperience(player);
+  const nextLevelExperience = displayNextLevelExperience(player);
+  const percent = Math.max(0, Math.min(100, experience * 100 / nextLevelExperience));
   $("expBar").style.width = `${percent}%`;
-  $("expText").textContent = `EXP ${player.experience.toLocaleString("ko-KR")} / ${player.nextLevelExperience.toLocaleString("ko-KR")}`;
+  $("expText").textContent = `EXP ${experience.toLocaleString("ko-KR")} / ${nextLevelExperience.toLocaleString("ko-KR")}`;
+}
+
+function displayMonster(player = state.player) {
+  return state.localMonster || player?.monster || { key: "BOSS_ROCK", hp: 120, maxHp: 120, defeatedMonsters: 0 };
+}
+
+function displayLevel(player = state.player) {
+  return state.localLevel ?? player?.level ?? 1;
+}
+
+function displayExperience(player = state.player) {
+  return state.localExperience ?? player?.experience ?? 0;
+}
+
+function displayNextLevelExperience(player = state.player) {
+  return state.localNextLevelExperience ?? player?.nextLevelExperience ?? 1500;
 }
 
 function attackIntervalMillis(player = state.player) {
@@ -1306,6 +1406,14 @@ function renderRewardPanel(player) {
   $("claimFriendInviteReward").innerHTML = inviteCount >= inviteLimit
     ? "<span>초대 보상 MAX</span>"
     : `<span>친구 초대하기 · ${inviteLimit - inviteCount}명 남음</span>`;
+  $("leaderboardStatus").textContent = `누적 골드 ${leaderboardGoldScore(player).toLocaleString("ko-KR")}G 기준`;
+}
+
+function availableRewardPointAmount(player = state.player) {
+  if (!player) {
+    return 0;
+  }
+  return Math.floor(player.gold / (player.goldPerTossPoint || goldPerTossPoint));
 }
 
 function renderShopPanel(player) {
@@ -1390,7 +1498,7 @@ function timeRewardAvailability(currentEndAt, rewardSeconds, maxSeconds) {
   if (remainingSeconds + reward > max) {
     return {
       available: false,
-      label: `${secondsLabel(max)} 최대 누적`,
+      label: `${remainingSeconds > 0 ? remain(currentEndAt) : "꺼짐"} · 최대`,
     };
   }
   return {
@@ -1450,7 +1558,7 @@ function applyJob(job) {
   image.src = meta.image;
   weapon.className = `hero-weapon ${meta.weapon}`;
   weapon.src = meta.arm;
-  $("partyName").textContent = `${meta.name} (Lv.${state.player?.level || 1})`;
+  $("partyName").textContent = `${meta.name} (Lv.${displayLevel()})`;
 }
 
 function applyEffectTier(player) {
@@ -1587,6 +1695,107 @@ function localGoldPerHour(player, boosted) {
   return isActive(player?.boostEndsAt)
     ? Math.round((player?.goldPerHour || 0) / 1.5)
     : player?.goldPerHour || 0;
+}
+
+function applyLocalMonsterHit(player = state.player) {
+  if (!player) {
+    return { defeated: false, leveledUp: false };
+  }
+  let monster = displayMonster(player);
+  let remainingDamage = localDamage(player, isActive(player.boostEndsAt));
+  let defeated = false;
+  let leveledUp = false;
+  while (remainingDamage > 0 && monster) {
+    if (remainingDamage < monster.hp) {
+      monster.hp = Math.max(0, monster.hp - remainingDamage);
+      remainingDamage = 0;
+      break;
+    }
+    remainingDamage -= monster.hp;
+    monster.hp = 0;
+    defeated = true;
+    leveledUp = recordLocalMonsterDefeat(monster) || leveledUp;
+    monster = nextLocalMonster(monster);
+    state.localMonster = monster;
+  }
+  return { defeated, leveledUp };
+}
+
+function localDamage(player, boosted) {
+  const rapidLevel = skillLevel("RAPID_ATTACK");
+  const statLevel = skillLevel(activeStatSkill());
+  let damage = 16
+    + displayLevel(player) * 2
+    + scaledSkillValue(rapidLevel, 40)
+    + scaledSkillValue(statLevel, 60)
+    + localPetDamage(player);
+  if (boosted) {
+    damage = Math.round(damage * 1.35);
+  }
+  return Math.max(1, damage);
+}
+
+function localPetDamage(player) {
+  const pets = unlockedPetCount(player);
+  let damage = pets * 4;
+  if (pets >= 1) {
+    damage += scaledSkillValue(skillLevel("PET_FLARE_ATTACK"), 40);
+  }
+  if (pets >= 2) {
+    damage += scaledSkillValue(skillLevel("PET_AQUA_ATTACK"), 40);
+  }
+  return damage;
+}
+
+function scaledSkillValue(level, maxValue) {
+  return Math.round(maxValue * Number(level || 0) / skillMaxLevel);
+}
+
+function recordLocalMonsterDefeat(monster) {
+  const gainedExp = 8 + Math.floor((monster.defeatedMonsters || 0) / 2);
+  state.localExperience = displayExperience() + gainedExp;
+  state.localLevel = displayLevel();
+  state.localNextLevelExperience = displayNextLevelExperience();
+  let leveledUp = false;
+  while (state.localExperience >= state.localNextLevelExperience) {
+    state.localExperience -= state.localNextLevelExperience;
+    state.localLevel += 1;
+    state.localNextLevelExperience = nextLevelExperience(state.localLevel);
+    leveledUp = true;
+  }
+  return leveledUp;
+}
+
+function nextLocalMonster(monster) {
+  const defeatedMonsters = (monster.defeatedMonsters || 0) + 1;
+  const key = randomNextMonsterKey(monster.key);
+  const maxHp = localMaxMonsterHp(defeatedMonsters, key);
+  return {
+    key,
+    hp: maxHp,
+    maxHp,
+    defeatGold: Math.max(1, Math.floor((state.player?.goldPerHour || 0) * 0.25 / 60)),
+    defeatedMonsters,
+  };
+}
+
+function randomNextMonsterKey(currentKey) {
+  if (monsterKeys.length <= 1) {
+    return monsterKeys[0];
+  }
+  let next = currentKey;
+  while (next === currentKey) {
+    next = monsterKeys[Math.floor(Math.random() * monsterKeys.length)];
+  }
+  return next;
+}
+
+function localMaxMonsterHp(defeatedMonsters, key) {
+  return (monsterBaseHp[key] || 120) + defeatedMonsters * 18;
+}
+
+function nextLevelExperience(level) {
+  return 1000 + level * level * 500;
 }
 
 function accrueLocalCombatGold(now = Date.now()) {
@@ -1974,6 +2183,110 @@ function claimFriendInviteReward(completedInvites = 1) {
   });
 }
 
+function showRewardClaimConfirmModal() {
+  const points = availableRewardPointAmount();
+  $("rewardConfirmBody").textContent = isOneStoreTarget()
+    ? "확인을 누르면 게임 내 보상을 바로 받아요."
+    : `확인을 누르면 현재 받을 수 있는 ${points.toLocaleString("ko-KR")}P 수령을 신청해요.`;
+  $("rewardConfirmModal").classList.remove("hidden");
+}
+
+function closeRewardClaimConfirmModal() {
+  $("rewardConfirmModal").classList.add("hidden");
+}
+
+function claimRewardAfterConfirmation() {
+  closeRewardClaimConfirmModal();
+  return runRewardFlow(
+    "리워드 수령 광고",
+    isOneStoreTarget()
+      ? "게임 내 보상으로 SP가 지급돼요."
+      : "완료하면 토스포인트 수령을 신청해요.",
+    {
+      adGroupKey: "rewardClaim",
+      adEventType: "REWARD_CLAIM",
+      requiresReward: true,
+      request: (adSessionToken) => api(isOneStoreTarget()
+        ? "/api/player/onestore/reward/claim"
+        : "/api/player/reward/claim-after-ad", {
+        method: "POST",
+        body: isOneStoreTarget()
+          ? undefined
+          : JSON.stringify({ idempotencyKey: crypto.randomUUID(), adSessionToken }),
+      }),
+      message: isOneStoreTarget() ? "게임 내 보상을 받았어요." : "리워드 수령을 완료했어요.",
+    }
+  );
+}
+
+function shouldUseGameCenter() {
+  return !isOneStoreTarget() && Boolean(state.tossLoginEnabled);
+}
+
+async function syncGameProfileIfNeeded() {
+  if (!shouldUseGameCenter() || state.gameProfileInFlight || state.player?.gameProfileNickname) {
+    return;
+  }
+  state.gameProfileInFlight = true;
+  try {
+    const sdk = await loadTossSdk();
+    if (typeof sdk.getGameCenterGameProfile !== "function") {
+      return;
+    }
+    const profile = await sdk.getGameCenterGameProfile();
+    if (profile?.statusCode === "PROFILE_NOT_FOUND") {
+      return;
+    }
+    const nickname = profile?.nickname || profile?.name || profile?.profile?.nickname || "";
+    if (!nickname) {
+      return;
+    }
+    setServerPlayer(await api("/api/player/game-profile", {
+      method: "POST",
+      body: JSON.stringify({ nickname }),
+    }));
+    render();
+  } catch {
+    // 게임 프로필은 랭킹용 보조 정보라 실패해도 기본 플레이를 막지 않아요.
+  } finally {
+    state.gameProfileInFlight = false;
+  }
+}
+
+async function submitLeaderboardScore() {
+  if (!shouldUseGameCenter()) {
+    return;
+  }
+  const sdk = await loadTossSdk();
+  const submit = sdk.submitGameCenterLeaderBoardScore || sdk.submitGameCenterLeaderboardScore;
+  if (typeof submit !== "function") {
+    return;
+  }
+  const score = String(leaderboardGoldScore(state.player));
+  return submit({ score });
+}
+
+function leaderboardGoldScore(player = state.player) {
+  return Math.max(0, Math.floor(Number(player?.cumulativeGoldEarned ?? player?.gold ?? 0)));
+}
+
+async function openGameLeaderboard() {
+  if (!shouldUseGameCenter()) {
+    setMessage("토스 게임센터는 토스 앱에서 확인할 수 있어요.");
+    return;
+  }
+  const sdk = await loadTossSdk();
+  if (typeof sdk.openGameCenterLeaderboard !== "function") {
+    setMessage("현재 토스 앱에서 랭킹을 열 수 없어요.");
+    return;
+  }
+  const submitResult = await submitLeaderboardScore();
+  if (submitResult?.statusCode === "PROFILE_NOT_FOUND") {
+    setMessage("토스 게임센터 프로필을 만든 뒤 랭킹에 참여할 수 있어요.");
+  }
+  await sdk.openGameCenterLeaderboard();
+}
+
 async function requestTossShareReward() {
   const sdk = await loadTossSdk();
   const bridge = typeof sdk.contactsViral === "function" ? sdk : await loadTossBridge();
@@ -2206,18 +2519,19 @@ async function syncCombatState() {
     return;
   }
   state.combatSyncInFlight = true;
-  const beforeLevel = player.level || 1;
-  const beforeMonsterKey = player.monster?.key;
+  const beforeLevel = displayLevel(player);
+  const beforeMonsterSignature = monsterSignature(displayMonster(player));
   try {
     const next = await api("/api/player/combat/hit", { method: "POST" });
     const impactJob = activeJob();
     setServerPlayer(next);
-    if (beforeMonsterKey && next.monster?.key && beforeMonsterKey !== next.monster.key) {
+    if (beforeMonsterSignature !== monsterSignature(displayMonster(next))) {
       scheduleMonsterImpact(true, impactJob);
     }
-    if (next.level > beforeLevel) {
-      showLevelUpModal(next.level, next.level - beforeLevel);
-      setMessage(`Lv.${next.level} 달성! 스킬 포인트 1개를 얻었어요.`);
+    if (displayLevel(next) > beforeLevel) {
+      showLevelUpModal(displayLevel(next), displayLevel(next) - beforeLevel);
+      setMessage(`Lv.${displayLevel(next)} 달성! 스킬 포인트 1개를 얻었어요.`);
+      submitLeaderboardScore().catch(() => {});
     }
     render();
   } catch (error) {
@@ -2244,6 +2558,7 @@ function simulateHit() {
   const beforeDisplayGold = Math.floor(state.displayGold);
   accrueLocalCombatGold(now);
   const gainedGold = Math.max(0, Math.floor(state.displayGold) - beforeDisplayGold);
+  const localCombat = applyLocalMonsterHit(player);
   playAttackMotion();
   spawnProjectile();
   spawnSkillEffect();
@@ -2251,7 +2566,10 @@ function simulateHit() {
   if (gainedGold > 0) {
     spawnGoldPop(gainedGold);
   }
-  scheduleMonsterImpact(false, activeJob());
+  scheduleMonsterImpact(localCombat.defeated, activeJob());
+  if (localCombat.leveledUp) {
+    setMessage(`Lv.${displayLevel()} 달성! 서버 동기화 후 SP가 반영돼요.`);
+  }
   render();
 }
 
@@ -2531,31 +2849,29 @@ document.querySelectorAll(".upgrade-skill").forEach((button) => {
   });
 });
 
-$("claimReward").addEventListener("click", () => runRewardFlow(
-  "리워드 수령 광고",
-  isOneStoreTarget()
-    ? "게임 내 보상으로 SP가 지급돼요."
-    : "완료하면 토스포인트 수령을 신청해요.",
-  {
-    adGroupKey: "rewardClaim",
-    adEventType: "REWARD_CLAIM",
-    requiresReward: true,
-    request: (adSessionToken) => api(isOneStoreTarget()
-      ? "/api/player/onestore/reward/claim"
-      : "/api/player/reward/claim-after-ad", {
-      method: "POST",
-      body: isOneStoreTarget()
-        ? undefined
-        : JSON.stringify({ idempotencyKey: crypto.randomUUID(), adSessionToken }),
-    }),
-    message: isOneStoreTarget() ? "게임 내 보상을 받았어요." : "리워드 수령을 완료했어요.",
+$("claimReward").addEventListener("click", () => {
+  if (!state.player?.rewardClaimable) {
+    return;
   }
-));
+  showRewardClaimConfirmModal();
+});
+
+$("closeRewardConfirmModal").addEventListener("click", closeRewardClaimConfirmModal);
+$("confirmRewardClaim").addEventListener("click", () => claimRewardAfterConfirmation());
 
 $("claimFriendInviteReward").addEventListener("click", () => run(
   () => runFriendInviteRewardFlow(),
   `친구 초대 보상으로 SP ${(state.player?.friendInviteRewardSkillPoints || friendInviteRewardSkillPoints).toLocaleString("ko-KR")}개를 받았어요.`
 ));
+
+$("openLeaderboard").addEventListener("click", async () => {
+  try {
+    setMessage("랭킹을 여는 중...");
+    await openGameLeaderboard();
+  } catch (error) {
+    setMessage(error.message);
+  }
+});
 
 $("adSkip").addEventListener("click", () => finishDummyAd());
 $("buyCompanion").addEventListener("click", () => runPurchaseFlow({

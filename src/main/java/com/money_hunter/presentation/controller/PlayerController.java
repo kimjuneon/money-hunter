@@ -8,6 +8,7 @@ import com.money_hunter.presentation.dto.request.AdCompletionRequest;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
 import com.money_hunter.presentation.dto.request.FriendInviteRewardClaimRequest;
+import com.money_hunter.presentation.dto.request.GameProfileRequest;
 import com.money_hunter.presentation.dto.request.IapGrantRequest;
 import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
@@ -102,6 +103,14 @@ public class PlayerController {
 	@PostMapping("/tutorial/feature/complete")
 	public PlayerStateResponse completeFeatureTutorial(Principal principal) {
 		return playerService.completeFeatureTutorial(userKey(principal));
+	}
+
+	@PostMapping("/game-profile")
+	public PlayerStateResponse updateGameProfile(
+			Principal principal,
+			@Valid @RequestBody GameProfileRequest request
+	) {
+		return playerService.updateGameProfile(userKey(principal), request.nickname());
 	}
 
 	@PostMapping("/skills/upgrade")

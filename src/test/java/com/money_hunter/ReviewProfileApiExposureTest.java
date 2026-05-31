@@ -369,14 +369,21 @@ class ReviewProfileApiExposureTest {
 						.content("{\"completedInvites\":2}"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.friendInviteRewardCount", is(2)))
-				.andExpect(jsonPath("$.skillPoints", is(10)));
+				.andExpect(jsonPath("$.skillPoints", is(2)));
 
 		mockMvc.perform(post("/api/player/reward/friend-invite/claim")
 						.contentType(APPLICATION_JSON)
 						.content("{\"completedInvites\":2}"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.friendInviteRewardCount", is(3)))
-				.andExpect(jsonPath("$.skillPoints", is(15)));
+				.andExpect(jsonPath("$.friendInviteRewardCount", is(4)))
+				.andExpect(jsonPath("$.skillPoints", is(4)));
+
+		mockMvc.perform(post("/api/player/reward/friend-invite/claim")
+						.contentType(APPLICATION_JSON)
+						.content("{\"completedInvites\":3}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.friendInviteRewardCount", is(5)))
+				.andExpect(jsonPath("$.skillPoints", is(5)));
 	}
 
 	@Test

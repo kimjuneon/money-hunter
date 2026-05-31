@@ -1,6 +1,7 @@
 package com.money_hunter.domain;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,11 +40,16 @@ public class Player {
     @Column(nullable = false)
 	private long gold = 0;
 
+	@Column(nullable = false)
+	private long cumulativeGoldEarned = 0;
+
     @Column(nullable = false)
 	private int skillPoints = 0;
 
 	@Column(nullable = false)
 	private int friendInviteRewardCount = 0;
+
+	private LocalDate friendInviteRewardDate;
 
     @Column(nullable = false)
 	private int level = 1;
@@ -83,6 +89,14 @@ public class Player {
 	@Column(length = 500)
 	private String suspensionReason;
 
+	@Column(length = 80)
+	private String gameProfileNickname;
+
+	private Instant gameProfileUpdatedAt;
+
+	@Column(nullable = false)
+	private boolean adminFavorite = false;
+
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
@@ -118,8 +132,20 @@ public class Player {
 		touch();
 	}
 
-    public void addGold(long amount) {
+	public void addGold(long amount) {
 		this.gold += amount;
+		touch();
+	}
+
+	public void adjustGold(long amount) {
+		this.gold = Math.max(0, this.gold + amount);
+		touch();
+	}
+
+	public void setGold(long amount) {
+		this.gold = Math.max(0, amount);
+		this.hitGoldRemainderMicros = 0;
+		this.defeatGoldRemainderMicros = 0;
 		touch();
 	}
 
@@ -142,6 +168,7 @@ public class Player {
 		if (wholeGold > 0) {
 			this.defeatGoldRemainderMicros -= wholeGold * GOLD_MICROS;
 			this.gold += wholeGold;
+			this.cumulativeGoldEarned += wholeGold;
 			touch();
 		}
 		return wholeGold;
@@ -163,6 +190,7 @@ public class Player {
 		if (wholeGold > 0) {
 			this.hitGoldRemainderMicros -= wholeGold * GOLD_MICROS;
 			this.gold += wholeGold;
+			this.cumulativeGoldEarned += wholeGold;
 			touch();
 		}
 		return wholeGold;
@@ -194,11 +222,22 @@ public class Player {
 		touch();
 	}
 
-	public void claimFriendInviteReward(int inviteLimit, int rewardSkillPoints) {
-		claimFriendInviteReward(inviteLimit, rewardSkillPoints, 1);
+	public void adjustSkillPoints(int amount) {
+		this.skillPoints = Math.max(0, this.skillPoints + amount);
+		touch();
 	}
 
-	public int claimFriendInviteReward(int inviteLimit, int rewardSkillPoints, int completedInvites) {
+	public void setSkillPoints(int amount) {
+		this.skillPoints = Math.max(0, amount);
+		touch();
+	}
+
+	public void claimFriendInviteReward(int inviteLimit, int rewardSkillPoints, LocalDate today) {
+		claimFriendInviteReward(inviteLimit, rewardSkillPoints, 1, today);
+	}
+
+	public int claimFriendInviteReward(int inviteLimit, int rewardSkillPoints, int completedInvites, LocalDate today) {
+		resetFriendInviteRewardIfNewDay(today);
 		if (friendInviteRewardCount >= inviteLimit) {
 			throw new IllegalStateException("친구 초대 보상을 모두 받았어요.");
 		}
@@ -213,6 +252,17 @@ public class Player {
 		this.skillPoints += rewardSkillPoints * claimCount;
 		touch();
 		return claimCount;
+	}
+
+	public void resetFriendInviteRewardIfNewDay(LocalDate today) {
+		if (today == null) {
+			return;
+		}
+		if (!today.equals(friendInviteRewardDate)) {
+			this.friendInviteRewardDate = today;
+			this.friendInviteRewardCount = 0;
+			touch();
+		}
 	}
 
 	public void spendSkillPoint() {
@@ -303,6 +353,18 @@ public class Player {
 		touch();
 	}
 
+	public void updateGameProfile(String nickname, Instant updatedAt) {
+		String normalized = nickname == null ? "" : nickname.trim();
+		this.gameProfileNickname = normalized.isBlank() ? null : normalized;
+		this.gameProfileUpdatedAt = this.gameProfileNickname == null ? null : updatedAt;
+		touch();
+	}
+
+	public void setAdminFavorite(boolean adminFavorite) {
+		this.adminFavorite = adminFavorite;
+		touch();
+	}
+
     public void setLastSettledAt(Instant lastSettledAt) {
 		this.lastSettledAt = lastSettledAt;
 		touch();
@@ -327,8 +389,10 @@ public class Player {
 		this.job = null;
 		this.characterSlots = 1;
 		this.gold = 0;
+		this.cumulativeGoldEarned = 0;
 		this.skillPoints = 0;
 		this.friendInviteRewardCount = 0;
+		this.friendInviteRewardDate = null;
 		this.level = 1;
 		this.experience = 0;
 		this.currentMonsterKey = "BOSS_ROCK";
@@ -342,6 +406,9 @@ public class Player {
 		this.lastSkillPointAdClaimedAt = null;
 		this.tutorialRewardClaimedAt = null;
 		this.featureTutorialCompletedAt = null;
+		this.gameProfileNickname = null;
+		this.gameProfileUpdatedAt = null;
+		this.adminFavorite = false;
 		this.lastSettledAt = now;
 		this.skills.forEach(PlayerSkill::resetLevel);
 		touch();

@@ -3,6 +3,7 @@ package com.money_hunter.application;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -336,7 +337,8 @@ public class PlayerService {
 		int claimedInvites = player.claimFriendInviteReward(
 				economy.friendInviteLimit(),
 				economy.friendInviteRewardSkillPoints(),
-				completedInvites);
+				completedInvites,
+				LocalDate.now(clock));
 		int rewardSkillPoints = economy.friendInviteRewardSkillPoints() * claimedInvites;
 		adEventRepository.save(new AdEvent(
 			player,
@@ -351,6 +353,14 @@ public class PlayerService {
 				rewardSkillPoints,
 				player.getFriendInviteRewardCount(),
 				economy.friendInviteLimit());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse updateGameProfile(String userKey, String nickname) {
+		Player player = getOrCreatePlayer(userKey);
+		player.updateGameProfile(nickname, clock.instant());
+		log.info("게임 프로필 동기화: userKey={}, nickname={}", mask(userKey), player.getGameProfileNickname());
 		return toState(player);
 	}
 
@@ -911,6 +921,7 @@ public class PlayerService {
 	private PlayerStateResponse toState(Player player) {
 		ensureMonster(player);
 		syncStatSkills(player);
+		player.resetFriendInviteRewardIfNewDay(LocalDate.now(clock));
 		List<SkillResponse> skills = Arrays.stream(SkillType.values())
 				.map(player::getOrCreateSkill)
 				.map(skill -> new SkillResponse(skill.getType(), skill.getLevel(), effectTier(skill)))
@@ -918,6 +929,7 @@ public class PlayerService {
 		long threshold = economy.rewardGoldThreshold();
 		return new PlayerStateResponse(
 				player.getUserKey(),
+				player.getGameProfileNickname(),
 				player.getJob(),
 				!player.hasChosenJob(),
 				player.hasClaimedTutorialReward(),
@@ -928,6 +940,7 @@ public class PlayerService {
 				economy.skillPointPackPriceWon(),
 				economy.skillPointPackAmount(),
 				player.getGold(),
+				player.getCumulativeGoldEarned(),
 				threshold,
 				economy.rewardPointAmount(),
 				economy.adRevenuePerRewardAdWon(),

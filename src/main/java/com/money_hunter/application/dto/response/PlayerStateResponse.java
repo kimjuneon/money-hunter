@@ -7,6 +7,7 @@ import com.money_hunter.domain.JobType;
 
 public record PlayerStateResponse(
 		String userKey,
+		String gameProfileNickname,
 		JobType job,
 		boolean onboardingRequired,
 		boolean tutorialRewardClaimed,
@@ -17,6 +18,7 @@ public record PlayerStateResponse(
 		int skillPointPackPriceWon,
 		int skillPointPackAmount,
 		long gold,
+		long cumulativeGoldEarned,
 		long rewardGoldThreshold,
 		int rewardPointAmount,
 		int adRevenuePerRewardAdWon,

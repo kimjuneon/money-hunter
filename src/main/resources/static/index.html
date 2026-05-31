@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260530-05" />
+    <link rel="stylesheet" href="/styles.css?v=20260531-02" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -201,11 +201,23 @@
             <div class="friend-invite-icon" aria-hidden="true"></div>
             <div class="friend-invite-copy">
               <strong>친구 초대 보상</strong>
-              <p id="friendInviteRewardCopy">초대 성공 시 SP 5개 지급</p>
-              <small id="friendInviteRewardStatus">0 / 3명 완료</small>
+              <p id="friendInviteRewardCopy">초대 성공 시 SP 1개 지급</p>
+              <small id="friendInviteRewardStatus">0 / 5명 완료</small>
             </div>
             <button id="claimFriendInviteReward" class="friend-invite-button" type="button">
-              <span>친구 초대하기 · 3명까지 보상</span>
+              <span>친구 초대하기 · 5명까지 보상</span>
+            </button>
+          </article>
+
+          <article class="leaderboard-card" aria-label="랭킹">
+            <div class="leaderboard-icon" aria-hidden="true">R</div>
+            <div class="leaderboard-copy">
+              <strong>누적 골드 랭킹</strong>
+              <p>내 헌터 레벨을 기준으로 다른 유저와 비교해요</p>
+              <small id="leaderboardStatus">누적 0G 기준</small>
+            </div>
+            <button id="openLeaderboard" class="leaderboard-button" type="button">
+              <span>랭킹 보기</span>
             </button>
           </article>
           </section>
@@ -360,6 +372,16 @@
         </div>
       </section>
 
+      <section id="rewardConfirmModal" class="reward-confirm-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rewardConfirmTitle">
+        <div class="reward-confirm-card">
+          <button id="closeRewardConfirmModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <p class="modal-kicker">TOSS POINT</p>
+          <h2 id="rewardConfirmTitle">토스포인트를 받을까요?</h2>
+          <p id="rewardConfirmBody">확인을 누르면 받을 수 있는 토스포인트를 수령 신청해요.</p>
+          <button id="confirmRewardClaim" class="reward-confirm-primary" type="button">확인하고 받기</button>
+        </div>
+      </section>
+
       <section id="notificationModal" class="notification-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
         <div class="notification-card">
           <button id="closeNotificationModal" class="modal-close" type="button" aria-label="닫기">×</button>
@@ -373,6 +395,7 @@
             <div>
               <strong>정산 완료</strong>
               <span>자리 비운 동안의 골드와 EXP가 반영됐어요</span>
+              <small id="settledGoldAmount">획득 골드 계산 중</small>
             </div>
             <div>
               <strong>재시작 가능</strong>
@@ -423,6 +446,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260530-05"></script>
+    <script src="/app.js?v=20260531-02"></script>
   </body>
 </html>

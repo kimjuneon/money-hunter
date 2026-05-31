@@ -7,9 +7,12 @@ import com.money_hunter.domain.Player;
 
 public record AdminPlayerResponse(
 		String userKey,
+		String gameProfileNickname,
+		boolean adminFavorite,
 		JobType job,
 		boolean onboardingRequired,
 		long gold,
+		long cumulativeGoldEarned,
 		int skillPoints,
 		int level,
 		long experience,
@@ -21,6 +24,7 @@ public record AdminPlayerResponse(
 		int currentMonsterHp,
 		Instant lastSettledAt,
 		Instant lastSkillPointAdClaimedAt,
+		Instant gameProfileUpdatedAt,
 		boolean tutorialRewardClaimed,
 		boolean featureTutorialCompleted,
 		Instant autoHuntEndsAt,
@@ -34,9 +38,12 @@ public record AdminPlayerResponse(
 	public static AdminPlayerResponse from(Player player) {
 		return new AdminPlayerResponse(
 				player.getUserKey(),
+				player.getGameProfileNickname(),
+				player.isAdminFavorite(),
 				player.getJob(),
 				!player.hasChosenJob(),
 				player.getGold(),
+				player.getCumulativeGoldEarned(),
 				player.getSkillPoints(),
 				player.getLevel(),
 				player.getExperience(),
@@ -48,6 +55,7 @@ public record AdminPlayerResponse(
 				player.getCurrentMonsterHp(),
 				player.getLastSettledAt(),
 				player.getLastSkillPointAdClaimedAt(),
+				player.getGameProfileUpdatedAt(),
 				player.hasClaimedTutorialReward(),
 				player.hasCompletedFeatureTutorial(),
 				player.getAutoHuntEndsAt(),

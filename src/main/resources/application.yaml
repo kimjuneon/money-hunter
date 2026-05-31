@@ -63,7 +63,7 @@ money-hunter:
     skill-point-pack-product-id: ${TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID:ait.0000036679.5d254d7f.73c4076553.0056169217}
   share-reward:
     module-id: ${TOSS_SHARE_REWARD_MODULE_ID:2060c79f-606b-4839-9a86-32294fa74d86}
-    message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 5개를 받아요}
+    message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 1개를 받아요}
   smart-message:
     auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:money_hunter_auto_hunt_ended}
     auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:money_hunter_auto_hunt_ended}
@@ -101,8 +101,8 @@ money-hunter:
     companion-price-won: 4900
     skill-point-pack-price-won: 999
     skill-point-pack-amount: 10
-    friend-invite-reward-skill-points: 5
-    friend-invite-limit: 3
+    friend-invite-reward-skill-points: 1
+    friend-invite-limit: 5
     max-character-slots: 3
     auto-hunt-ad-seconds: 3600
     boost-ad-seconds: 3600

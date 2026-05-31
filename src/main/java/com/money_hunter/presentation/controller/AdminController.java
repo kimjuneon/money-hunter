@@ -16,6 +16,8 @@ import com.money_hunter.domain.AdminAnomalyStatus;
 import com.money_hunter.domain.AdminAuditLog;
 import com.money_hunter.presentation.dto.request.AdminAnomalyActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerActionRequest;
+import com.money_hunter.presentation.dto.request.AdminPlayerFavoriteRequest;
+import com.money_hunter.presentation.dto.request.AdminPlayerResourceAdjustRequest;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
 import com.money_hunter.presentation.dto.request.AdminRevenueCalibrationRequest;
 import com.money_hunter.application.dto.response.AdminAuditLogResponse;
@@ -121,10 +123,11 @@ public class AdminController {
 	public List<AdminPlayerResponse> players(
 			@RequestParam(defaultValue = "") String query,
 			@RequestParam(defaultValue = "30") int limit,
+			@RequestParam(defaultValue = "false") boolean favoritesOnly,
 			HttpServletRequest request
 	) {
 		adminAccessGuard.require(request);
-		return adminPlayerService.search(query, limit);
+		return adminPlayerService.search(query, limit, favoritesOnly);
 	}
 
 	@PostMapping("/players/{userKey}/suspend")
@@ -185,6 +188,82 @@ public class AdminController {
 				reason,
 				request);
 		return result;
+	}
+
+	@PostMapping("/players/{userKey}/favorite")
+	public AdminPlayerResponse favoritePlayer(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerFavoriteRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse player = adminPlayerService.setFavorite(userKey, requestBody.favorite());
+		adminAuditService.record(
+				admin,
+				"USER_FAVORITE",
+				player.userKey(),
+				null,
+				String.valueOf(player.adminFavorite()),
+				optionalReason(requestBody.reason()),
+				request);
+		return player;
+	}
+
+	@PostMapping("/players/{userKey}/cs/gold")
+	public AdminPlayerResponse adjustPlayerGold(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerResourceAdjustRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse player = adminPlayerService.adjustGold(userKey, requestBody.mode(), requestBody.amount());
+		adminAuditService.record(
+				admin,
+				"USER_CS_GOLD",
+				player.userKey(),
+				requestBody.mode(),
+				String.valueOf(player.gold()),
+				optionalReason(requestBody.reason()),
+				request);
+		return player;
+	}
+
+	@PostMapping("/players/{userKey}/cs/skill-points")
+	public AdminPlayerResponse adjustPlayerSkillPoints(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerResourceAdjustRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse player = adminPlayerService.adjustSkillPoints(userKey, requestBody.mode(), requestBody.amount());
+		adminAuditService.record(
+				admin,
+				"USER_CS_SKILL_POINTS",
+				player.userKey(),
+				requestBody.mode(),
+				String.valueOf(player.skillPoints()),
+				optionalReason(requestBody.reason()),
+				request);
+		return player;
+	}
+
+	@PostMapping("/players/{userKey}/cs/pet")
+	public AdminPlayerResponse grantPlayerPet(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerActionRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse player = adminPlayerService.grantPet(userKey, economyService.maxCharacterSlots());
+		adminAuditService.record(
+				admin,
+				"USER_CS_PET",
+				player.userKey(),
+				null,
+				String.valueOf(player.characterSlots()),
+				optionalReason(requestBody.reason()),
+				request);
+		return player;
 	}
 
 	@GetMapping("/policies")

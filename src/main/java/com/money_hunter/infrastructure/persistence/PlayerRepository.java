@@ -33,10 +33,19 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	@Query("""
 			select p
 			from Player p
-			where (:query is null or :query = '' or lower(p.userKey) like lower(concat('%', :query, '%')))
+			where (:favoritesOnly = false or p.adminFavorite = true)
+				and (
+					:query is null
+					or :query = ''
+					or lower(p.userKey) like lower(concat('%', :query, '%'))
+					or lower(coalesce(p.gameProfileNickname, '')) like lower(concat('%', :query, '%'))
+				)
 			order by p.updatedAt desc
 			""")
-	List<Player> searchPlayers(@Param("query") String query, org.springframework.data.domain.Pageable pageable);
+	List<Player> searchPlayers(
+			@Param("query") String query,
+			@Param("favoritesOnly") boolean favoritesOnly,
+			org.springframework.data.domain.Pageable pageable);
 
 	@Query("""
 			select p.userKey as userKey,

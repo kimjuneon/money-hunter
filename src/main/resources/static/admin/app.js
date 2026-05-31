@@ -37,6 +37,7 @@ function bindEvents() {
   });
   $("playerFilterStatus").addEventListener("change", renderPlayers);
   $("playerFilterProgress").addEventListener("change", renderPlayers);
+  $("playerFavoritesOnly").addEventListener("change", loadPlayers);
   $("playerFilterClearButton").addEventListener("click", clearPlayerFilters);
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
@@ -699,6 +700,7 @@ async function openPlayerFromAnomaly(userKey) {
   $("playerSearchInput").value = userKey;
   $("playerFilterStatus").value = "ALL";
   $("playerFilterProgress").value = "ALL";
+  $("playerFavoritesOnly").checked = false;
   state.selectedUserKey = userKey;
   await loadPlayers();
   showToast(`${userKey} 유저 정보를 열었어요.`);
@@ -706,7 +708,8 @@ async function openPlayerFromAnomaly(userKey) {
 
 async function loadPlayers() {
   const query = $("playerSearchInput").value.trim();
-  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=100`);
+  const favoritesOnly = $("playerFavoritesOnly").checked;
+  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=100&favoritesOnly=${favoritesOnly}`);
   state.players = players;
   if (!players.some((player) => player.userKey === state.selectedUserKey)) {
     state.selectedUserKey = players[0]?.userKey || "";
@@ -718,6 +721,7 @@ function clearPlayerFilters() {
   $("playerSearchInput").value = "";
   $("playerFilterStatus").value = "ALL";
   $("playerFilterProgress").value = "ALL";
+  $("playerFavoritesOnly").checked = false;
   state.selectedUserKey = "";
   loadPlayers();
 }
@@ -741,6 +745,12 @@ function renderPlayers() {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       runPlayerAction(button);
+    });
+  });
+  document.querySelectorAll("[data-player-favorite]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      togglePlayerFavorite(button);
     });
   });
 }
@@ -767,14 +777,23 @@ function playerRow(player) {
   const autoHunt = player.autoHuntEndsAt ? new Date(player.autoHuntEndsAt).toLocaleString("ko-KR") : "-";
   const boost = player.boostEndsAt ? new Date(player.boostEndsAt).toLocaleString("ko-KR") : "-";
   const selected = player.userKey === state.selectedUserKey ? "selected" : "";
+  const name = playerDisplayName(player);
   return `
     <article class="player-row ${statusClass} ${selected}" data-player-select data-user-key="${escapeHtml(player.userKey)}">
       <div class="player-main">
         <div class="player-title">
-          <strong>${escapeHtml(player.userKey)}</strong>
+          <button
+            class="favorite-toggle ${player.adminFavorite ? "active" : ""}"
+            type="button"
+            title="즐겨찾기"
+            data-player-favorite
+            data-user-key="${escapeHtml(player.userKey)}"
+            data-favorite="${player.adminFavorite ? "false" : "true"}"
+          >${player.adminFavorite ? "★" : "☆"}</button>
+          <strong>${escapeHtml(name)}</strong>
           <span class="player-status ${statusClass}">${status}</span>
         </div>
-        <p>${escapeHtml(jobLabel(job))} · Lv.${formatNumber(player.level)} · ${formatNumber(player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
+        <p>${escapeHtml(jobLabel(job))} · Lv.${formatNumber(player.level)} · 보유 ${formatNumber(player.gold)}G · 누적 ${formatNumber(player.cumulativeGoldEarned || player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
         <small>자동사냥 ${escapeHtml(autoHunt)} · 공속버프 ${escapeHtml(boost)}</small>
         ${player.suspended ? `<small>정지 사유: ${escapeHtml(player.suspensionReason || "-")}</small>` : ""}
       </div>
@@ -802,17 +821,30 @@ function renderSelectedPlayerDetail() {
   const status = player.suspended ? "정지" : "정상";
   const statusClass = player.suspended ? "suspended" : "active";
   const progress = player.onboardingRequired ? "직업 미선택" : "게임 시작";
+  const displayName = playerDisplayName(player);
   $("playerDetail").innerHTML = `
     <div class="detail-head">
       <div>
         <span class="player-status ${statusClass}">${status}</span>
-        <h3>${escapeHtml(player.userKey)}</h3>
+        <h3>${escapeHtml(displayName)}</h3>
         <p>${escapeHtml(jobLabel(player.job || "미선택"))} · ${escapeHtml(progress)}</p>
       </div>
-      <button class="ghost" type="button" data-copy-user-key="${escapeHtml(player.userKey)}">유저 키 복사</button>
+      <div class="detail-actions">
+        <button
+          class="favorite-toggle detail-favorite ${player.adminFavorite ? "active" : ""}"
+          type="button"
+          data-player-favorite
+          data-user-key="${escapeHtml(player.userKey)}"
+          data-favorite="${player.adminFavorite ? "false" : "true"}"
+        >${player.adminFavorite ? "★ 즐겨찾기" : "☆ 즐겨찾기"}</button>
+        <button class="ghost" type="button" data-copy-user-key="${escapeHtml(player.userKey)}">유저 키 복사</button>
+      </div>
     </div>
     <div class="detail-grid">
+      ${kv("유저 식별 ID", player.userKey)}
+      ${kv("게임 프로필", player.gameProfileNickname || "미동기화")}
       ${kv("골드", `${formatNumber(player.gold)}G`)}
+      ${kv("누적 골드", `${formatNumber(player.cumulativeGoldEarned || player.gold)}G`)}
       ${kv("SP", formatNumber(player.skillPoints))}
       ${kv("레벨", `Lv.${formatNumber(player.level)}`)}
       ${kv("경험치", `${formatNumber(player.experience)} / ${formatNumber(player.nextLevelExperience)}`)}
@@ -826,6 +858,8 @@ function renderSelectedPlayerDetail() {
       ${kv("최근 SP 광고", formatDate(player.lastSkillPointAdClaimedAt))}
       ${kv("자동사냥 종료", formatDate(player.autoHuntEndsAt))}
       ${kv("공속버프 종료", formatDate(player.boostEndsAt))}
+      ${kv("게임 프로필 갱신", formatDate(player.gameProfileUpdatedAt))}
+      ${kv("즐겨찾기", player.adminFavorite ? "예" : "아니오")}
       ${kv("가입", formatDate(player.createdAt))}
       ${kv("수정", formatDate(player.updatedAt))}
     </div>
@@ -842,6 +876,39 @@ function renderSelectedPlayerDetail() {
         <button class="ghost danger-ghost" data-player-action="reset" data-user-key="${escapeHtml(player.userKey)}">로그인부터 초기화</button>
       </div>
     </div>
+    <div class="cs-panel">
+      <div class="cs-head">
+        <strong>CS 보정</strong>
+        <span>문의 대응용으로 즉시 반영되고 감사 로그에 남아요.</span>
+      </div>
+      <div class="cs-grid">
+        <label>
+          <span>골드 처리</span>
+          <select id="csGoldMode">
+            <option value="ADD">더하기/빼기</option>
+            <option value="SET">지정값으로 설정</option>
+          </select>
+        </label>
+        <label>
+          <span>골드 수량</span>
+          <input id="csGoldAmount" type="number" step="1" value="0" />
+        </label>
+        <button class="secondary" type="button" data-player-cs="gold" data-user-key="${escapeHtml(player.userKey)}">골드 반영</button>
+        <label>
+          <span>SP 처리</span>
+          <select id="csSkillPointMode">
+            <option value="ADD">더하기/빼기</option>
+            <option value="SET">지정값으로 설정</option>
+          </select>
+        </label>
+        <label>
+          <span>SP 수량</span>
+          <input id="csSkillPointAmount" type="number" step="1" value="0" />
+        </label>
+        <button class="secondary" type="button" data-player-cs="skill-points" data-user-key="${escapeHtml(player.userKey)}">SP 반영</button>
+      </div>
+      <button class="secondary wide-action" type="button" data-player-cs="pet" data-user-key="${escapeHtml(player.userKey)}">동료 펫 1마리 지급</button>
+    </div>
   `;
   const copyButton = document.querySelector("[data-copy-user-key]");
   copyButton?.addEventListener("click", async () => {
@@ -850,6 +917,12 @@ function renderSelectedPlayerDetail() {
   });
   document.querySelectorAll("#playerDetail [data-player-action]").forEach((button) => {
     button.addEventListener("click", () => runPlayerAction(button));
+  });
+  document.querySelectorAll("#playerDetail [data-player-favorite]").forEach((button) => {
+    button.addEventListener("click", () => togglePlayerFavorite(button));
+  });
+  document.querySelectorAll("#playerDetail [data-player-cs]").forEach((button) => {
+    button.addEventListener("click", () => runPlayerCsAction(button));
   });
 }
 
@@ -860,6 +933,100 @@ function kv(label, value) {
       <strong>${escapeHtml(value)}</strong>
     </div>
   `;
+}
+
+function playerDisplayName(player) {
+  const nickname = player?.gameProfileNickname?.trim();
+  const userKey = player?.userKey || "-";
+  return `${nickname || "프로필 미설정"}(${userKey})`;
+}
+
+function updatePlayerInState(updatedPlayer) {
+  state.players = state.players.map((player) => (
+    player.userKey === updatedPlayer.userKey ? updatedPlayer : player
+  ));
+  state.selectedUserKey = updatedPlayer.userKey;
+  renderPlayers();
+}
+
+async function togglePlayerFavorite(button) {
+  const userKey = button.dataset.userKey;
+  const favorite = button.dataset.favorite === "true";
+  const reason = $("playerActionReason")?.value?.trim() || "";
+  setButtonBusy(button, true);
+  $("playerResult").textContent = "";
+  $("playerResult").classList.remove("error-text");
+  try {
+    const updatedPlayer = await request(`/api/admin/players/${encodeURIComponent(userKey)}/favorite`, {
+      method: "POST",
+      body: { favorite, reason },
+    });
+    updatePlayerInState(updatedPlayer);
+    const message = favorite ? "즐겨찾기에 추가했어요." : "즐겨찾기에서 해제했어요.";
+    $("playerResult").textContent = message;
+    showToast(message);
+    if ($("playerFavoritesOnly").checked && !favorite) {
+      await loadPlayers();
+    }
+  } catch (error) {
+    $("playerResult").textContent = error.message;
+    $("playerResult").classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function runPlayerCsAction(button) {
+  const action = button.dataset.playerCs;
+  const userKey = button.dataset.userKey;
+  const reason = $("playerActionReason")?.value?.trim() || "";
+  const payload = { reason };
+  let endpoint = "";
+  let label = "";
+
+  if (action === "gold") {
+    endpoint = "cs/gold";
+    label = "골드";
+    payload.mode = $("csGoldMode").value;
+    payload.amount = Number($("csGoldAmount").value);
+  } else if (action === "skill-points") {
+    endpoint = "cs/skill-points";
+    label = "SP";
+    payload.mode = $("csSkillPointMode").value;
+    payload.amount = Number($("csSkillPointAmount").value);
+  } else if (action === "pet") {
+    endpoint = "cs/pet";
+    label = "동료 펫";
+  }
+
+  if (!endpoint) {
+    return;
+  }
+  if (payload.amount !== undefined && !Number.isFinite(payload.amount)) {
+    showToast("조정 수량을 숫자로 입력해 주세요.", "error");
+    return;
+  }
+
+  $("playerResult").textContent = "";
+  $("playerResult").classList.remove("error-text");
+  setButtonBusy(button, true);
+  try {
+    const updatedPlayer = await request(`/api/admin/players/${encodeURIComponent(userKey)}/${endpoint}`, {
+      method: "POST",
+      body: payload,
+    });
+    updatePlayerInState(updatedPlayer);
+    const message = `${label} CS 처리를 완료했어요.`;
+    $("playerResult").textContent = message;
+    showToast(message);
+  } catch (error) {
+    $("playerResult").textContent = error.message;
+    $("playerResult").classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
 }
 
 async function runPlayerAction(button) {
