@@ -101,6 +101,9 @@ public class Player {
 
 	private Instant gameProfileUpdatedAt;
 
+	@Column(length = 80)
+	private String adminNickname;
+
 	@Column(nullable = false)
 	private boolean adminFavorite = false;
 
@@ -401,6 +404,12 @@ public class Player {
 		String normalized = nickname == null ? "" : nickname.trim();
 		this.gameProfileNickname = normalized.isBlank() ? null : normalized;
 		this.gameProfileUpdatedAt = this.gameProfileNickname == null ? null : updatedAt;
+		touch();
+	}
+
+	public void updateAdminNickname(String nickname) {
+		String normalized = nickname == null ? "" : nickname.trim();
+		this.adminNickname = normalized.isBlank() ? null : normalized;
 		touch();
 	}
 

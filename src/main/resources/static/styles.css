@@ -639,31 +639,35 @@ img {
 }
 
 .projectile.skill-projectile.sword {
-  left: 147px;
+  left: 110px;
   top: 112px;
   width: 136px;
   height: 136px;
+  --fly-x: 187px;
 }
 
 .projectile.skill-projectile.arrow {
-  left: 152px;
+  left: 114px;
   top: 113px;
   width: 130px;
   height: 130px;
+  --fly-x: 179px;
 }
 
 .projectile.skill-projectile.magic {
-  left: 150px;
+  left: 112px;
   top: 113px;
   width: 132px;
   height: 132px;
+  --fly-x: 189px;
 }
 
 .projectile.skill-projectile.shuriken {
-  left: 151px;
+  left: 113px;
   top: 115px;
   width: 130px;
   height: 130px;
+  --fly-x: 196px;
 }
 
 .skill-effect-layer {
@@ -682,7 +686,7 @@ img {
 
 .pet-attack {
   position: absolute;
-  left: 174px;
+  left: 156px;
   top: 192px;
   width: 92px;
   height: 58px;
@@ -690,18 +694,21 @@ img {
   opacity: 0;
   pointer-events: none;
   transform-origin: 50% 50%;
+  --pet-attack-fly-x: 208px;
+  --pet-attack-fly-y: -45px;
   animation: petAttackFly 0.82s cubic-bezier(0.18, 0.74, 0.2, 1) forwards;
 }
 
 .pet-aqua-attack {
-  left: 186px;
+  left: 178px;
   top: 172px;
+  --pet-attack-fly-x: 198px;
   animation-duration: 0.9s;
 }
 
 .skill-effect {
   position: absolute;
-  right: 52px;
+  left: 218px;
   top: 96px;
   width: 122px;
   height: 122px;
@@ -733,7 +740,7 @@ img {
 .skill-effect.tier-2,
 .skill-effect.tier-3,
 .skill-effect.tier-4 {
-  right: 52px;
+  left: 218px;
   top: 96px;
   width: 122px;
   height: 122px;
@@ -989,6 +996,15 @@ img {
   margin-top: 0;
 }
 
+.pet-shop-item.skin-change-available {
+  grid-template-columns: 54px minmax(0, 1fr) minmax(88px, 0.62fr);
+  align-items: center;
+}
+
+.pet-shop-item .shop-copy {
+  min-width: 0;
+}
+
 .pet-shop-item.locked {
   opacity: 0.68;
   filter: grayscale(0.55);
@@ -1038,6 +1054,16 @@ img {
   font-size: 13px;
   font-weight: 1000;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.78), 0 2px 0 rgba(59, 130, 246, 0.18);
+}
+
+.pet-skin-change-button {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: stretch;
+  min-height: 38px;
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 .buy-pet-button:not(:disabled):active,
@@ -1098,12 +1124,59 @@ img {
   box-shadow: inset 0 2px rgba(255, 255, 255, 0.52), 0 5px 10px rgba(124, 58, 237, 0.2);
 }
 
-.pet-skin-shop {
-  margin-top: 12px;
-  padding: 10px;
-  border: 2px solid #c7d0dc;
-  border-radius: 8px;
+.pet-skin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: 16px 14px calc(16px + var(--safe-bottom));
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.pet-skin-modal-card {
+  position: relative;
+  width: min(100%, 430px);
+  max-height: min(78vh, 680px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 2px solid rgba(148, 163, 184, 0.54);
+  border-radius: 14px 14px 10px 10px;
   background: #f8fafc;
+  box-shadow: 0 -12px 34px rgba(15, 23, 42, 0.3);
+}
+
+.pet-skin-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 18px 14px 10px;
+  background: #f8fafc;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.pet-skin-modal-card .modal-close {
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+}
+
+.pet-skin-modal-card h2 {
+  margin: 3px 0 6px;
+  color: #172033;
+  font-size: 22px;
+  font-weight: 1000;
+}
+
+.pet-skin-modal-header > p:not(.modal-kicker) {
+  margin: 0 28px 12px 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.35;
 }
 
 .pet-skin-heading {
@@ -1127,11 +1200,25 @@ img {
   opacity: 0.04;
 }
 
+.pet-skin-secret-button.is-unlocked {
+  width: auto;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  opacity: 1;
+  font-size: 11px;
+  font-weight: 1000;
+}
+
 .pet-skin-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 9px;
+  overflow: auto;
+  padding: 9px 14px 16px;
 }
 
 .pet-skin-card {
@@ -1186,7 +1273,6 @@ img {
 
 .pet-skin-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
 }
 
@@ -1485,12 +1571,12 @@ img {
 }
 
 .skill-portrait.pet-flare-icon {
-  background-image: url("/assets/pets/pet-fire-fox.png?v=20260601-01");
+  background-image: url("/assets/pet-flarefox.svg");
   background-color: #fff7ed;
 }
 
 .skill-portrait.pet-aqua-icon {
-  background-image: url("/assets/pets/pet-ice.png?v=20260601-01");
+  background-image: url("/assets/pet-aquabun.svg");
   background-color: #eff6ff;
 }
 
@@ -1666,6 +1752,7 @@ img {
 
 .job-modal,
 .ad-modal,
+.time-reward-overflow-modal,
 .notification-modal,
 .levelup-modal,
 .reward-confirm-modal,
@@ -1683,8 +1770,13 @@ img {
   background: rgba(17, 24, 39, 0.64);
 }
 
+.pet-easter-modal {
+  z-index: 95;
+}
+
 .job-sheet,
 .ad-card,
+.time-reward-overflow-card,
 .levelup-card,
 .reward-confirm-card,
 .profile-notice-card,
@@ -1711,6 +1803,11 @@ img {
   text-align: center;
 }
 
+.time-reward-overflow-card {
+  padding: 24px 22px 20px;
+  text-align: center;
+}
+
 .profile-notice-card {
   padding: 24px 22px 20px;
   text-align: center;
@@ -1722,6 +1819,7 @@ img {
 }
 
 .reward-confirm-card h2,
+.time-reward-overflow-card h2,
 .profile-notice-card h2,
 .pet-easter-card h2 {
   margin: 8px 0 9px;
@@ -1731,6 +1829,7 @@ img {
 }
 
 .reward-confirm-card > p:not(.modal-kicker),
+.time-reward-overflow-card > p:not(.modal-kicker),
 .profile-notice-card > p:not(.modal-kicker),
 .pet-easter-card > p:not(.modal-kicker) {
   margin: 0 auto 18px;
@@ -1774,6 +1873,7 @@ img {
 }
 
 .reward-confirm-primary,
+.time-reward-overflow-primary,
 .profile-notice-primary,
 .profile-notice-secondary,
 .pet-easter-primary,
@@ -1785,6 +1885,7 @@ img {
 }
 
 .reward-confirm-primary,
+.time-reward-overflow-primary,
 .profile-notice-primary,
 .pet-easter-primary {
   background: linear-gradient(180deg, #3182f6, #1b64da);
@@ -2521,7 +2622,7 @@ img {
   }
   100% {
     opacity: 0;
-    transform: translate(190px, -45px) rotate(8deg) scale(1);
+    transform: translate(var(--pet-attack-fly-x), var(--pet-attack-fly-y)) rotate(8deg) scale(1);
   }
 }
 

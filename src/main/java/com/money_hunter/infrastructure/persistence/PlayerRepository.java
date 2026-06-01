@@ -38,6 +38,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 					:query is null
 					or :query = ''
 					or lower(p.userKey) like lower(concat('%', :query, '%'))
+					or lower(coalesce(p.adminNickname, '')) like lower(concat('%', :query, '%'))
 					or lower(coalesce(p.gameProfileNickname, '')) like lower(concat('%', :query, '%'))
 				)
 			order by p.updatedAt desc

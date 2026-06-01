@@ -21,6 +21,7 @@ const state = {
   attackTimer: null,
   adAction: null,
   adTimer: null,
+  timeRewardOverflowAction: null,
   paymentAction: null,
   forceJobModal: false,
   dismissedJobModal: false,
@@ -72,6 +73,8 @@ const state = {
   petEasterEggTapCount: 0,
   petEasterEggTapStartedAt: 0,
   petEasterEggPasswordOpen: false,
+  petEasterEggSkinsHidden: localStorage.getItem("moneyHunter.hideEasterEggSkins") === "true",
+  petSkinModalSlot: 1,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
 
@@ -169,19 +172,21 @@ const attackMotionMsByJob = {
   ROGUE: 740,
 };
 
-const petAssetVersion = "20260601-01";
+const petAssetVersion = "20260601-02";
 const petSkinMeta = {
-  FIRE_FOX: { key: "FIRE_FOX", name: "해빛냥", image: `/assets/pets/pet-fire-fox.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "불꽃 발톱으로 추가 공격" },
-  ICE: { key: "ICE", name: "얼음몽", image: `/assets/pets/pet-ice.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-ice.png?v=${petAssetVersion}`, copy: "빙결 결정으로 추가 공격" },
+  FIRE_FOX: { key: "FIRE_FOX", name: "해빛냥", image: "/assets/pet-flarefox.svg", attack: "/assets/pet-flarefox-attack.svg", copy: "불꽃 발톱으로 추가 공격" },
+  ICE: { key: "ICE", name: "물방울토", image: "/assets/pet-aquabun.svg", attack: "/assets/pet-aquabun-attack.svg", copy: "물방울 탄환으로 추가 공격" },
+  FIRE_FOX_SKIN: { key: "FIRE_FOX_SKIN", name: "불꽃여우", image: `/assets/pets/pet-fire-fox.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "화염 꼬리로 추가 공격" },
+  ICE_SLIME: { key: "ICE_SLIME", name: "얼음몽", image: `/assets/pets/pet-ice.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-ice.png?v=${petAssetVersion}`, copy: "빙결 결정으로 추가 공격" },
   BIRD: { key: "BIRD", name: "번개삐오", image: `/assets/pets/pet-bird.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-bird.png?v=${petAssetVersion}`, copy: "번개 깃털로 추가 공격" },
   GREEN_TURTLE: { key: "GREEN_TURTLE", name: "초록거북", image: `/assets/pets/pet-green-tutle.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-green-tutle.png?v=${petAssetVersion}`, copy: "숲의 기운으로 추가 공격" },
   EASTER_EGG_JUNEON: { key: "EASTER_EGG_JUNEON", name: "준언", image: `/assets/pets/easter-egg-juneon.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
-  EASTER_EGG_EULGIN: { key: "EASTER_EGG_EULGIN", name: "을긴", image: `/assets/pets/easter-egg-eulgin.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
+  EASTER_EGG_EULGIN: { key: "EASTER_EGG_EULGIN", name: "을진", image: `/assets/pets/easter-egg-eulgin.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
   EASTER_EGG_GYUDONG: { key: "EASTER_EGG_GYUDONG", name: "규동", image: `/assets/pets/easter-egg-gyudong.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
   EASTER_EGG_MINGYU: { key: "EASTER_EGG_MINGYU", name: "민규", image: `/assets/pets/easter-egg-mingyu.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
   EASTER_EGG_JAESEO: { key: "EASTER_EGG_JAESEO", name: "재서", image: `/assets/pets/easter-egg-jaeseo.png?v=${petAssetVersion}`, attack: `/assets/pets/pet-skill-fire-fox.png?v=${petAssetVersion}`, copy: "숨겨진 불꽃 장난", easterEgg: true },
 };
-const petSkinOrder = ["FIRE_FOX", "ICE", "BIRD", "GREEN_TURTLE", "EASTER_EGG_JUNEON", "EASTER_EGG_EULGIN", "EASTER_EGG_GYUDONG", "EASTER_EGG_MINGYU", "EASTER_EGG_JAESEO"];
+const petSkinOrder = ["FIRE_FOX", "ICE", "FIRE_FOX_SKIN", "ICE_SLIME", "BIRD", "GREEN_TURTLE", "EASTER_EGG_JUNEON", "EASTER_EGG_EULGIN", "EASTER_EGG_GYUDONG", "EASTER_EGG_MINGYU", "EASTER_EGG_JAESEO"];
 const petMeta = [
   { key: "flare", skill: "PET_FLARE_ATTACK", defaultSkin: "FIRE_FOX", imageId: "petFlare", shopImageId: "petOneShopImage", shopNameId: "petOneShopName", shopCopyId: "petOneShopCopy", statusId: "petOneStatus" },
   { key: "aqua", skill: "PET_AQUA_ATTACK", defaultSkin: "ICE", imageId: "petAqua", shopImageId: "petTwoShopImage", shopNameId: "petTwoShopName", shopCopyId: "petTwoShopCopy", statusId: "petTwoStatus" },
@@ -1124,30 +1129,16 @@ function render() {
   renderRewardPanel(player);
   renderShopPanel(player);
   renderPets(player);
-  const autoHuntReward = timeRewardAvailability(player.autoHuntEndsAt, player.autoHuntAdSeconds, player.maxAdSeconds);
-  const boostReward = timeRewardAvailability(player.boostEndsAt, player.boostAdSeconds, player.maxAdSeconds);
   const autoHuntCooldownReady = timeRewardAdCooldownReady("AUTO_HUNT", player);
   const boostCooldownReady = timeRewardAdCooldownReady("BOOST", player);
   $("autoHuntAd").disabled = !autoHuntCooldownReady;
   $("boostAd").disabled = !boostCooldownReady;
   $("huntTime").textContent = !autoHuntCooldownReady
-    ? `${remain(nextTimeRewardAdAvailableAt("AUTO_HUNT", player))} 후`
-    : autoHuntReward.available
-    ? autoHuntReward.capped
-      ? autoHuntReward.label
-      : hunting
-      ? `${remain(player.autoHuntEndsAt)} · 추가 가능`
-      : `${rewardGateLabel()} · ${secondsLabel(player.autoHuntAdSeconds)}`
-    : autoHuntReward.label;
+    ? timeRewardCooldownLabel(player.autoHuntEndsAt, nextTimeRewardAdAvailableAt("AUTO_HUNT", player))
+    : timeRewardReadyLabel(player.autoHuntEndsAt, player.autoHuntAdSeconds);
   $("boostTime").textContent = !boostCooldownReady
-    ? `${remain(nextTimeRewardAdAvailableAt("BOOST", player))} 후`
-    : boostReward.available
-    ? boostReward.capped
-      ? boostReward.label
-      : isActive(player.boostEndsAt)
-      ? `${remain(player.boostEndsAt)} · 추가 가능`
-      : `${rewardGateLabel()} · ${secondsLabel(player.boostAdSeconds)}`
-    : boostReward.label;
+    ? timeRewardCooldownLabel(player.boostEndsAt, nextTimeRewardAdAvailableAt("BOOST", player))
+    : timeRewardReadyLabel(player.boostEndsAt, player.boostAdSeconds);
   const spAvailable = skillPointRewardsAvailable(player);
   const spCooldownReady = skillPointAdCooldownReady(player);
   $("skillAd").disabled = !spAvailable || !spCooldownReady;
@@ -1498,6 +1489,11 @@ function renderShopPanel(player) {
     $(pet.shopNameId).textContent = skin.name;
     $(pet.shopCopyId).textContent = skin.copy;
     shopCard.classList.toggle("locked", !unlocked);
+    shopCard.classList.toggle("skin-change-available", unlocked);
+    const skinButton = $(index === 0 ? "changePetOneSkin" : "changePetTwoSkin");
+    skinButton.classList.toggle("hidden", !unlocked);
+    skinButton.disabled = !unlocked;
+    skinButton.textContent = "스킨 변경";
     status.textContent = unlocked
       ? `동행 중 · ${skin.name} 공격 가능`
       : isOneStoreTarget()
@@ -1528,24 +1524,32 @@ function renderShopPanel(player) {
 
 function renderPetSkinShop(player) {
   const pets = unlockedPetCount(player);
-  const shop = $("petSkinShop");
+  const modal = $("petSkinModal");
   const list = $("petSkinList");
-  shop.classList.toggle("hidden", pets < 1);
-  if (pets < 1) {
+  if (modal.classList.contains("hidden") || pets < 1) {
     list.replaceChildren();
     return;
   }
 
+  state.petSkinModalSlot = Math.max(1, Math.min(Number(state.petSkinModalSlot || 1), pets));
+  const slot = state.petSkinModalSlot;
   const owned = ownedPetSkinKeys(player);
   const priceGold = Number(player.petSkinPriceGold || 30000);
-  const selectedBySlot = {
-    1: petSkinKeyForSlot(1, player),
-    2: petSkinKeyForSlot(2, player),
-  };
+  const selectedSkinKey = petSkinKeyForSlot(slot, player);
+  const easterEggUnlocked = hasUnlockedPetEasterEggSkins(player);
+  $("petSkinHeading").textContent = `${slot}번 펫 스킨`;
+  $("petSkinModalCopy").textContent = `${petSkinForSlot(slot, player).name}에게 적용할 스킨을 선택하세요. 기본 스킨도 언제든 다시 착용할 수 있어요.`;
+  const easterEggButton = $("unlockPetEasterEgg");
+  easterEggButton.classList.toggle("is-unlocked", easterEggUnlocked);
+  easterEggButton.textContent = easterEggUnlocked
+    ? state.petEasterEggSkinsHidden
+      ? "히든 스킨 보기"
+      : "히든 스킨 숨기기"
+    : "";
   list.replaceChildren(...petSkinOrder
     .filter((skinKey) => {
       const skin = petSkinByKey(skinKey);
-      return !skin.easterEgg || owned.has(skinKey);
+      return !skin.easterEgg || (owned.has(skinKey) && !state.petEasterEggSkinsHidden);
     })
     .map((skinKey) => {
       const skin = petSkinByKey(skinKey);
@@ -1567,7 +1571,9 @@ function renderPetSkinShop(player) {
       description.textContent = skin.copy;
       const status = document.createElement("small");
       status.textContent = ownedSkin
-        ? equippedPetSkinLabel(skinKey, selectedBySlot)
+        ? selectedSkinKey === skinKey
+          ? `${slot}번 펫 착용 중`
+          : "보유 중"
         : `${priceGold.toLocaleString("ko-KR")}G로 해금`;
       copy.append(title, description, status);
       card.appendChild(copy);
@@ -1583,20 +1589,36 @@ function renderPetSkinShop(player) {
         button.textContent = player.gold < priceGold ? "골드 부족" : `${priceGold.toLocaleString("ko-KR")}G 구매`;
         actions.appendChild(button);
       } else {
-        for (let slot = 1; slot <= pets; slot += 1) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.dataset.petSkinAction = "equip";
-          button.dataset.skinKey = skinKey;
-          button.dataset.slot = String(slot);
-          button.disabled = selectedBySlot[slot] === skinKey;
-          button.textContent = selectedBySlot[slot] === skinKey ? `${slot}번 착용 중` : `${slot}번 펫 착용`;
-          actions.appendChild(button);
-        }
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.petSkinAction = "equip";
+        button.dataset.skinKey = skinKey;
+        button.disabled = selectedSkinKey === skinKey;
+        button.textContent = selectedSkinKey === skinKey ? "착용 중" : "이 스킨 착용";
+        actions.appendChild(button);
       }
       card.appendChild(actions);
       return card;
     }));
+}
+
+function openPetSkinModal(slot) {
+  if (unlockedPetCount() < slot) {
+    setMessage("펫을 먼저 잠금 해제해주세요.");
+    return;
+  }
+  state.petSkinModalSlot = slot;
+  $("petSkinModal").classList.remove("hidden");
+  renderPetSkinShop(state.player);
+}
+
+function closePetSkinModal() {
+  $("petSkinModal").classList.add("hidden");
+}
+
+function hasUnlockedPetEasterEggSkins(player = state.player) {
+  const owned = ownedPetSkinKeys(player);
+  return petSkinOrder.some((skinKey) => petSkinByKey(skinKey).easterEgg && owned.has(skinKey));
 }
 
 function equippedPetSkinLabel(skinKey, selectedBySlot) {
@@ -1682,32 +1704,70 @@ function nextTimeRewardAdAvailableAt(type, player = state.player) {
     : player?.nextBoostAdAvailableAt;
 }
 
+function timeRewardCooldownLabel(currentEndAt, cooldownEndAt) {
+  const remaining = remainingSecondsFrom(currentEndAt);
+  const effectLabel = remaining > 0 ? remain(currentEndAt) : "꺼짐";
+  return `${effectLabel} · 쿨 ${remain(cooldownEndAt)}`;
+}
+
+function timeRewardReadyLabel(currentEndAt, rewardSeconds) {
+  return remainingSecondsFrom(currentEndAt) > 0
+    ? remain(currentEndAt)
+    : `${rewardGateLabel()} · ${secondsLabel(rewardSeconds)}`;
+}
+
 function timeRewardAvailability(currentEndAt, rewardSeconds, maxSeconds) {
   const reward = Number(rewardSeconds || 3600);
   const max = Number(maxSeconds || 14400);
   const remainingSeconds = remainingSecondsFrom(currentEndAt);
-  if (remainingSeconds >= max) {
-    return {
-      available: true,
-      label: `${remainingSeconds > 0 ? remain(currentEndAt) : "꺼짐"} · 최대`,
-      capped: true,
-      grantedSeconds: 0,
-    };
-  }
-  if (remainingSeconds + reward > max) {
-    return {
-      available: true,
-      label: `${remain(new Date(Date.now() + max * 1000).toISOString())} · 최대 충전`,
-      capped: true,
-      grantedSeconds: Math.max(0, max - remainingSeconds),
-    };
-  }
+  const grantedSeconds = Math.max(0, Math.min(reward, max - remainingSeconds));
   return {
     available: true,
-    label: "",
-    capped: false,
-    grantedSeconds: reward,
+    capped: remainingSeconds + reward > max,
+    grantedSeconds,
+    maxSeconds: max,
+    remainingSeconds,
+    rewardSeconds: reward,
   };
+}
+
+function timeRewardGrantLabel(availability, fallbackSeconds) {
+  return availability.grantedSeconds > 0
+    ? secondsLabel(availability.grantedSeconds || fallbackSeconds)
+    : "최대 시간";
+}
+
+function timeRewardOverflowBody(rewardName, availability) {
+  const remainingLabel = availability.remainingSeconds > 0
+    ? secondsLabel(availability.remainingSeconds)
+    : "0분";
+  const rewardLabel = secondsLabel(availability.rewardSeconds);
+  const maxLabel = secondsLabel(availability.maxSeconds);
+  if (availability.grantedSeconds <= 0) {
+    return `${rewardName} 시간이 이미 최대치(${maxLabel})예요. 광고를 봐도 시간이 더 늘어나지 않아요.`;
+  }
+  const grantedLabel = secondsLabel(availability.grantedSeconds);
+  return `현재 남은 시간은 ${remainingLabel}이고, 광고 보상 ${rewardLabel}을 모두 더하면 최대치(${maxLabel})를 넘어가요. 광고를 보면 ${grantedLabel}만 충전돼요.`;
+}
+
+function showTimeRewardOverflowModal(rewardName, availability, action) {
+  state.timeRewardOverflowAction = action;
+  $("timeRewardOverflowTitle").textContent = `${rewardName} 시간이 최대치를 넘어요`;
+  $("timeRewardOverflowBody").textContent = timeRewardOverflowBody(rewardName, availability);
+  $("timeRewardOverflowModal").classList.remove("hidden");
+}
+
+function closeTimeRewardOverflowModal() {
+  state.timeRewardOverflowAction = null;
+  $("timeRewardOverflowModal").classList.add("hidden");
+}
+
+function confirmTimeRewardOverflowAd() {
+  const action = state.timeRewardOverflowAction;
+  closeTimeRewardOverflowModal();
+  if (typeof action === "function") {
+    action();
+  }
 }
 
 function remainingSecondsFrom(value) {
@@ -2795,6 +2855,13 @@ async function unlockPetEasterEggSkins() {
   );
 }
 
+function togglePetEasterEggSkinsVisibility() {
+  state.petEasterEggSkinsHidden = !state.petEasterEggSkinsHidden;
+  localStorage.setItem("moneyHunter.hideEasterEggSkins", String(state.petEasterEggSkinsHidden));
+  renderPetSkinShop(state.player);
+  setMessage(state.petEasterEggSkinsHidden ? "히든 스킨 목록을 숨겼어요." : "히든 스킨 목록을 다시 표시했어요.");
+}
+
 function openPetEasterEggPasswordModal() {
   const modal = $("petEasterEggPasswordModal");
   const input = $("petEasterPasswordInput");
@@ -2825,6 +2892,10 @@ function submitPetEasterEggPassword() {
     return;
   }
   closePetEasterEggPasswordModal();
+  if (hasUnlockedPetEasterEggSkins()) {
+    togglePetEasterEggSkinsVisibility();
+    return;
+  }
   unlockPetEasterEggSkins();
 }
 
@@ -3126,6 +3197,9 @@ $("closeAdModal").addEventListener("click", () => {
   setMessage("광고를 닫았어요. 보상은 지급되지 않았어요.");
 });
 
+$("closeTimeRewardOverflowModal").addEventListener("click", closeTimeRewardOverflowModal);
+$("confirmTimeRewardOverflowAd").addEventListener("click", confirmTimeRewardOverflowAd);
+
 $("closePaymentModal").addEventListener("click", () => {
   state.paymentAction = null;
   $("paymentModal").classList.add("hidden");
@@ -3156,32 +3230,32 @@ $("autoHuntAd").addEventListener("click", () => {
     state.player?.autoHuntAdSeconds,
     state.player?.maxAdSeconds,
   );
+  const grantLabel = timeRewardGrantLabel(availability, state.player?.autoHuntAdSeconds);
+  const startAd = () => runRewardFlow(
+      "자동사냥 광고",
+      isOneStoreTarget()
+        ? `게임 내 보상으로 자동사냥 시간이 ${grantLabel}까지 충전돼요.`
+        : `완료하면 자동사냥 시간이 ${grantLabel}까지 충전돼요.`,
+      {
+        adGroupKey: "autoHunt",
+        adEventType: "AUTO_HUNT",
+        requiresReward: true,
+        request: (adSessionToken) => api(isOneStoreTarget()
+          ? "/api/player/onestore/auto-hunt/claim"
+          : "/api/player/ads/auto-hunt/complete", {
+          method: "POST",
+          body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
+        }),
+        message: availability.grantedSeconds > 0
+          ? `자동사냥 시간이 ${grantLabel} 충전됐어요.`
+          : "자동사냥 시간이 최대치로 유지돼요.",
+      }
+    );
   if (availability.capped) {
-    setMessage(availability.grantedSeconds > 0 ? "최대 누적 시간까지만 충전돼요." : "자동사냥 시간이 이미 최대치예요.");
+    showTimeRewardOverflowModal("자동사냥", availability, startAd);
+    return;
   }
-  const grantLabel = availability.grantedSeconds > 0
-    ? secondsLabel(availability.grantedSeconds || state.player?.autoHuntAdSeconds)
-    : "최대 시간";
-  runRewardFlow(
-    "자동사냥 광고",
-    isOneStoreTarget()
-      ? `게임 내 보상으로 자동사냥 시간이 ${grantLabel}까지 충전돼요.`
-      : `완료하면 자동사냥 시간이 ${grantLabel}까지 충전돼요.`,
-    {
-      adGroupKey: "autoHunt",
-      adEventType: "AUTO_HUNT",
-      requiresReward: true,
-      request: (adSessionToken) => api(isOneStoreTarget()
-        ? "/api/player/onestore/auto-hunt/claim"
-        : "/api/player/ads/auto-hunt/complete", {
-        method: "POST",
-        body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
-      }),
-      message: availability.grantedSeconds > 0
-        ? `자동사냥 시간이 ${grantLabel} 충전됐어요.`
-        : "자동사냥 시간이 최대치로 유지돼요.",
-    }
-  );
+  startAd();
 });
 
 $("boostAd").addEventListener("click", () => {
@@ -3194,32 +3268,32 @@ $("boostAd").addEventListener("click", () => {
     state.player?.boostAdSeconds,
     state.player?.maxAdSeconds,
   );
+  const grantLabel = timeRewardGrantLabel(availability, state.player?.boostAdSeconds);
+  const startAd = () => runRewardFlow(
+      "공속버프 광고",
+      isOneStoreTarget()
+        ? `게임 내 보상으로 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`
+        : `완료하면 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`,
+      {
+        adGroupKey: "boost",
+        adEventType: "BOOST",
+        requiresReward: true,
+        request: (adSessionToken) => api(isOneStoreTarget()
+          ? "/api/player/onestore/boost/claim"
+          : "/api/player/ads/boost/complete", {
+          method: "POST",
+          body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
+        }),
+        message: availability.grantedSeconds > 0
+          ? `공격 속도 부스터가 ${grantLabel} 충전됐어요.`
+          : "공격 속도 부스터 시간이 최대치로 유지돼요.",
+      }
+    );
   if (availability.capped) {
-    setMessage(availability.grantedSeconds > 0 ? "최대 누적 시간까지만 충전돼요." : "공속버프 시간이 이미 최대치예요.");
+    showTimeRewardOverflowModal("공속버프", availability, startAd);
+    return;
   }
-  const grantLabel = availability.grantedSeconds > 0
-    ? secondsLabel(availability.grantedSeconds || state.player?.boostAdSeconds)
-    : "최대 시간";
-  runRewardFlow(
-    "공속버프 광고",
-    isOneStoreTarget()
-      ? `게임 내 보상으로 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`
-      : `완료하면 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`,
-    {
-      adGroupKey: "boost",
-      adEventType: "BOOST",
-      requiresReward: true,
-      request: (adSessionToken) => api(isOneStoreTarget()
-        ? "/api/player/onestore/boost/claim"
-        : "/api/player/ads/boost/complete", {
-        method: "POST",
-        body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
-      }),
-      message: availability.grantedSeconds > 0
-        ? `공격 속도 부스터가 ${grantLabel} 충전됐어요.`
-        : "공격 속도 부스터 시간이 최대치로 유지돼요.",
-    }
-  );
+  startAd();
 });
 
 $("skillAd").addEventListener("click", () => {
@@ -3302,11 +3376,24 @@ $("petSkinList").addEventListener("click", (event) => {
     purchasePetSkin(skinKey);
     return;
   }
-  equipPetSkin(skinKey, Number(button.dataset.slot || 1));
+  equipPetSkin(skinKey, Number(state.petSkinModalSlot || 1));
+});
+
+$("changePetOneSkin").addEventListener("click", () => openPetSkinModal(1));
+$("changePetTwoSkin").addEventListener("click", () => openPetSkinModal(2));
+$("closePetSkinModal").addEventListener("click", closePetSkinModal);
+$("petSkinModal").addEventListener("click", (event) => {
+  if (event.target.id === "petSkinModal") {
+    closePetSkinModal();
+  }
 });
 
 $("unlockPetEasterEgg").addEventListener("click", () => {
   if (unlockedPetCount() < 1) {
+    return;
+  }
+  if (hasUnlockedPetEasterEggSkins()) {
+    togglePetEasterEggSkinsVisibility();
     return;
   }
   const now = Date.now();

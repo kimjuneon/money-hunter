@@ -1,6 +1,7 @@
 package com.money_hunter.application.dto.response;
 
 import java.time.Instant;
+import java.util.Set;
 
 import com.money_hunter.domain.JobType;
 import com.money_hunter.domain.Player;
@@ -8,7 +9,9 @@ import com.money_hunter.domain.Player;
 public record AdminPlayerResponse(
 		String userKey,
 		String gameProfileNickname,
+		String adminNickname,
 		boolean adminFavorite,
+		boolean hiddenPetSkinsUnlocked,
 		JobType job,
 		boolean onboardingRequired,
 		long gold,
@@ -35,11 +38,21 @@ public record AdminPlayerResponse(
 		Instant createdAt,
 		Instant updatedAt
 ) {
+	private static final Set<String> EASTER_EGG_PET_SKINS = Set.of(
+			"EASTER_EGG_JUNEON",
+			"EASTER_EGG_EULGIN",
+			"EASTER_EGG_GYUDONG",
+			"EASTER_EGG_MINGYU",
+			"EASTER_EGG_JAESEO"
+	);
+
 	public static AdminPlayerResponse from(Player player) {
 		return new AdminPlayerResponse(
 				player.getUserKey(),
 				player.getGameProfileNickname(),
+				player.getAdminNickname(),
 				player.isAdminFavorite(),
+				hasHiddenPetSkinsUnlocked(player),
 				player.getJob(),
 				!player.hasChosenJob(),
 				player.getGold(),
@@ -65,5 +78,9 @@ public record AdminPlayerResponse(
 				player.getSuspensionReason(),
 				player.getCreatedAt(),
 				player.getUpdatedAt());
+	}
+
+	private static boolean hasHiddenPetSkinsUnlocked(Player player) {
+		return player.ownedPetSkinKeyList().stream().anyMatch(EASTER_EGG_PET_SKINS::contains);
 	}
 }

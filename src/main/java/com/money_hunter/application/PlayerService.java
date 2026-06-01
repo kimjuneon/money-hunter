@@ -74,6 +74,8 @@ public class PlayerService {
 	private static final Set<String> PET_SKIN_KEYS = Set.of(
 			"FIRE_FOX",
 			"ICE",
+			"FIRE_FOX_SKIN",
+			"ICE_SLIME",
 			"BIRD",
 			"GREEN_TURTLE",
 			"EASTER_EGG_JUNEON",

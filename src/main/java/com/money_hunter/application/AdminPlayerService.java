@@ -58,6 +58,11 @@ public class AdminPlayerService {
 				.toList();
 	}
 
+	@Transactional(readOnly = true)
+	public AdminPlayerResponse get(String userKey) {
+		return AdminPlayerResponse.from(player(userKey));
+	}
+
 	@Transactional
 	public AdminPlayerResponse suspend(String userKey, String reason) {
 		Player player = player(userKey);
@@ -80,6 +85,14 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		player.setAdminFavorite(favorite);
 		log.info("관리자 유저 즐겨찾기 변경: userKey={}, favorite={}", mask(userKey), favorite);
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
+	public AdminPlayerResponse updateAdminNickname(String userKey, String nickname) {
+		Player player = player(userKey);
+		player.updateAdminNickname(nickname);
+		log.info("관리자 유저 별명 변경: userKey={}, nickname={}", mask(userKey), truncate(player.getAdminNickname(), 80));
 		return AdminPlayerResponse.from(player);
 	}
 

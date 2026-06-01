@@ -830,7 +830,9 @@ function renderSelectedPlayerDetail() {
   const displayName = playerDisplayName(player);
   const basicDetails = [
     ["유저 식별 ID", player.userKey],
+    ["관리자 별명", player.adminNickname || "미설정"],
     ["게임 프로필", player.gameProfileNickname || "미동기화"],
+    ["히든 스킨", player.hiddenPetSkinsUnlocked ? "해금" : "미해금"],
     ["골드", `${formatNumber(player.gold)}G`],
     ["누적 골드", `${formatNumber(player.cumulativeGoldEarned || player.gold)}G`],
     ["SP", formatNumber(player.skillPoints)],
@@ -881,6 +883,13 @@ function renderSelectedPlayerDetail() {
       ${extraDetails.map(([label, value]) => kv(label, value)).join("")}
     </div>
     ${player.suspended ? `<p class="note danger-note">정지 사유: ${escapeHtml(player.suspensionReason || "-")}</p>` : ""}
+    <div class="admin-nickname-panel">
+      <label>
+        <span>관리자 별명</span>
+        <input id="adminNicknameInput" type="text" maxlength="80" value="${escapeHtml(player.adminNickname || "")}" placeholder="관리자 화면에서만 보이는 별명" />
+      </label>
+      <button class="secondary" type="button" data-player-admin-nickname data-user-key="${escapeHtml(player.userKey)}">별명 저장</button>
+    </div>
     <div class="action-panel">
       <label>
         <span>운영 메모(선택)</span>
@@ -931,6 +940,9 @@ function renderSelectedPlayerDetail() {
   document.querySelectorAll("#playerDetail [data-player-favorite]").forEach((button) => {
     button.addEventListener("click", () => togglePlayerFavorite(button));
   });
+  document.querySelectorAll("#playerDetail [data-player-admin-nickname]").forEach((button) => {
+    button.addEventListener("click", () => savePlayerAdminNickname(button));
+  });
   document.querySelectorAll("#playerDetail [data-player-cs]").forEach((button) => {
     button.addEventListener("click", () => runPlayerCsAction(button));
   });
@@ -946,9 +958,10 @@ function kv(label, value) {
 }
 
 function playerDisplayName(player) {
+  const adminNickname = player?.adminNickname?.trim();
   const nickname = player?.gameProfileNickname?.trim();
   const userKey = player?.userKey || "-";
-  return `${nickname || "프로필 미설정"}(${userKey})`;
+  return `${adminNickname || nickname || "프로필 미설정"}(${userKey})`;
 }
 
 function updatePlayerInState(updatedPlayer) {
@@ -978,6 +991,31 @@ async function togglePlayerFavorite(button) {
     if ($("playerFavoritesOnly").checked && !favorite) {
       await loadPlayers();
     }
+  } catch (error) {
+    $("playerResult").textContent = error.message;
+    $("playerResult").classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function savePlayerAdminNickname(button) {
+  const userKey = button.dataset.userKey;
+  const nickname = $("adminNicknameInput")?.value?.trim() || "";
+  const reason = $("playerActionReason")?.value?.trim() || "";
+  setButtonBusy(button, true);
+  $("playerResult").textContent = "";
+  $("playerResult").classList.remove("error-text");
+  try {
+    const updatedPlayer = await request(`/api/admin/players/${encodeURIComponent(userKey)}/admin-nickname`, {
+      method: "POST",
+      body: { nickname, reason },
+    });
+    updatePlayerInState(updatedPlayer);
+    const message = nickname ? "관리자 별명을 저장했어요." : "관리자 별명을 비웠어요.";
+    $("playerResult").textContent = message;
+    showToast(message);
   } catch (error) {
     $("playerResult").textContent = error.message;
     $("playerResult").classList.add("error-text");

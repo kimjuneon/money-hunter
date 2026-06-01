@@ -17,6 +17,7 @@ import com.money_hunter.domain.AdminAuditLog;
 import com.money_hunter.presentation.dto.request.AdminAnomalyActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerFavoriteRequest;
+import com.money_hunter.presentation.dto.request.AdminPlayerNicknameRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerPetActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerResourceAdjustRequest;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
@@ -205,6 +206,26 @@ public class AdminController {
 				player.userKey(),
 				null,
 				String.valueOf(player.adminFavorite()),
+				optionalReason(requestBody.reason()),
+				request);
+		return player;
+	}
+
+	@PostMapping("/players/{userKey}/admin-nickname")
+	public AdminPlayerResponse updatePlayerAdminNickname(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminPlayerNicknameRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse before = adminPlayerService.get(userKey);
+		AdminPlayerResponse player = adminPlayerService.updateAdminNickname(userKey, requestBody.nickname());
+		adminAuditService.record(
+				admin,
+				"USER_ADMIN_NICKNAME",
+				player.userKey(),
+				before.adminNickname(),
+				player.adminNickname(),
 				optionalReason(requestBody.reason()),
 				request);
 		return player;

@@ -41,8 +41,8 @@
           </div>
 
           <div id="petParty" class="pet-party" aria-hidden="true">
-            <img id="petFlare" class="pet-sprite pet-flare hidden" src="/assets/pets/pet-fire-fox.png?v=20260601-01" alt="" />
-            <img id="petAqua" class="pet-sprite pet-aqua hidden" src="/assets/pets/pet-ice.png?v=20260601-01" alt="" />
+            <img id="petFlare" class="pet-sprite pet-flare hidden" src="/assets/pet-flarefox.svg" alt="" />
+            <img id="petAqua" class="pet-sprite pet-aqua hidden" src="/assets/pet-aquabun.svg" alt="" />
           </div>
 
           <div class="monster-wrap" aria-hidden="true">
@@ -234,32 +234,27 @@
           </div>
           <div class="pet-shop-list">
             <article id="petOneShop" class="shop-item pet-shop-item">
-              <img id="petOneShopImage" class="shop-pet-image" src="/assets/pets/pet-fire-fox.png?v=20260601-01" alt="" />
+              <img id="petOneShopImage" class="shop-pet-image" src="/assets/pet-flarefox.svg" alt="" />
               <div class="shop-copy">
                 <strong id="petOneShopName">해빛냥</strong>
                 <p id="petOneShopCopy">불꽃 발톱으로 추가 공격</p>
                 <small id="petOneStatus">잠김 · 첫 번째 동료 펫</small>
               </div>
+              <button id="changePetOneSkin" class="pet-skin-change-button hidden" type="button">스킨 변경</button>
             </article>
             <article id="petTwoShop" class="shop-item pet-shop-item locked">
-              <img id="petTwoShopImage" class="shop-pet-image" src="/assets/pets/pet-ice.png?v=20260601-01" alt="" />
+              <img id="petTwoShopImage" class="shop-pet-image" src="/assets/pet-aquabun.svg" alt="" />
               <div class="shop-copy">
-                <strong id="petTwoShopName">얼음몽</strong>
-                <p id="petTwoShopCopy">빙결 결정으로 추가 공격</p>
+                <strong id="petTwoShopName">물방울토</strong>
+                <p id="petTwoShopCopy">물방울 탄환으로 추가 공격</p>
                 <small id="petTwoStatus">잠김 · 두 번째 동료 펫</small>
               </div>
+              <button id="changePetTwoSkin" class="pet-skin-change-button hidden" type="button">스킨 변경</button>
             </article>
           </div>
           <button id="buyCompanion" class="buy-pet-button shop-buy-button" type="button">
             <span>동료 펫 구매 · ₩4,900</span>
           </button>
-          <section id="petSkinShop" class="pet-skin-shop hidden" aria-label="펫 스킨">
-            <div class="pet-skin-heading">
-              <strong id="petSkinHeading">펫 스킨</strong>
-              <button id="unlockPetEasterEgg" class="pet-skin-secret-button" type="button" aria-label="숨겨진 펫 스킨 확인"></button>
-            </div>
-            <div id="petSkinList" class="pet-skin-list"></div>
-          </section>
           <article class="shop-item skill-point-shop-item">
             <div class="skill-point-shop-icon" aria-hidden="true"></div>
             <div class="shop-copy">
@@ -359,6 +354,16 @@
         </div>
       </section>
 
+      <section id="timeRewardOverflowModal" class="time-reward-overflow-modal hidden" role="dialog" aria-modal="true" aria-labelledby="timeRewardOverflowTitle">
+        <div class="time-reward-overflow-card">
+          <button id="closeTimeRewardOverflowModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <p class="modal-kicker">TIME LIMIT</p>
+          <h2 id="timeRewardOverflowTitle">시간이 최대치를 넘어요</h2>
+          <p id="timeRewardOverflowBody">광고를 보면 최대 누적 시간까지만 충전돼요.</p>
+          <button id="confirmTimeRewardOverflowAd" class="time-reward-overflow-primary" type="button">광고 보기</button>
+        </div>
+      </section>
+
       <section id="paymentModal" class="ad-modal hidden" role="dialog" aria-modal="true" aria-labelledby="paymentTitle">
         <div class="ad-card">
           <button id="closePaymentModal" class="modal-close" type="button" aria-label="닫기">×</button>
@@ -440,6 +445,22 @@
             <button id="cancelPetEasterEggPassword" class="pet-easter-secondary" type="button">닫기</button>
             <button id="confirmPetEasterEggPassword" class="pet-easter-primary" type="button">해금</button>
           </div>
+        </div>
+      </section>
+
+      <section id="petSkinModal" class="pet-skin-modal hidden" role="dialog" aria-modal="true" aria-labelledby="petSkinModalTitle">
+        <div class="pet-skin-modal-card">
+          <div class="pet-skin-modal-header">
+            <button id="closePetSkinModal" class="modal-close" type="button" aria-label="닫기">×</button>
+            <p class="modal-kicker">PET SKIN</p>
+            <h2 id="petSkinModalTitle">펫 스킨 변경</h2>
+            <p id="petSkinModalCopy">보유한 스킨을 골라 현재 펫의 외형을 바꿀 수 있어요.</p>
+            <div class="pet-skin-heading">
+              <strong id="petSkinHeading">1번 펫 스킨</strong>
+              <button id="unlockPetEasterEgg" class="pet-skin-secret-button" type="button" aria-label="숨겨진 펫 스킨 확인"></button>
+            </div>
+          </div>
+          <div id="petSkinList" class="pet-skin-list"></div>
         </div>
       </section>
 
