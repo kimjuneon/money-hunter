@@ -173,8 +173,8 @@ public class PlayerService {
 	@Transactional
 	public PlayerStateResponse getState(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
-		settle(player);
-		publishAutoHuntEndNotificationIfDue(player, clock.instant());
+		long settledGold = settle(player);
+		publishAutoHuntEndNotificationIfDue(player, clock.instant(), settledGold);
 		return toState(player);
 	}
 
@@ -308,8 +308,8 @@ public class PlayerService {
 	public PlayerStateResponse hitMonster(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
-		settle(player);
-		publishAutoHuntEndNotificationIfDue(player, clock.instant());
+		long settledGold = settle(player);
+		publishAutoHuntEndNotificationIfDue(player, clock.instant(), settledGold);
 		return toState(player);
 	}
 
@@ -717,8 +717,8 @@ public class PlayerService {
 		Instant now = clock.instant();
 		player.setAutoHuntEndsAt(now.minusMillis(1));
 		player.clearAutoHuntEndNotification();
-		settle(player);
-		publishAutoHuntEndNotificationIfDue(player, now);
+		long settledGold = settle(player);
+		publishAutoHuntEndNotificationIfDue(player, now, settledGold);
 		return toState(player);
 	}
 
@@ -738,8 +738,8 @@ public class PlayerService {
 		Instant retryBefore = now.minus(AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY);
 		List<Player> players = playerRepository.findAutoHuntEndedNotificationTargets(now, retryBefore);
 		players.forEach(player -> {
-			settle(player);
-			publishAutoHuntEndNotificationIfDue(player, now);
+			long settledGold = settle(player);
+			publishAutoHuntEndNotificationIfDue(player, now, settledGold);
 		});
 		if (!players.isEmpty()) {
 			log.info("자동사냥 종료 알림 스케줄러 처리: targetCount={}", players.size());
@@ -822,23 +822,29 @@ public class PlayerService {
 		}
 	}
 
-	private void settle(Player player) {
+	private long settle(Player player) {
 		Instant now = clock.instant();
 		Instant huntEnd = player.getAutoHuntEndsAt();
 		if (huntEnd == null || !huntEnd.isAfter(player.getLastSettledAt())) {
 			player.setLastSettledAt(now);
-			return;
+			return 0;
 		}
 
 		Instant settlementEnd = min(now, huntEnd);
 		if (!settlementEnd.isAfter(player.getLastSettledAt())) {
-			return;
+			return 0;
 		}
 
+		long goldBefore = player.getGold();
 		resolveAutoCombat(player, settlementEnd);
+		long settledGold = Math.max(0, player.getGold() - goldBefore);
+		if (!huntEnd.isAfter(now) && settlementEnd.equals(huntEnd) && player.getAutoHuntEndNotifiedAt() == null) {
+			player.addAutoHuntEndSettledGold(settledGold);
+		}
 		if (!huntEnd.isAfter(now) && player.getLastSettledAt().isBefore(settlementEnd)) {
 			player.setLastSettledAt(settlementEnd);
 		}
+		return settledGold;
 	}
 
 	private void resolveAutoCombat(Player player, Instant settlementEnd) {
@@ -1147,11 +1153,12 @@ public class PlayerService {
 						notification.getType().name(),
 						notification.getTitle(),
 						notification.getBody(),
-						notification.getSentAt()))
+						notification.getSentAt(),
+						notification.getSettledGold()))
 				.orElse(null);
 	}
 
-	private void publishAutoHuntEndNotificationIfDue(Player player, Instant now) {
+	private void publishAutoHuntEndNotificationIfDue(Player player, Instant now, long settledGold) {
 		Instant autoHuntEndsAt = player.getAutoHuntEndsAt();
 		if (autoHuntEndsAt == null || autoHuntEndsAt.isAfter(now) || player.getAutoHuntEndNotifiedAt() != null) {
 			return;
@@ -1166,12 +1173,22 @@ public class PlayerService {
 					NotificationType.AUTO_HUNT_ENDED,
 					"자동사냥이 종료됐어요",
 					"광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.",
-					now));
-			log.info("자동사냥 종료 인앱 알림 생성: userKey={}, endedAt={}", mask(player.getUserKey()), autoHuntEndsAt);
+					now,
+					autoHuntEndSettledGold(player, settledGold)));
+			log.info(
+					"자동사냥 종료 인앱 알림 생성: userKey={}, endedAt={}, settledGold={}",
+					mask(player.getUserKey()),
+					autoHuntEndsAt,
+					autoHuntEndSettledGold(player, settledGold));
 		}
 		if (sendAutoHuntEndedSmartMessage(player, now)) {
 			player.markAutoHuntEndNotified(now);
 		}
+	}
+
+	private long autoHuntEndSettledGold(Player player, long settledGold) {
+		Long savedSettledGold = player.getAutoHuntEndSettledGold();
+		return Math.max(0, Math.max(settledGold, savedSettledGold == null ? 0 : savedSettledGold));
 	}
 
 	private boolean sendAutoHuntEndedSmartMessage(Player player, Instant now) {

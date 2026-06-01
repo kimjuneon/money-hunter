@@ -38,6 +38,8 @@ public class NotificationEvent {
 	@Column(nullable = false)
 	private Instant sentAt;
 
+	private Long settledGold;
+
 	private Instant readAt;
 
 	@Column(nullable = false)
@@ -47,11 +49,16 @@ public class NotificationEvent {
 	}
 
 	public NotificationEvent(Player player, NotificationType type, String title, String body, Instant sentAt) {
+		this(player, type, title, body, sentAt, null);
+	}
+
+	public NotificationEvent(Player player, NotificationType type, String title, String body, Instant sentAt, Long settledGold) {
 		this.player = player;
 		this.type = type;
 		this.title = title;
 		this.body = body;
 		this.sentAt = sentAt;
+		this.settledGold = settledGold;
 		this.createdAt = sentAt;
 	}
 
@@ -73,6 +80,10 @@ public class NotificationEvent {
 
 	public Instant getSentAt() {
 		return sentAt;
+	}
+
+	public Long getSettledGold() {
+		return settledGold;
 	}
 
 	public Instant getReadAt() {

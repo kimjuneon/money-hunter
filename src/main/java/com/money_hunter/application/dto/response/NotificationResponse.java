@@ -7,6 +7,7 @@ public record NotificationResponse(
 		String type,
 		String title,
 		String body,
-		Instant sentAt
+		Instant sentAt,
+		Long settledGold
 ) {
 }

@@ -81,6 +81,8 @@ public class Player {
 
 	private Instant autoHuntEndSmartMessageAttemptedAt;
 
+	private Long autoHuntEndSettledGold;
+
 	private Instant boostEndsAt;
 
 	private Instant lastAutoHuntAdClaimedAt;
@@ -351,6 +353,7 @@ public class Player {
     public void clearAutoHuntEndNotification() {
 		this.autoHuntEndNotifiedAt = null;
 		this.autoHuntEndSmartMessageAttemptedAt = null;
+		this.autoHuntEndSettledGold = null;
 		touch();
 	}
 
@@ -361,6 +364,15 @@ public class Player {
 
 	public void markAutoHuntEndSmartMessageAttempted(Instant attemptedAt) {
 		this.autoHuntEndSmartMessageAttemptedAt = attemptedAt;
+		touch();
+	}
+
+	public void addAutoHuntEndSettledGold(long settledGold) {
+		if (settledGold < 1) {
+			return;
+		}
+		this.autoHuntEndSettledGold = Math.max(0, this.autoHuntEndSettledGold == null ? 0 : this.autoHuntEndSettledGold)
+				+ settledGold;
 		touch();
 	}
 
@@ -522,6 +534,7 @@ public class Player {
 		this.autoHuntEndsAt = null;
 		this.autoHuntEndNotifiedAt = null;
 		this.autoHuntEndSmartMessageAttemptedAt = null;
+		this.autoHuntEndSettledGold = null;
 		this.boostEndsAt = null;
 		this.lastAutoHuntAdClaimedAt = null;
 		this.lastBoostAdClaimedAt = null;

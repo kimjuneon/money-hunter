@@ -61,7 +61,9 @@ class AutoHuntSmartMessageRetryTest {
 		playerService.chooseJob(USER_KEY, JobType.WARRIOR);
 		transactionTemplate.executeWithoutResult(status -> {
 			var player = playerRepository.findByUserKey(USER_KEY).orElseThrow();
-			player.setAutoHuntEndsAt(Instant.now().minusSeconds(60));
+			Instant autoHuntEndsAt = Instant.now().minusSeconds(60);
+			player.setLastSettledAt(autoHuntEndsAt.minusSeconds(300));
+			player.setAutoHuntEndsAt(autoHuntEndsAt);
 			player.clearAutoHuntEndNotification();
 		});
 
@@ -72,7 +74,9 @@ class AutoHuntSmartMessageRetryTest {
 		var failedPlayer = playerRepository.findByUserKey(USER_KEY).orElseThrow();
 		assertThat(failedPlayer.getAutoHuntEndNotifiedAt()).isNull();
 		assertThat(failedPlayer.getAutoHuntEndSmartMessageAttemptedAt()).isNotNull();
-		assertThat(notificationEventRepository.findByPlayerAndTypeAndReadAtIsNull(failedPlayer, NotificationType.AUTO_HUNT_ENDED)).hasSize(1);
+		var failedNotifications = notificationEventRepository.findByPlayerAndTypeAndReadAtIsNull(failedPlayer, NotificationType.AUTO_HUNT_ENDED);
+		assertThat(failedNotifications).hasSize(1);
+		assertThat(failedNotifications.get(0).getSettledGold()).isPositive();
 
 		assertThat(playerService.publishAutoHuntEndNotifications()).isZero();
 		assertThat(smartMessageClient.attempts()).isEqualTo(1);
