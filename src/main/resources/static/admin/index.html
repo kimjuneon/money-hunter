@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260531-03" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260601-01" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -99,6 +99,20 @@
                 <option value="NEEDS_JOB">직업 미선택</option>
                 <option value="FEATURE_TUTORIAL_DONE">튜토리얼 완료</option>
               </select>
+              <select id="playerSortPreset" aria-label="정렬 기준">
+                <option value="updatedAt:desc">최근 수정순</option>
+                <option value="createdAt:desc">신규 가입순</option>
+                <option value="createdAt:asc">오래된 가입순</option>
+                <option value="favorite:desc,updatedAt:desc">즐겨찾기 우선</option>
+                <option value="cumulativeGoldEarned:desc">누적 골드 높은순</option>
+                <option value="gold:desc">보유 골드 높은순</option>
+                <option value="level:desc,experience:desc">레벨 높은순</option>
+                <option value="skillPoints:desc">SP 많은순</option>
+                <option value="defeatedMonsters:desc">처치 몬스터순</option>
+                <option value="autoHuntEndsAt:asc">자동사냥 종료 임박순</option>
+                <option value="boostEndsAt:asc">공속버프 종료 임박순</option>
+                <option value="gameProfileUpdatedAt:desc">프로필 최근 갱신순</option>
+              </select>
               <label class="favorite-filter">
                 <input id="playerFavoritesOnly" type="checkbox" />
                 <span>즐겨찾기</span>
@@ -165,6 +179,6 @@
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260531-03"></script>
+    <script src="/admin/app.js?v=20260601-01"></script>
   </body>
 </html>

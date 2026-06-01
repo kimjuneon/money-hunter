@@ -14,6 +14,7 @@ import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -51,9 +52,9 @@ public class AdminPlayerService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<AdminPlayerResponse> search(String query, int limit, boolean favoritesOnly, boolean hiddenSkinsOnly) {
+	public List<AdminPlayerResponse> search(String query, int limit, boolean favoritesOnly, boolean hiddenSkinsOnly, String sort) {
 		int safeLimit = Math.max(1, Math.min(limit, MAX_SEARCH_LIMIT));
-		return playerRepository.searchPlayers(normalize(query), favoritesOnly, hiddenSkinsOnly, PageRequest.of(0, safeLimit)).stream()
+		return playerRepository.searchPlayers(normalize(query), favoritesOnly, hiddenSkinsOnly, PageRequest.of(0, safeLimit, playerSort(sort))).stream()
 				.map(AdminPlayerResponse::from)
 				.toList();
 	}
@@ -195,6 +196,63 @@ public class AdminPlayerService {
 			return "";
 		}
 		return query.trim();
+	}
+
+	private Sort playerSort(String rawSort) {
+		List<Sort.Order> orders = new java.util.ArrayList<>();
+		for (String token : normalize(rawSort).split(",")) {
+			sortOrder(token).ifPresent(orders::add);
+			if (orders.size() >= 4) {
+				break;
+			}
+		}
+		if (orders.isEmpty()) {
+			orders.add(Sort.Order.desc("updatedAt"));
+		}
+		boolean hasUpdatedAt = orders.stream().anyMatch(order -> order.getProperty().equals("updatedAt"));
+		boolean hasUserKey = orders.stream().anyMatch(order -> order.getProperty().equals("userKey"));
+		if (!hasUpdatedAt) {
+			orders.add(Sort.Order.desc("updatedAt"));
+		}
+		if (!hasUserKey) {
+			orders.add(Sort.Order.asc("userKey"));
+		}
+		return Sort.by(orders);
+	}
+
+	private java.util.Optional<Sort.Order> sortOrder(String token) {
+		String normalized = normalize(token);
+		if (normalized.isBlank()) {
+			return java.util.Optional.empty();
+		}
+		String[] parts = normalized.split(":", 2);
+		String property = sortProperty(parts[0]);
+		if (property.isBlank()) {
+			return java.util.Optional.empty();
+		}
+		Sort.Direction direction = parts.length > 1 && parts[1].equalsIgnoreCase("asc")
+				? Sort.Direction.ASC
+				: Sort.Direction.DESC;
+		return java.util.Optional.of(new Sort.Order(direction, property));
+	}
+
+	private String sortProperty(String field) {
+		return switch (normalize(field).toLowerCase(java.util.Locale.ROOT)) {
+			case "favorite", "adminfavorite" -> "adminFavorite";
+			case "updated", "updatedat" -> "updatedAt";
+			case "created", "createdat" -> "createdAt";
+			case "score", "cumulativegold", "cumulativegoldearned" -> "cumulativeGoldEarned";
+			case "gold" -> "gold";
+			case "level" -> "level";
+			case "experience", "exp" -> "experience";
+			case "skillpoint", "skillpoints", "sp" -> "skillPoints";
+			case "defeated", "defeatedmonsters" -> "defeatedMonsters";
+			case "autohunt", "autohuntendsat" -> "autoHuntEndsAt";
+			case "boost", "boostendsat" -> "boostEndsAt";
+			case "profile", "gameprofileupdatedat" -> "gameProfileUpdatedAt";
+			case "userkey" -> "userKey";
+			default -> "";
+		};
 	}
 
 	private boolean isSetMode(String mode) {

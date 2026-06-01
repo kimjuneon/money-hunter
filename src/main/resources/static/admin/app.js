@@ -42,6 +42,7 @@ function bindEvents() {
   });
   $("playerFilterStatus").addEventListener("change", renderPlayers);
   $("playerFilterProgress").addEventListener("change", renderPlayers);
+  $("playerSortPreset").addEventListener("change", loadPlayers);
   $("playerFavoritesOnly").addEventListener("change", loadPlayers);
   $("playerHiddenSkinsOnly").addEventListener("change", loadPlayers);
   $("playerFilterClearButton").addEventListener("click", clearPlayerFilters);
@@ -709,7 +710,14 @@ async function loadPlayers() {
   const query = $("playerSearchInput").value.trim();
   const favoritesOnly = $("playerFavoritesOnly").checked;
   const hiddenSkinsOnly = $("playerHiddenSkinsOnly").checked;
-  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=100&favoritesOnly=${favoritesOnly}&hiddenSkinsOnly=${hiddenSkinsOnly}`);
+  const params = new URLSearchParams({
+    query,
+    limit: "100",
+    favoritesOnly: String(favoritesOnly),
+    hiddenSkinsOnly: String(hiddenSkinsOnly),
+    sort: $("playerSortPreset").value,
+  });
+  const players = await request(`/api/admin/players?${params}`);
   state.players = players;
   if (!players.some((player) => player.userKey === state.selectedUserKey)) {
     state.selectedUserKey = players[0]?.userKey || "";
@@ -722,6 +730,7 @@ function clearPlayerFilters() {
   $("playerSearchInput").value = "";
   $("playerFilterStatus").value = "ALL";
   $("playerFilterProgress").value = "ALL";
+  $("playerSortPreset").value = "updatedAt:desc";
   $("playerFavoritesOnly").checked = false;
   $("playerHiddenSkinsOnly").checked = false;
   state.selectedUserKey = "";

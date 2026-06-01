@@ -91,6 +91,9 @@ const state = {
   pendingIapRestoreInFlight: false,
   pendingIapProductIdsByOrderId: readPendingIapProductIds(),
   shareRewardInFlight: false,
+  leaderboardEntrySubmitTimer: null,
+  leaderboardSubmitInFlight: false,
+  lastLeaderboardScoreSubmitted: null,
   loginInFlight: false,
   petEasterEggTapCount: 0,
   petEasterEggTapStartedAt: 0,
@@ -422,6 +425,10 @@ function normalizedDistributionTarget(value) {
 
 function isOneStoreTarget() {
   return state.distributionTarget === "ONESTORE";
+}
+
+function isTossMiniRuntime() {
+  return window.location.hostname.endsWith("tossmini.com") || Boolean(window.MoneyHunterTossSdk);
 }
 
 function rewardGateLabel() {
@@ -799,6 +806,7 @@ async function refresh() {
     state.selectedJob = state.player.job;
   }
   render();
+  scheduleLeaderboardEntryScoreSubmit();
 }
 
 function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
@@ -2576,17 +2584,64 @@ function gameProfileNickname(player = state.player) {
   return String(player?.gameProfileNickname || "").trim();
 }
 
-async function submitLeaderboardScore() {
-  if (!shouldUseGameCenter()) {
+function canSubmitLeaderboardScore() {
+  return shouldUseGameCenter() && Boolean(state.player?.job) && !state.player?.onboardingRequired;
+}
+
+function canAutoSubmitLeaderboardScore() {
+  return canSubmitLeaderboardScore() && isTossMiniRuntime();
+}
+
+function cancelScheduledLeaderboardScoreSubmit() {
+  window.clearTimeout(state.leaderboardEntrySubmitTimer);
+  state.leaderboardEntrySubmitTimer = null;
+}
+
+function scheduleLeaderboardEntryScoreSubmit(delayMs = 2000) {
+  if (!canAutoSubmitLeaderboardScore()) {
     return;
   }
-  const sdk = await loadTossSdk();
-  const submit = sdk.submitGameCenterLeaderBoardScore || sdk.submitGameCenterLeaderboardScore;
-  if (typeof submit !== "function") {
+  const score = leaderboardGoldScore(state.player);
+  if (state.lastLeaderboardScoreSubmitted !== null && score <= state.lastLeaderboardScoreSubmitted) {
     return;
   }
-  const score = String(leaderboardGoldScore(state.player));
-  return submit({ score });
+  cancelScheduledLeaderboardScoreSubmit();
+  state.leaderboardEntrySubmitTimer = window.setTimeout(() => {
+    state.leaderboardEntrySubmitTimer = null;
+    submitLeaderboardScore({ silent: true }).catch(() => {});
+  }, delayMs);
+}
+
+async function submitLeaderboardScore({ silent = false, force = false } = {}) {
+  if (!canSubmitLeaderboardScore()) {
+    return;
+  }
+  const scoreValue = leaderboardGoldScore(state.player);
+  if (!force && state.lastLeaderboardScoreSubmitted !== null && scoreValue <= state.lastLeaderboardScoreSubmitted) {
+    return;
+  }
+  if (state.leaderboardSubmitInFlight) {
+    return;
+  }
+  state.leaderboardSubmitInFlight = true;
+  try {
+    const sdk = await loadTossSdk();
+    const submit = sdk.submitGameCenterLeaderBoardScore || sdk.submitGameCenterLeaderboardScore;
+    if (typeof submit !== "function") {
+      return;
+    }
+    const result = await submit({ score: String(scoreValue) });
+    if (result?.statusCode === "SUCCESS") {
+      state.lastLeaderboardScoreSubmitted = scoreValue;
+    }
+    return result;
+  } catch (error) {
+    if (!silent) {
+      throw error;
+    }
+  } finally {
+    state.leaderboardSubmitInFlight = false;
+  }
 }
 
 function leaderboardGoldScore(player = state.player) {
@@ -2603,7 +2658,8 @@ async function openGameLeaderboard() {
     setMessage("현재 토스 앱에서 랭킹을 열 수 없어요.");
     return;
   }
-  const submitResult = await submitLeaderboardScore();
+  cancelScheduledLeaderboardScoreSubmit();
+  const submitResult = await submitLeaderboardScore({ force: true });
   if (submitResult?.statusCode === "PROFILE_NOT_FOUND") {
     setMessage("토스 게임센터 프로필을 만든 뒤 랭킹에 참여할 수 있어요.");
   }
@@ -2724,6 +2780,7 @@ async function run(request, message) {
     state.dismissedJobModal = false;
     render();
     closeJobModalIfReady();
+    scheduleLeaderboardEntryScoreSubmit(1200);
   } catch (error) {
     setMessage(error.message);
   }

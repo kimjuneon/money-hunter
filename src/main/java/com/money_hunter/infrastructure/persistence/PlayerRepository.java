@@ -42,7 +42,6 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 					or lower(coalesce(p.adminNickname, '')) like lower(concat('%', :query, '%'))
 					or lower(coalesce(p.gameProfileNickname, '')) like lower(concat('%', :query, '%'))
 				)
-			order by p.updatedAt desc
 			""")
 	List<Player> searchPlayers(
 			@Param("query") String query,
