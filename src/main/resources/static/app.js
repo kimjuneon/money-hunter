@@ -1,5 +1,28 @@
+window.addEventListener("error", (event) => {
+  showStartupError(event.error || event.message);
+  event.preventDefault();
+});
+window.addEventListener("unhandledrejection", (event) => {
+  showStartupError(event.reason);
+  event.preventDefault();
+});
+
+function showStartupError(error) {
+  try {
+    const message = typeof error === "string" ? error : error?.message;
+    const text = message || "잠시 후 다시 시도해 주세요.";
+    const target = document.getElementById("battleTip");
+    if (target) {
+      target.textContent = text;
+    }
+  } catch {
+    // Keep startup error handling best-effort only.
+  }
+}
+
 const distributionTargetOverride = new URLSearchParams(window.location.search).get("target");
 const pendingIapProductStorageKey = "moneyHunter.pendingIapProducts";
+const hiddenPetSkinsStorageKey = "moneyHunter.hideEasterEggSkins";
 
 const state = {
   player: null,
@@ -65,6 +88,7 @@ const state = {
   realPaymentInFlight: false,
   tossAdsInitialized: false,
   tossAdsInitializationPromise: null,
+  iapProductInfoRequested: false,
   pendingIapRestoreInFlight: false,
   pendingIapProductIdsByOrderId: readPendingIapProductIds(),
   shareRewardInFlight: false,
@@ -73,7 +97,7 @@ const state = {
   petEasterEggTapCount: 0,
   petEasterEggTapStartedAt: 0,
   petEasterEggPasswordOpen: false,
-  petEasterEggSkinsHidden: localStorage.getItem("moneyHunter.hideEasterEggSkins") === "true",
+  petEasterEggSkinsHidden: storedValue(hiddenPetSkinsStorageKey) === "true",
   petSkinModalSlot: 1,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
@@ -96,7 +120,7 @@ function applyRuntimeSafeAreaFallback() {
 
 function readPendingIapProductIds() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(pendingIapProductStorageKey) || "{}");
+    const parsed = JSON.parse(storedValue(pendingIapProductStorageKey) || "{}");
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
@@ -104,11 +128,7 @@ function readPendingIapProductIds() {
 }
 
 function savePendingIapProductIds() {
-  try {
-    localStorage.setItem(pendingIapProductStorageKey, JSON.stringify(state.pendingIapProductIdsByOrderId));
-  } catch {
-    // Storage failures should never block purchase grant callbacks.
-  }
+  storeValue(pendingIapProductStorageKey, JSON.stringify(state.pendingIapProductIdsByOrderId));
 }
 
 function rememberPendingIapProduct(orderId, productId) {
@@ -327,10 +347,29 @@ function storeValue(key, value) {
   }
 }
 
+function removeStoredValue(key) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Local storage can be unavailable in embedded test environments.
+  }
+}
+
 function createGuestUserKey() {
-  const randomValue = window.crypto?.randomUUID?.()
-    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-  return `guest-${randomValue}`;
+  return clientRequestId("guest");
+}
+
+function clientRequestId(prefix = "client") {
+  let randomValue = "";
+  try {
+    randomValue = window.crypto?.randomUUID?.() || "";
+  } catch {
+    randomValue = "";
+  }
+  if (!randomValue) {
+    randomValue = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  }
+  return `${prefix}-${randomValue}`;
 }
 
 function guestUserKey() {
@@ -764,7 +803,7 @@ async function refresh() {
     state.selectedJob = state.player.job;
   }
   render();
-  window.setTimeout(() => syncGameProfileIfNeeded().finally(() => maybeShowDefaultNicknameNotice()), 350);
+  window.setTimeout(() => maybeShowDefaultNicknameNotice(), 350);
 }
 
 function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
@@ -874,11 +913,7 @@ function setAuthToken(token) {
 
 function clearAuthToken() {
   state.authToken = "";
-  try {
-    window.localStorage.removeItem(authTokenStorageKey);
-  } catch {
-    // Ignore storage failures in embedded environments.
-  }
+  removeStoredValue(authTokenStorageKey);
 }
 
 function showLoginGate(message = "") {
@@ -1071,9 +1106,10 @@ async function loadAppConfig() {
 }
 
 async function loadIapProductInfo() {
-  if (isOneStoreTarget() || state.mockMonetizationEnabled || !state.realPaymentsEnabled) {
+  if (isOneStoreTarget() || state.mockMonetizationEnabled || !state.realPaymentsEnabled || state.iapProductInfoRequested) {
     return;
   }
+  state.iapProductInfoRequested = true;
   try {
     const sdk = await loadTossSdk();
     if (typeof sdk?.IAP?.getProductItemList !== "function") {
@@ -1833,6 +1869,9 @@ function showContentPanel(panel) {
   $("showRewardPanel").classList.toggle("active", showReward);
   $("showShopPanel").classList.toggle("active", showShop);
   document.querySelector(".content-scroll")?.scrollTo({ top: 0 });
+  if (showShop) {
+    loadIapProductInfo();
+  }
 }
 
 function closeJobModalIfReady() {
@@ -2328,7 +2367,7 @@ function pendingOrderProductId(order) {
 }
 
 function schedulePendingIapRestoreRetries() {
-  if (!shouldUseRealPayments()) {
+  if (!shouldUseRealPayments() || !hasPendingIapProduct()) {
     return;
   }
   [300, 1000, 3000, 7000, 15000].forEach((delayMs) => {
@@ -2336,6 +2375,10 @@ function schedulePendingIapRestoreRetries() {
       restorePendingIapOrders();
     }, delayMs);
   });
+}
+
+function hasPendingIapProduct() {
+  return Object.keys(state.pendingIapProductIdsByOrderId || {}).length > 0;
 }
 
 function createIapOrder(productId, action) {
@@ -2412,6 +2455,9 @@ async function completeIapProductGrantIfSupported(sdk, orderId) {
 
 async function restorePendingIapOrders() {
   if (isOneStoreTarget() || state.mockMonetizationEnabled || !state.realPaymentsEnabled) {
+    return;
+  }
+  if (!hasPendingIapProduct()) {
     return;
   }
   if (state.pendingIapRestoreInFlight) {
@@ -2520,7 +2566,7 @@ function claimRewardAfterConfirmation() {
         method: "POST",
         body: isOneStoreTarget()
           ? undefined
-          : JSON.stringify({ idempotencyKey: crypto.randomUUID(), adSessionToken }),
+          : JSON.stringify({ idempotencyKey: clientRequestId("reward"), adSessionToken }),
       }),
       message: isOneStoreTarget() ? "게임 내 보상을 받았어요." : "리워드 수령을 완료했어요.",
     }
@@ -2901,7 +2947,7 @@ async function unlockPetEasterEggSkins() {
 
 function togglePetEasterEggSkinsVisibility() {
   state.petEasterEggSkinsHidden = !state.petEasterEggSkinsHidden;
-  localStorage.setItem("moneyHunter.hideEasterEggSkins", String(state.petEasterEggSkinsHidden));
+  storeValue(hiddenPetSkinsStorageKey, String(state.petEasterEggSkinsHidden));
   renderPetSkinShop(state.player);
   setMessage(state.petEasterEggSkinsHidden ? "히든 스킨 목록을 숨겼어요." : "히든 스킨 목록을 다시 표시했어요.");
 }
@@ -3044,7 +3090,6 @@ async function syncCombatState() {
     if (displayLevel(next) > beforeLevel) {
       showLevelUpModal(displayLevel(next), displayLevel(next) - beforeLevel);
       setMessage(`Lv.${displayLevel(next)} 달성! 스킬 포인트 1개를 얻었어요.`);
-      submitLeaderboardScore().catch(() => {});
     }
     render();
   } catch (error) {
@@ -3644,7 +3689,6 @@ setInterval(() => {
 loadAppConfig()
   .then(async () => {
     await refresh();
-    loadIapProductInfo();
     restorePendingIapOrders();
   })
   .catch((error) => setMessage(error.message));
