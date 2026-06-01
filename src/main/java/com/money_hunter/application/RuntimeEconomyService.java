@@ -29,6 +29,8 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("maxCharacterSlots", "최대 캐릭터 슬롯", "개", 1, 3),
 			new PolicyDefinition("autoHuntAdSeconds", "자동사냥 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("boostAdSeconds", "공속버프 광고 보상 시간", "초", 60, 86_400),
+			new PolicyDefinition("autoHuntAdCooldownSeconds", "자동사냥 광고 보상 쿨타임", "초", 0, 86_400),
+			new PolicyDefinition("boostAdCooldownSeconds", "공속버프 광고 보상 쿨타임", "초", 0, 86_400),
 			new PolicyDefinition("maxAdSeconds", "광고 보상 최대 누적 시간", "초", 3_600, 86_400),
 			new PolicyDefinition("skillPointAdCooldownSeconds", "SP 광고 보상 쿨타임", "초", 0, 86_400),
 			new PolicyDefinition("rewardPointAmount", "보상 수령 포인트 기준", "P", 1, 1_000_000),
@@ -132,6 +134,8 @@ public class RuntimeEconomyService {
 				nvl(row.getMaxCharacterSlots(), defaults.maxCharacterSlots()),
 				nvl(row.getAutoHuntAdSeconds(), defaults.autoHuntAdSeconds()),
 				nvl(row.getBoostAdSeconds(), defaults.boostAdSeconds()),
+				nvl(row.getAutoHuntAdCooldownSeconds(), defaults.autoHuntAdCooldownSeconds()),
+				nvl(row.getBoostAdCooldownSeconds(), defaults.boostAdCooldownSeconds()),
 				nvl(row.getMaxAdSeconds(), defaults.maxAdSeconds()),
 				nvl(row.getSkillPointAdCooldownSeconds(), defaults.skillPointAdCooldownSeconds()),
 				rewardGoldThreshold(goldPerTossPoint, rewardPointAmount),
@@ -158,6 +162,8 @@ public class RuntimeEconomyService {
 				defaults.maxCharacterSlots(),
 				defaults.autoHuntAdSeconds(),
 				defaults.boostAdSeconds(),
+				defaults.autoHuntAdCooldownSeconds(),
+				defaults.boostAdCooldownSeconds(),
 				defaults.maxAdSeconds(),
 				defaults.skillPointAdCooldownSeconds(),
 				rewardGoldThreshold,
@@ -223,6 +229,14 @@ public class RuntimeEconomyService {
 		return snapshot().boostAdSeconds();
 	}
 
+	public long autoHuntAdCooldownSeconds() {
+		return snapshot().autoHuntAdCooldownSeconds();
+	}
+
+	public long boostAdCooldownSeconds() {
+		return snapshot().boostAdCooldownSeconds();
+	}
+
 	public long maxAdSeconds() {
 		return snapshot().maxAdSeconds();
 	}
@@ -275,6 +289,8 @@ public class RuntimeEconomyService {
 			case "maxCharacterSlots" -> snapshot.maxCharacterSlots();
 			case "autoHuntAdSeconds" -> snapshot.autoHuntAdSeconds();
 			case "boostAdSeconds" -> snapshot.boostAdSeconds();
+			case "autoHuntAdCooldownSeconds" -> snapshot.autoHuntAdCooldownSeconds();
+			case "boostAdCooldownSeconds" -> snapshot.boostAdCooldownSeconds();
 			case "maxAdSeconds" -> snapshot.maxAdSeconds();
 			case "skillPointAdCooldownSeconds" -> snapshot.skillPointAdCooldownSeconds();
 			case "rewardGoldThreshold" -> snapshot.rewardGoldThreshold();

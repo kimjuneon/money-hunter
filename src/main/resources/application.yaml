@@ -108,6 +108,8 @@ money-hunter:
     max-character-slots: 3
     auto-hunt-ad-seconds: 3600
     boost-ad-seconds: 3600
+    auto-hunt-ad-cooldown-seconds: 180
+    boost-ad-cooldown-seconds: 180
     max-ad-seconds: 14400
     skill-point-ad-cooldown-seconds: 1800
     reward-gold-threshold: 1000

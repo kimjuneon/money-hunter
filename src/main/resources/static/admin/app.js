@@ -23,6 +23,10 @@ const hourPolicyKeys = new Set([
   "skillPointAdCooldownSeconds",
   "anomalyTimerGraceSeconds",
 ]);
+const minutePolicyKeys = new Set([
+  "autoHuntAdCooldownSeconds",
+  "boostAdCooldownSeconds",
+]);
 const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1178,7 +1182,14 @@ function policyGroups() {
     {
       title: "광고 보상",
       description: "광고 1회 보상 시간과 누적 상한",
-      keys: ["autoHuntAdSeconds", "boostAdSeconds", "maxAdSeconds", "skillPointAdCooldownSeconds"],
+      keys: [
+        "autoHuntAdSeconds",
+        "boostAdSeconds",
+        "autoHuntAdCooldownSeconds",
+        "boostAdCooldownSeconds",
+        "maxAdSeconds",
+        "skillPointAdCooldownSeconds",
+      ],
     },
     {
       title: "상점/초대",
@@ -1468,6 +1479,9 @@ function runtimeModeClass(mode) {
 
 function policyDisplayValue(key, rawValue) {
   const value = Number(rawValue || 0);
+  if (minutePolicyKeys.has(key)) {
+    return Number((value / 60).toFixed(1));
+  }
   return hourPolicyKeys.has(key) ? Number((value / 3600).toFixed(2)) : value;
 }
 
@@ -1476,14 +1490,23 @@ function policyRequestValue(key, displayValue) {
   if (!Number.isFinite(value)) {
     return 0;
   }
+  if (minutePolicyKeys.has(key)) {
+    return Math.round(value * 60);
+  }
   return hourPolicyKeys.has(key) ? Math.round(value * 3600) : value;
 }
 
 function policyDisplayUnit(key, unit) {
+  if (minutePolicyKeys.has(key)) {
+    return "분";
+  }
   return hourPolicyKeys.has(key) ? "시간" : unit;
 }
 
 function policyInputStep(key) {
+  if (minutePolicyKeys.has(key)) {
+    return "1";
+  }
   return hourPolicyKeys.has(key) ? "0.1" : "1";
 }
 

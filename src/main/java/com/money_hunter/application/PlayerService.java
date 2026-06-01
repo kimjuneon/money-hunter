@@ -68,7 +68,6 @@ public class PlayerService {
 	private static final int MAX_RAPID_DAMAGE_BONUS = 40;
 	private static final int MAX_STAT_DAMAGE_BONUS = 60;
 	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
-	private static final Duration SAME_TIME_REWARD_AD_COOLDOWN = Duration.ofMinutes(3);
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
@@ -980,11 +979,20 @@ public class PlayerService {
 			case BOOST -> player.getLastBoostAdClaimedAt();
 			default -> null;
 		};
-		if (lastClaimedAt == null || SAME_TIME_REWARD_AD_COOLDOWN.isZero() || SAME_TIME_REWARD_AD_COOLDOWN.isNegative()) {
+		long cooldownSeconds = timeRewardAdCooldownSeconds(type);
+		if (lastClaimedAt == null || cooldownSeconds <= 0) {
 			return null;
 		}
-		Instant nextAvailableAt = lastClaimedAt.plus(SAME_TIME_REWARD_AD_COOLDOWN);
+		Instant nextAvailableAt = lastClaimedAt.plusSeconds(cooldownSeconds);
 		return nextAvailableAt.isAfter(clock.instant()) ? nextAvailableAt : null;
+	}
+
+	private long timeRewardAdCooldownSeconds(AdEventType type) {
+		return switch (type) {
+			case AUTO_HUNT -> economy.autoHuntAdCooldownSeconds();
+			case BOOST -> economy.boostAdCooldownSeconds();
+			default -> 0;
+		};
 	}
 
 	private Instant nextSkillPointAdAvailableAt(Player player) {

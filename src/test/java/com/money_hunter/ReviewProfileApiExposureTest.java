@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.time.Instant;
 
 import com.jayway.jsonpath.JsonPath;
@@ -293,6 +294,42 @@ class ReviewProfileApiExposureTest {
 					.andExpect(jsonPath("$.boostedGoldPerHour", is((int) boostedGoldPerHour)));
 		} finally {
 			economy.reset("adRevenuePerRewardAdWon");
+		}
+	}
+
+	@Test
+	void timeRewardCooldownPoliciesControlNextAdAvailability() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"ARCHER\"}"))
+				.andExpect(status().isOk());
+
+		try {
+			economy.update("autoHuntAdCooldownSeconds", 600);
+			economy.update("boostAdCooldownSeconds", 420);
+
+			Instant beforeAutoHunt = Instant.now();
+			String autoHuntResponse = mockMvc.perform(post("/api/player/ads/auto-hunt/complete"))
+					.andExpect(status().isOk())
+					.andReturn()
+					.getResponse()
+					.getContentAsString();
+			Instant nextAutoHuntAt = Instant.parse(JsonPath.read(autoHuntResponse, "$.nextAutoHuntAdAvailableAt"));
+			assertTrue(Duration.between(beforeAutoHunt, nextAutoHuntAt).getSeconds() >= 590);
+
+			Instant beforeBoost = Instant.now();
+			String boostResponse = mockMvc.perform(post("/api/player/ads/boost/complete"))
+					.andExpect(status().isOk())
+					.andReturn()
+					.getResponse()
+					.getContentAsString();
+			Instant nextBoostAt = Instant.parse(JsonPath.read(boostResponse, "$.nextBoostAdAvailableAt"));
+			assertTrue(Duration.between(beforeBoost, nextBoostAt).getSeconds() >= 410);
+		} finally {
+			economy.reset("autoHuntAdCooldownSeconds");
+			economy.reset("boostAdCooldownSeconds");
 		}
 	}
 

@@ -46,6 +46,12 @@ public class GameEconomyPolicy {
 	@Column(name = "boost_ad_seconds")
 	private Long boostAdSeconds;
 
+	@Column(name = "auto_hunt_ad_cooldown_seconds")
+	private Long autoHuntAdCooldownSeconds;
+
+	@Column(name = "boost_ad_cooldown_seconds")
+	private Long boostAdCooldownSeconds;
+
 	@Column(name = "max_ad_seconds")
 	private Long maxAdSeconds;
 
@@ -130,6 +136,14 @@ public class GameEconomyPolicy {
 		return boostAdSeconds;
 	}
 
+	public Long getAutoHuntAdCooldownSeconds() {
+		return autoHuntAdCooldownSeconds;
+	}
+
+	public Long getBoostAdCooldownSeconds() {
+		return boostAdCooldownSeconds;
+	}
+
 	public Long getMaxAdSeconds() {
 		return maxAdSeconds;
 	}
@@ -186,6 +200,8 @@ public class GameEconomyPolicy {
 			case "maxCharacterSlots" -> this.maxCharacterSlots = value.intValue();
 			case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = value.longValue();
 			case "boostAdSeconds" -> this.boostAdSeconds = value.longValue();
+			case "autoHuntAdCooldownSeconds" -> this.autoHuntAdCooldownSeconds = value.longValue();
+			case "boostAdCooldownSeconds" -> this.boostAdCooldownSeconds = value.longValue();
 			case "maxAdSeconds" -> this.maxAdSeconds = value.longValue();
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = value.longValue();
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = value.longValue();
@@ -213,6 +229,8 @@ public class GameEconomyPolicy {
 			case "maxCharacterSlots" -> this.maxCharacterSlots = null;
 			case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = null;
 			case "boostAdSeconds" -> this.boostAdSeconds = null;
+			case "autoHuntAdCooldownSeconds" -> this.autoHuntAdCooldownSeconds = null;
+			case "boostAdCooldownSeconds" -> this.boostAdCooldownSeconds = null;
 			case "maxAdSeconds" -> this.maxAdSeconds = null;
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = null;
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = null;

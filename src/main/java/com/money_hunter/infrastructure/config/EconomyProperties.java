@@ -14,6 +14,8 @@ public record EconomyProperties(
 		int maxCharacterSlots,
 		long autoHuntAdSeconds,
 		long boostAdSeconds,
+		long autoHuntAdCooldownSeconds,
+		long boostAdCooldownSeconds,
 		long maxAdSeconds,
 		long skillPointAdCooldownSeconds,
 		long rewardGoldThreshold,
