@@ -91,6 +91,8 @@ jobs:
         env:
           MONEY_HUNTER_ADMIN_USERNAME: ci-admin
           MONEY_HUNTER_ADMIN_PASSWORD_BCRYPT: '$2a$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          TOSS_POINT_REWARDS_ENABLED: 'false'
+          TOSS_SMART_MESSAGE_ENABLED: 'false'
         run: ./gradlew test --no-daemon
 
       - name: Authenticate to Google Cloud
