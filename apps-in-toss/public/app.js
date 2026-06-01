@@ -91,6 +91,9 @@ const state = {
   pendingIapRestoreInFlight: false,
   pendingIapProductIdsByOrderId: readPendingIapProductIds(),
   shareRewardInFlight: false,
+  gameProfileSyncTimer: null,
+  gameProfileSyncInFlight: false,
+  lastGameProfileSyncAt: 0,
   leaderboardEntrySubmitTimer: null,
   leaderboardSubmitInFlight: false,
   lastLeaderboardScoreSubmitted: null,
@@ -806,6 +809,7 @@ async function refresh() {
     state.selectedJob = state.player.job;
   }
   render();
+  scheduleGameProfileSync();
   scheduleLeaderboardEntryScoreSubmit();
 }
 
@@ -2584,6 +2588,85 @@ function gameProfileNickname(player = state.player) {
   return String(player?.gameProfileNickname || "").trim();
 }
 
+function canSyncGameProfile() {
+  return shouldUseGameCenter() && isTossMiniRuntime() && Boolean(state.player) && !state.player?.onboardingRequired;
+}
+
+function cancelScheduledGameProfileSync() {
+  window.clearTimeout(state.gameProfileSyncTimer);
+  state.gameProfileSyncTimer = null;
+}
+
+function scheduleGameProfileSync(delayMs = 1200) {
+  if (!canSyncGameProfile()) {
+    return;
+  }
+  if (Date.now() - state.lastGameProfileSyncAt < 5 * 60 * 1000) {
+    return;
+  }
+  cancelScheduledGameProfileSync();
+  state.gameProfileSyncTimer = window.setTimeout(() => {
+    state.gameProfileSyncTimer = null;
+    syncGameProfileIfNeeded({ silent: true }).catch(() => {});
+  }, delayMs);
+}
+
+async function gameCenterProfileBridge() {
+  const sdk = await loadTossSdk();
+  if (typeof sdk.getGameCenterGameProfile === "function") {
+    return sdk;
+  }
+  return loadTossBridge();
+}
+
+function syncedProfileNickname(profile) {
+  if (profile?.statusCode !== "SUCCESS") {
+    return "";
+  }
+  return String(profile.nickname || profile.name || profile.profile?.nickname || "").trim();
+}
+
+async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
+  if (!canSyncGameProfile() || state.gameProfileSyncInFlight) {
+    return;
+  }
+  const now = Date.now();
+  if (!force && now - state.lastGameProfileSyncAt < 5 * 60 * 1000) {
+    return;
+  }
+  state.lastGameProfileSyncAt = now;
+  state.gameProfileSyncInFlight = true;
+  try {
+    const bridge = await gameCenterProfileBridge();
+    if (typeof bridge.getGameCenterGameProfile !== "function") {
+      return;
+    }
+    const profile = await bridge.getGameCenterGameProfile();
+    if (!profile || profile.statusCode !== "SUCCESS") {
+      return;
+    }
+    const nickname = syncedProfileNickname(profile);
+    if (!nickname) {
+      return;
+    }
+    if (!force && nickname === gameProfileNickname()) {
+      return;
+    }
+    const updatedPlayer = await api("/api/player/game-profile", {
+      method: "POST",
+      body: JSON.stringify({ nickname }),
+    });
+    setServerPlayer(updatedPlayer);
+    render();
+  } catch (error) {
+    if (!silent) {
+      throw error;
+    }
+  } finally {
+    state.gameProfileSyncInFlight = false;
+  }
+}
+
 function canSubmitLeaderboardScore() {
   return shouldUseGameCenter() && Boolean(state.player?.job) && !state.player?.onboardingRequired;
 }
@@ -2658,6 +2741,7 @@ async function openGameLeaderboard() {
     setMessage("현재 토스 앱에서 랭킹을 열 수 없어요.");
     return;
   }
+  await syncGameProfileIfNeeded({ force: true, silent: true });
   cancelScheduledLeaderboardScoreSubmit();
   const submitResult = await submitLeaderboardScore({ force: true });
   if (submitResult?.statusCode === "PROFILE_NOT_FOUND") {
@@ -2780,6 +2864,7 @@ async function run(request, message) {
     state.dismissedJobModal = false;
     render();
     closeJobModalIfReady();
+    scheduleGameProfileSync(800);
     scheduleLeaderboardEntryScoreSubmit(1200);
   } catch (error) {
     setMessage(error.message);
