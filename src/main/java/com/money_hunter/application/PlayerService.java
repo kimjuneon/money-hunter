@@ -31,6 +31,7 @@ import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
 import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.infrastructure.config.IapProperties;
+import com.money_hunter.infrastructure.config.PromotionProperties;
 import com.money_hunter.infrastructure.config.SmartMessageProperties;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
 import com.money_hunter.application.dto.response.NotificationResponse;
@@ -129,8 +130,10 @@ public class PlayerService {
 	private final RuntimeEconomyService economy;
 	private final AppProperties appProperties;
 	private final IapProperties iapProperties;
+	private final PromotionProperties promotionProperties;
 	private final SmartMessageProperties smartMessageProperties;
 	private final TossIapClient tossIapClient;
+	private final TossPromotionClient tossPromotionClient;
 	private final TossSmartMessageClient tossSmartMessageClient;
 	private final Clock clock;
 
@@ -144,8 +147,10 @@ public class PlayerService {
 			RuntimeEconomyService economy,
 			AppProperties appProperties,
 			IapProperties iapProperties,
+			PromotionProperties promotionProperties,
 			SmartMessageProperties smartMessageProperties,
 			TossIapClient tossIapClient,
+			TossPromotionClient tossPromotionClient,
 			TossSmartMessageClient tossSmartMessageClient
 	) {
 		this.playerRepository = playerRepository;
@@ -157,8 +162,10 @@ public class PlayerService {
 		this.economy = economy;
 		this.appProperties = appProperties;
 		this.iapProperties = iapProperties;
+		this.promotionProperties = promotionProperties;
 		this.smartMessageProperties = smartMessageProperties;
 		this.tossIapClient = tossIapClient;
+		this.tossPromotionClient = tossPromotionClient;
 		this.tossSmartMessageClient = tossSmartMessageClient;
 		this.clock = Clock.systemUTC();
 	}
@@ -514,6 +521,7 @@ public class PlayerService {
 		completeRewardAdSessionIfRequired(player, AdEventType.REWARD_CLAIM, adSessionToken, requireAdSession, clock.instant());
 		RewardClaim claim = rewardClaimRepository.findByPlayerAndIdempotencyKey(player, idempotencyKey)
 				.orElseGet(() -> createRewardClaim(player, idempotencyKey));
+		grantTossPointPromotionIfEnabled(player, claim);
 		adEventRepository.save(new AdEvent(player, AdEventType.REWARD_CLAIM, claim.getPointAmount(), clock.instant()));
 		log.info(
 				"토스포인트 보상 수령 신청: userKey={}, claimId={}, pointAmount={}, goldAmount={}, status={}",
@@ -528,6 +536,51 @@ public class PlayerService {
 				claim.getStatus(),
 				claim.getIdempotencyKey(),
 				toState(player));
+	}
+
+	private void grantTossPointPromotionIfEnabled(Player player, RewardClaim claim) {
+		if (!appProperties.realTossPointRewardsEnabled() || claim.isGranted()) {
+			return;
+		}
+		String promotionCode = promotionProperties.normalizedRewardClaimCode();
+		if (promotionCode.isBlank()) {
+			throw new IllegalStateException("토스 포인트 프로모션 코드가 설정되지 않았어요.");
+		}
+		Instant now = clock.instant();
+		String executionKey = claim.getPromotionExecutionKey();
+		if (!claim.hasPromotionExecutionKey()) {
+			executionKey = tossPromotionClient.issueExecutionKey(player.getUserKey());
+			claim.markPromotionExecutionKey(executionKey, now);
+			tossPromotionClient.executePromotion(player.getUserKey(), promotionCode, executionKey, claim.getPointAmount());
+			log.info(
+					"토스포인트 프로모션 지급 요청: userKey={}, claimId={}, pointAmount={}, promotionCode={}, executionKey={}",
+					mask(player.getUserKey()),
+					claim.getId(),
+					claim.getPointAmount(),
+					mask(promotionCode),
+					mask(executionKey));
+		}
+		try {
+			String result = tossPromotionClient.getExecutionResult(player.getUserKey(), promotionCode, executionKey);
+			claim.markPromotionResult(result, clock.instant());
+			if (claim.isFailed()) {
+				throw new IllegalStateException("토스 포인트 지급이 실패했어요.");
+			}
+			log.info(
+					"토스포인트 프로모션 지급 결과: userKey={}, claimId={}, status={}",
+					mask(player.getUserKey()),
+					claim.getId(),
+					claim.getStatus());
+		} catch (RuntimeException exception) {
+			if (claim.isFailed()) {
+				throw exception;
+			}
+			log.warn(
+					"토스포인트 프로모션 지급 결과 조회 실패: userKey={}, claimId={}, message={}",
+					mask(player.getUserKey()),
+					claim.getId(),
+					exception.getMessage());
+		}
 	}
 
 	@Transactional

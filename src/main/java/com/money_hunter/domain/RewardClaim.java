@@ -38,6 +38,11 @@ public class RewardClaim {
 	@Column(nullable = false, length = 120)
 	private String idempotencyKey;
 
+	@Column(length = 220)
+	private String promotionExecutionKey;
+
+	private Instant promotionResultCheckedAt;
+
 	@Column(nullable = false)
 	private Instant createdAt;
 
@@ -67,5 +72,38 @@ public class RewardClaim {
 
 	public String getIdempotencyKey() {
 		return idempotencyKey;
+	}
+
+	public String getPromotionExecutionKey() {
+		return promotionExecutionKey;
+	}
+
+	public boolean hasPromotionExecutionKey() {
+		return promotionExecutionKey != null && !promotionExecutionKey.isBlank();
+	}
+
+	public boolean isGranted() {
+		return status == RewardClaimStatus.GRANTED;
+	}
+
+	public boolean isFailed() {
+		return status == RewardClaimStatus.FAILED;
+	}
+
+	public void markPromotionExecutionKey(String promotionExecutionKey, Instant now) {
+		this.promotionExecutionKey = promotionExecutionKey;
+		this.promotionResultCheckedAt = now;
+	}
+
+	public void markPromotionResult(String result, Instant now) {
+		String normalized = result == null ? "" : result.trim().toUpperCase();
+		if ("SUCCESS".equals(normalized)) {
+			this.status = RewardClaimStatus.GRANTED;
+		} else if ("FAILED".equals(normalized)) {
+			this.status = RewardClaimStatus.FAILED;
+		} else {
+			this.status = RewardClaimStatus.PENDING_PROMOTION_GRANT;
+		}
+		this.promotionResultCheckedAt = now;
 	}
 }

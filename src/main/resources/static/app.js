@@ -2815,7 +2815,7 @@ async function run(request, message) {
     const result = await requestWithLoginRetry(request);
     if (result.state) {
       setServerPlayer(result.state, { resetDisplayGold: true });
-      setMessage(`${result.pointAmount} 토스포인트 수령을 신청했어요.`);
+      setMessage(rewardClaimResultMessage(result));
     } else {
       setServerPlayer(result);
       setMessage(message);
@@ -2829,6 +2829,18 @@ async function run(request, message) {
   } catch (error) {
     setMessage(error.message);
   }
+}
+
+function rewardClaimResultMessage(result) {
+  const pointAmount = Number(result?.pointAmount || 0).toLocaleString("ko-KR");
+  const status = String(result?.status || "").toUpperCase();
+  if (status === "GRANTED") {
+    return `${pointAmount} 토스포인트 지급 요청이 완료됐어요.`;
+  }
+  if (status === "FAILED") {
+    return "토스포인트 지급에 실패했어요. 잠시 후 다시 시도해 주세요.";
+  }
+  return `${pointAmount} 토스포인트 지급 처리 중이에요.`;
 }
 
 async function requestWithLoginRetry(request) {

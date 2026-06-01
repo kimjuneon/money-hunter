@@ -6,6 +6,7 @@ import com.money_hunter.infrastructure.config.AdProperties;
 import com.money_hunter.infrastructure.config.CorsProperties;
 import com.money_hunter.infrastructure.config.EconomyProperties;
 import com.money_hunter.infrastructure.config.IapProperties;
+import com.money_hunter.infrastructure.config.PromotionProperties;
 import com.money_hunter.infrastructure.config.ShareRewardProperties;
 import com.money_hunter.infrastructure.config.SmartMessageProperties;
 import com.money_hunter.infrastructure.config.TossApiProperties;
@@ -23,6 +24,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 		AdminProperties.class,
 		AdProperties.class,
 		IapProperties.class,
+		PromotionProperties.class,
 		ShareRewardProperties.class,
 		SmartMessageProperties.class,
 		CorsProperties.class

@@ -64,9 +64,11 @@ money-hunter:
   share-reward:
     module-id: ${TOSS_SHARE_REWARD_MODULE_ID:2060c79f-606b-4839-9a86-32294fa74d86}
     message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 1개를 받아요}
+  promotion:
+    reward-claim-code: ${TOSS_PROMOTION_REWARD_CLAIM_CODE:}
   smart-message:
-    auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:money_hunter_auto_hunt_ended}
-    auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:money_hunter_auto_hunt_ended}
+    auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:gold-hunter-money_hunter_auto_hunt_ended}
+    auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:gold-hunter-money_hunter_auto_hunt_ended}
     landing-url: ${TOSS_AUTO_HUNT_ENDED_LANDING_URL:intoss://gold-hunter}
   security:
     cors:
