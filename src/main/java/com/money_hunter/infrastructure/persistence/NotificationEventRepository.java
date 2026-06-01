@@ -17,5 +17,7 @@ public interface NotificationEventRepository extends JpaRepository<NotificationE
 
 	List<NotificationEvent> findByPlayerAndTypeAndReadAtIsNull(Player player, NotificationType type);
 
+	boolean existsByPlayerAndTypeAndSentAtGreaterThanEqual(Player player, NotificationType type, java.time.Instant sentAt);
+
 	Optional<NotificationEvent> findByIdAndPlayerUserKey(Long id, String userKey);
 }

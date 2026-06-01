@@ -79,6 +79,8 @@ public class Player {
 
     private Instant autoHuntEndNotifiedAt;
 
+	private Instant autoHuntEndSmartMessageAttemptedAt;
+
 	private Instant boostEndsAt;
 
 	private Instant lastAutoHuntAdClaimedAt;
@@ -348,11 +350,17 @@ public class Player {
 
     public void clearAutoHuntEndNotification() {
 		this.autoHuntEndNotifiedAt = null;
+		this.autoHuntEndSmartMessageAttemptedAt = null;
 		touch();
 	}
 
 	public void markAutoHuntEndNotified(Instant notifiedAt) {
 		this.autoHuntEndNotifiedAt = notifiedAt;
+		touch();
+	}
+
+	public void markAutoHuntEndSmartMessageAttempted(Instant attemptedAt) {
+		this.autoHuntEndSmartMessageAttemptedAt = attemptedAt;
 		touch();
 	}
 
@@ -513,6 +521,7 @@ public class Player {
 		this.defeatGoldRemainderMicros = 0;
 		this.autoHuntEndsAt = null;
 		this.autoHuntEndNotifiedAt = null;
+		this.autoHuntEndSmartMessageAttemptedAt = null;
 		this.boostEndsAt = null;
 		this.lastAutoHuntAdClaimedAt = null;
 		this.lastBoostAdClaimedAt = null;

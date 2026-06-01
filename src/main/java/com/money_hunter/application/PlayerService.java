@@ -69,6 +69,7 @@ public class PlayerService {
 	private static final int MAX_STAT_DAMAGE_BONUS = 60;
 	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
+	private static final Duration AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY = Duration.ofMinutes(5);
 	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Set<String> PET_SKIN_KEYS = Set.of(
@@ -734,7 +735,8 @@ public class PlayerService {
 	@Transactional
 	public int publishAutoHuntEndNotifications() {
 		Instant now = clock.instant();
-		List<Player> players = playerRepository.findAutoHuntEndedNotificationTargets(now);
+		Instant retryBefore = now.minus(AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY);
+		List<Player> players = playerRepository.findAutoHuntEndedNotificationTargets(now, retryBefore);
 		players.forEach(player -> {
 			settle(player);
 			publishAutoHuntEndNotificationIfDue(player, now);
@@ -1154,31 +1156,53 @@ public class PlayerService {
 		if (autoHuntEndsAt == null || autoHuntEndsAt.isAfter(now) || player.getAutoHuntEndNotifiedAt() != null) {
 			return;
 		}
-		notificationEventRepository.save(new NotificationEvent(
+		boolean inAppNotificationExists = notificationEventRepository.existsByPlayerAndTypeAndSentAtGreaterThanEqual(
 				player,
 				NotificationType.AUTO_HUNT_ENDED,
-				"자동사냥이 종료됐어요",
-				"광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.",
-				now));
-		sendAutoHuntEndedSmartMessage(player);
-		player.markAutoHuntEndNotified(now);
-		log.info("자동사냥 종료 인앱 알림 생성: userKey={}, endedAt={}", mask(player.getUserKey()), autoHuntEndsAt);
+				autoHuntEndsAt.minusSeconds(1));
+		if (!inAppNotificationExists) {
+			notificationEventRepository.save(new NotificationEvent(
+					player,
+					NotificationType.AUTO_HUNT_ENDED,
+					"자동사냥이 종료됐어요",
+					"광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.",
+					now));
+			log.info("자동사냥 종료 인앱 알림 생성: userKey={}, endedAt={}", mask(player.getUserKey()), autoHuntEndsAt);
+		}
+		if (sendAutoHuntEndedSmartMessage(player, now)) {
+			player.markAutoHuntEndNotified(now);
+		}
 	}
 
-	private void sendAutoHuntEndedSmartMessage(Player player) {
+	private boolean sendAutoHuntEndedSmartMessage(Player player, Instant now) {
 		String templateSetCode = smartMessageProperties.normalizedAutoHuntEndedTemplateSetCode();
 		if (!appProperties.realSmartMessageEnabled() || templateSetCode.isBlank()) {
-			return;
+			return true;
 		}
+		player.markAutoHuntEndSmartMessageAttempted(now);
 		try {
-			tossSmartMessageClient.sendMessage(
+			TossSmartMessageClient.SmartMessageSendResult result = tossSmartMessageClient.sendMessage(
 					player.getUserKey(),
 					templateSetCode,
 					smartMessageProperties.autoHuntEndedContext());
-			log.info("자동사냥 종료 스마트메시지 발송 요청 완료: userKey={}, templateSetCode={}", mask(player.getUserKey()), templateSetCode);
+			log.info(
+					"자동사냥 종료 스마트메시지 발송 요청 완료: userKey={}, templateSetCode={}, msgCount={}, sentPushCount={}, sentInboxCount={}, failureSummary={}",
+					mask(player.getUserKey()),
+					templateSetCode,
+					result.msgCount(),
+					result.sentPushCount(),
+					result.sentInboxCount(),
+					result.failureSummary());
+			return true;
 		} catch (RuntimeException exception) {
-			log.warn("자동사냥 종료 스마트메시지 발송 실패: userKey={}, templateSetCode={}, message={}", mask(player.getUserKey()), templateSetCode, exception.getMessage());
-			// The in-app notification is still persisted; the scheduler will not spam retries for this hunt session.
+			log.warn(
+					"자동사냥 종료 스마트메시지 발송 실패: userKey={}, templateSetCode={}, retryAfter={}, message={}",
+					mask(player.getUserKey()),
+					templateSetCode,
+					now.plus(AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY),
+					exception.getMessage(),
+					exception);
+			return false;
 		}
 	}
 

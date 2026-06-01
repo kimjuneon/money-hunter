@@ -97,10 +97,16 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 			where p.autoHuntEndsAt is not null
 				and p.autoHuntEndsAt <= :now
 				and p.autoHuntEndNotifiedAt is null
+				and (
+					p.autoHuntEndSmartMessageAttemptedAt is null
+					or p.autoHuntEndSmartMessageAttemptedAt <= :retryBefore
+				)
 				and p.job is not null
 				and p.suspendedAt is null
 			""")
-	List<Player> findAutoHuntEndedNotificationTargets(@Param("now") Instant now);
+	List<Player> findAutoHuntEndedNotificationTargets(
+			@Param("now") Instant now,
+			@Param("retryBefore") Instant retryBefore);
 
 	@Modifying
 	@Query(value = """
