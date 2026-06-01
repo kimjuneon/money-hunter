@@ -1,0 +1,83 @@
+package com.money_hunter;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+
+import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+
+@Import(TestcontainersConfiguration.class)
+@ActiveProfiles("prod")
+@TestPropertySource(properties = {
+		"money-hunter.admin.username=mode-admin",
+		"money-hunter.admin.password-bcrypt=",
+		"money-hunter.admin.password=mode-pass",
+		"money-hunter.admin.allow-plain-password=true",
+		"money-hunter.app.toss-login-enabled=true",
+		"money-hunter.app.toss-user-key-enabled=true",
+		"money-hunter.app.real-reward-ads-enabled=true",
+		"money-hunter.app.real-banner-ads-enabled=true",
+		"money-hunter.app.real-payments-enabled=true",
+		"money-hunter.app.real-toss-point-rewards-enabled=true",
+		"money-hunter.app.real-smart-message-enabled=true",
+		"money-hunter.app.real-share-reward-enabled=true",
+		"money-hunter.ads.mode=test",
+		"money-hunter.promotion.reward-claim-code=TEST_01KSVZ6RCWTKKRY077JQ056WTA"
+})
+@AutoConfigureMockMvc
+@SpringBootTest
+class AdminRuntimeModeStatusTest {
+	@Autowired
+	private MockMvc mockMvc;
+
+	@Test
+	void adminOverviewShowsTestModesForTestAdsAndPromotionCode() throws Exception {
+		String token = loginToken();
+
+		String response = mockMvc.perform(get("/api/admin/overview")
+						.header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		assertEquals(
+				List.of("TEST"),
+				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'reward-ads')].mode"));
+		assertEquals(
+				List.of("리워드 테스트 광고 ID 사용"),
+				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'reward-ads')].detail"));
+		assertEquals(
+				List.of("TEST"),
+				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'banner-ads')].mode"));
+		assertEquals(
+				List.of("TEST"),
+				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'point-rewards')].mode"));
+		assertEquals(
+				List.of("테스트 프로모션 코드"),
+				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'point-rewards')].detail"));
+	}
+
+	private String loginToken() throws Exception {
+		String response = mockMvc.perform(post("/api/admin/auth/login")
+						.contentType(APPLICATION_JSON)
+						.content("{\"loginId\":\"mode-admin\",\"password\":\"mode-pass\"}"))
+				.andExpect(status().isOk())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		return JsonPath.read(response, "$.accessToken");
+	}
+}

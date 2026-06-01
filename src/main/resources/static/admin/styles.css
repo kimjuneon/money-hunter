@@ -255,6 +255,49 @@ nav {
   display: block;
 }
 
+.runtime-status-title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.runtime-status-title strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.runtime-mode {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.runtime-mode.live {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.runtime-mode.test,
+.runtime-mode.check {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.runtime-mode.off {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .runtime-status-card small {
   margin-top: 3px;
   color: var(--muted);

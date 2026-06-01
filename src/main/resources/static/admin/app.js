@@ -208,15 +208,7 @@ function renderStatus(data) {
       </div>
       <p>${ready ? "운영 차단 항목이 없어요." : escapeHtml((data.releaseBlockers || []).join(", "))}</p>
       <div class="runtime-status-grid">
-        ${statusItems.map((item) => `
-          <article class="runtime-status-card ${item.healthy ? "ok" : "blocked"}">
-            <div class="status-lamp" aria-hidden="true"></div>
-            <div>
-              <strong>${escapeHtml(item.label)}</strong>
-              <small>${escapeHtml(item.detail || item.status)}</small>
-            </div>
-          </article>
-        `).join("")}
+        ${renderRuntimeStatusItems(statusItems)}
       </div>
     </div>
   `;
@@ -1272,19 +1264,11 @@ function renderServerMetrics(metrics, overview) {
     <div class="panel-head compact-head">
       <div>
         <h3>운영 기능 상태</h3>
-        <p>운영 모드면 초록, 테스트 모드거나 기능이 꺼져 있으면 빨간색으로 표시해요.</p>
+        <p>각 기능의 운영, 테스트, 꺼짐 상태를 배지로 표시해요.</p>
       </div>
     </div>
     <div class="runtime-status-grid">
-      ${statusItems.map((item) => `
-        <article class="runtime-status-card ${item.healthy ? "ok" : "blocked"}">
-          <div class="status-lamp" aria-hidden="true"></div>
-          <div>
-            <strong>${escapeHtml(item.label)}</strong>
-            <small>${escapeHtml(item.detail || item.status)}</small>
-          </div>
-        </article>
-      `).join("")}
+      ${renderRuntimeStatusItems(statusItems)}
     </div>
   `;
 }
@@ -1447,6 +1431,39 @@ function anomalyStatusLabel(status) {
     IN_PROGRESS: "처리중",
     RESOLVED: "처리완료",
   }[status] || "처리전";
+}
+
+function renderRuntimeStatusItems(statusItems) {
+  return statusItems.map((item) => `
+    <article class="runtime-status-card ${item.healthy ? "ok" : "blocked"}">
+      <div class="status-lamp" aria-hidden="true"></div>
+      <div>
+        <div class="runtime-status-title">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span class="runtime-mode ${runtimeModeClass(item.mode)}">${escapeHtml(runtimeModeLabel(item.mode))}</span>
+        </div>
+        <small>${escapeHtml(item.detail || item.status)}</small>
+      </div>
+    </article>
+  `).join("");
+}
+
+function runtimeModeLabel(mode) {
+  return {
+    LIVE: "운영",
+    TEST: "테스트",
+    OFF: "꺼짐",
+    CHECK: "확인",
+  }[mode] || "확인";
+}
+
+function runtimeModeClass(mode) {
+  return {
+    LIVE: "live",
+    TEST: "test",
+    OFF: "off",
+    CHECK: "check",
+  }[mode] || "check";
 }
 
 function policyDisplayValue(key, rawValue) {

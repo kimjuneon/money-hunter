@@ -16,7 +16,9 @@ import java.util.stream.Collectors;
 import com.money_hunter.domain.AdminAnomalyCase;
 import com.money_hunter.domain.AdminAnomalyStatus;
 import com.money_hunter.domain.RewardClaimStatus;
+import com.money_hunter.infrastructure.config.AdProperties;
 import com.money_hunter.infrastructure.config.AppProperties;
+import com.money_hunter.infrastructure.config.PromotionProperties;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.AdminAnomalyActionRepository;
 import com.money_hunter.infrastructure.persistence.AdminAnomalyCaseRepository;
@@ -28,6 +30,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminMonitoringService {
 	private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+	private static final String MODE_LIVE = "LIVE";
+	private static final String MODE_TEST = "TEST";
+	private static final String MODE_OFF = "OFF";
+	private static final String MODE_CHECK = "CHECK";
 
 	private final PlayerRepository playerRepository;
 	private final AdEventRepository adEventRepository;
@@ -36,6 +42,8 @@ public class AdminMonitoringService {
 	private final AdminAnomalyActionRepository anomalyActionRepository;
 	private final RuntimeEconomyService economy;
 	private final AppProperties appProperties;
+	private final AdProperties adProperties;
+	private final PromotionProperties promotionProperties;
 	private final Clock clock = Clock.systemUTC();
 
 	public AdminMonitoringService(
@@ -45,7 +53,9 @@ public class AdminMonitoringService {
 			AdminAnomalyCaseRepository anomalyCaseRepository,
 			AdminAnomalyActionRepository anomalyActionRepository,
 			RuntimeEconomyService economy,
-			AppProperties appProperties
+			AppProperties appProperties,
+			AdProperties adProperties,
+			PromotionProperties promotionProperties
 	) {
 		this.playerRepository = playerRepository;
 		this.adEventRepository = adEventRepository;
@@ -54,6 +64,8 @@ public class AdminMonitoringService {
 		this.anomalyActionRepository = anomalyActionRepository;
 		this.economy = economy;
 		this.appProperties = appProperties;
+		this.adProperties = adProperties;
+		this.promotionProperties = promotionProperties;
 	}
 
 	public AdminOverview overview() {
@@ -377,21 +389,83 @@ public class AdminMonitoringService {
 	}
 
 	private List<AdminRuntimeStatusItem> runtimeStatusItems() {
+		OperationalStatus rewardAds = adStatus(appProperties.realRewardAdsEnabled(), "리워드");
+		OperationalStatus bannerAds = adStatus(appProperties.realBannerAdsEnabled(), "배너");
+		OperationalStatus pointRewards = promotionStatus();
 		return List.of(
-				statusItem("review-tools", "심사용 테스트 도구", !appProperties.reviewToolsEnabled(), appProperties.reviewToolsEnabled() ? "테스트 도구 활성" : "비활성"),
-				statusItem("guest-user", "게스트 접속", !appProperties.guestUserEnabled(), appProperties.guestUserEnabled() ? "게스트 허용" : "비활성"),
-				statusItem("mock-monetization", "모의 수익화", !appProperties.mockMonetizationEnabled(), appProperties.mockMonetizationEnabled() ? "테스트 모드" : "비활성"),
-				statusItem("toss-identity", "토스 사용자 식별", appProperties.tossLoginEnabled() || appProperties.tossUserKeyEnabled(), appProperties.tossUserKeyEnabled() ? "userKey 사용" : "로그인/식별 확인 필요"),
-				statusItem("reward-ads", "리워드 광고", appProperties.realRewardAdsEnabled(), appProperties.realRewardAdsEnabled() ? "운영 광고" : "비활성/테스트"),
-				statusItem("banner-ads", "배너 광고", appProperties.realBannerAdsEnabled(), appProperties.realBannerAdsEnabled() ? "운영 광고" : "비활성/테스트"),
-				statusItem("payments", "인앱 결제", appProperties.realPaymentsEnabled(), appProperties.realPaymentsEnabled() ? "운영 결제" : "비활성/테스트"),
-				statusItem("point-rewards", "토스포인트 지급", appProperties.realTossPointRewardsEnabled(), appProperties.realTossPointRewardsEnabled() ? "운영 지급" : "비활성/테스트"),
-				statusItem("smart-message", "스마트 발송", appProperties.realSmartMessageEnabled(), appProperties.realSmartMessageEnabled() ? "운영 발송" : "비활성/테스트"),
-				statusItem("share-reward", "공유 리워드", appProperties.realShareRewardEnabled(), appProperties.realShareRewardEnabled() ? "운영 리워드" : "비활성/테스트"));
+				statusItem(
+						"review-tools",
+						"심사용 테스트 도구",
+						!appProperties.reviewToolsEnabled(),
+						appProperties.reviewToolsEnabled() ? "테스트 도구 활성" : "비활성",
+						appProperties.reviewToolsEnabled() ? MODE_TEST : MODE_OFF),
+				statusItem(
+						"guest-user",
+						"게스트 접속",
+						!appProperties.guestUserEnabled(),
+						appProperties.guestUserEnabled() ? "게스트 허용" : "비활성",
+						appProperties.guestUserEnabled() ? MODE_TEST : MODE_OFF),
+				statusItem(
+						"mock-monetization",
+						"모의 수익화",
+						!appProperties.mockMonetizationEnabled(),
+						appProperties.mockMonetizationEnabled() ? "테스트 모드" : "비활성",
+						appProperties.mockMonetizationEnabled() ? MODE_TEST : MODE_OFF),
+				statusItem(
+						"toss-identity",
+						"토스 사용자 식별",
+						appProperties.tossLoginEnabled() || appProperties.tossUserKeyEnabled(),
+						appProperties.tossUserKeyEnabled() ? "userKey 사용" : "로그인/식별 확인 필요",
+						appProperties.tossUserKeyEnabled() ? MODE_LIVE : MODE_CHECK),
+				statusItem("reward-ads", "리워드 광고", rewardAds.healthy(), rewardAds.detail(), rewardAds.mode()),
+				statusItem("banner-ads", "배너 광고", bannerAds.healthy(), bannerAds.detail(), bannerAds.mode()),
+				statusItem(
+						"payments",
+						"인앱 결제",
+						appProperties.realPaymentsEnabled(),
+						appProperties.realPaymentsEnabled() ? "운영 결제" : "비활성",
+						appProperties.realPaymentsEnabled() ? MODE_LIVE : MODE_OFF),
+				statusItem("point-rewards", "토스포인트 지급", pointRewards.healthy(), pointRewards.detail(), pointRewards.mode()),
+				statusItem(
+						"smart-message",
+						"스마트 발송",
+						appProperties.realSmartMessageEnabled(),
+						appProperties.realSmartMessageEnabled() ? "운영 발송" : "비활성",
+						appProperties.realSmartMessageEnabled() ? MODE_LIVE : MODE_OFF),
+				statusItem(
+						"share-reward",
+						"공유 리워드",
+						appProperties.realShareRewardEnabled(),
+						appProperties.realShareRewardEnabled() ? "운영 리워드" : "비활성",
+						appProperties.realShareRewardEnabled() ? MODE_LIVE : MODE_OFF));
 	}
 
-	private AdminRuntimeStatusItem statusItem(String key, String label, boolean healthy, String detail) {
-		return new AdminRuntimeStatusItem(key, label, healthy ? "OK" : "BLOCKED", healthy, detail);
+	private OperationalStatus adStatus(boolean enabled, String label) {
+		if (!enabled) {
+			return new OperationalStatus(false, "비활성", MODE_OFF);
+		}
+		if ("live".equals(adProperties.normalizedMode())) {
+			return new OperationalStatus(true, label + " 운영 광고 ID 사용", MODE_LIVE);
+		}
+		return new OperationalStatus(false, label + " 테스트 광고 ID 사용", MODE_TEST);
+	}
+
+	private OperationalStatus promotionStatus() {
+		if (!appProperties.realTossPointRewardsEnabled()) {
+			return new OperationalStatus(false, "비활성", MODE_OFF);
+		}
+		String code = promotionProperties.normalizedRewardClaimCode();
+		if (code.isBlank()) {
+			return new OperationalStatus(false, "프로모션 코드 없음", MODE_CHECK);
+		}
+		if (code.startsWith("TEST_")) {
+			return new OperationalStatus(false, "테스트 프로모션 코드", MODE_TEST);
+		}
+		return new OperationalStatus(true, "운영 프로모션 코드", MODE_LIVE);
+	}
+
+	private AdminRuntimeStatusItem statusItem(String key, String label, boolean healthy, String detail, String mode) {
+		return new AdminRuntimeStatusItem(key, label, healthy ? "OK" : "BLOCKED", healthy, detail, mode);
 	}
 
 	private long secondsAfterNow(Instant now, Instant target) {
@@ -528,7 +602,15 @@ public class AdminMonitoringService {
 			String label,
 			String status,
 			boolean healthy,
-			String detail
+			String detail,
+			String mode
+	) {
+	}
+
+	private record OperationalStatus(
+			boolean healthy,
+			String detail,
+			String mode
 	) {
 	}
 
