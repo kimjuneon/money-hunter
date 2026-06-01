@@ -1,6 +1,8 @@
 package com.money_hunter;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -50,7 +52,8 @@ class ProdProfileApiExposureTest {
 						"toss-user-key-disabled",
 						"real-reward-ads-disabled",
 						"real-toss-point-rewards-disabled"
-				)));
+				)))
+				.andExpect(jsonPath("$.releaseBlockers", not(hasItem("real-banner-ads-disabled"))));
 	}
 
 	@Test

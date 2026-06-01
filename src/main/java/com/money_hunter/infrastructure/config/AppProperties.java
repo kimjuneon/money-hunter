@@ -51,9 +51,6 @@ public record AppProperties(
 		if (!realRewardAdsEnabled) {
 			blockers.add("real-reward-ads-disabled");
 		}
-		if (!realBannerAdsEnabled) {
-			blockers.add("real-banner-ads-disabled");
-		}
 		if (!realPaymentsEnabled) {
 			blockers.add("real-payments-disabled");
 		}

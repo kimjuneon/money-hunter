@@ -777,9 +777,7 @@ function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
   state.lastCombatSyncAt = now;
   state.lastLocalGoldEstimateAt = now;
   const serverGoldGained = Math.max(0, Math.floor(player.gold - previousServerGold));
-  if (serverGoldGained > 0) {
-    state.lastSettlementGold = serverGoldGained;
-  }
+  state.lastSettlementGold = serverGoldGained;
   state.lastServerGold = player.gold;
   if (ratesChanged && isActiveAt(player.autoHuntEndsAt, now - 1)) {
     state.lastHitAt = Math.min(state.lastHitAt, now - attackIntervalMillis(player));
@@ -1276,13 +1274,21 @@ function renderNotification(player) {
   $("notificationModal").dataset.notificationId = notification.id;
   $("notificationTitle").textContent = notification.title;
   $("notificationBody").textContent = notification.body;
-  $("settledGoldAmount").textContent = state.lastSettlementGold > 0
-    ? `${state.lastSettlementGold.toLocaleString("ko-KR")} 골드를 벌었어요`
+  const settledGold = notificationSettledGold(notification);
+  $("settledGoldAmount").textContent = settledGold > 0
+    ? `${settledGold.toLocaleString("ko-KR")} 골드를 벌었어요`
     : "이번 정산에서 추가 골드는 없어요";
   $("notificationMeta").textContent = notification.sentAt
     ? `알림 도착 · ${formatShortTime(notification.sentAt)}`
     : "자동사냥 종료 안내";
   $("notificationModal").classList.remove("hidden");
+}
+
+function notificationSettledGold(notification) {
+  if (notification?.settledGold === null || notification?.settledGold === undefined) {
+    return state.lastSettlementGold;
+  }
+  return Math.max(0, Math.floor(Number(notification.settledGold) || 0));
 }
 
 async function closeNotificationModal() {

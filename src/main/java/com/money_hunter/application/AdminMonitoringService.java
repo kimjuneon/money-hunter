@@ -390,7 +390,7 @@ public class AdminMonitoringService {
 
 	private List<AdminRuntimeStatusItem> runtimeStatusItems() {
 		OperationalStatus rewardAds = adStatus(appProperties.realRewardAdsEnabled(), "리워드");
-		OperationalStatus bannerAds = adStatus(appProperties.realBannerAdsEnabled(), "배너");
+		OperationalStatus bannerAds = bannerAdStatus();
 		OperationalStatus pointRewards = promotionStatus();
 		return List.of(
 				statusItem(
@@ -448,6 +448,13 @@ public class AdminMonitoringService {
 			return new OperationalStatus(true, label + " 운영 광고 ID 사용", MODE_LIVE);
 		}
 		return new OperationalStatus(false, label + " 테스트 광고 ID 사용", MODE_TEST);
+	}
+
+	private OperationalStatus bannerAdStatus() {
+		if (!appProperties.realBannerAdsEnabled()) {
+			return new OperationalStatus(true, "미사용", MODE_OFF);
+		}
+		return adStatus(true, "배너");
 	}
 
 	private OperationalStatus promotionStatus() {
