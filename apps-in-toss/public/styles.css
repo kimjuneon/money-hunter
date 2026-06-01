@@ -1756,7 +1756,6 @@ img {
 .notification-modal,
 .levelup-modal,
 .reward-confirm-modal,
-.profile-notice-modal,
 .pet-easter-modal,
 .login-modal {
   position: fixed;
@@ -1779,7 +1778,6 @@ img {
 .time-reward-overflow-card,
 .levelup-card,
 .reward-confirm-card,
-.profile-notice-card,
 .pet-easter-card,
 .login-card {
   position: relative;
@@ -1808,11 +1806,6 @@ img {
   text-align: center;
 }
 
-.profile-notice-card {
-  padding: 24px 22px 20px;
-  text-align: center;
-}
-
 .pet-easter-card {
   padding: 24px 22px 20px;
   text-align: center;
@@ -1820,7 +1813,6 @@ img {
 
 .reward-confirm-card h2,
 .time-reward-overflow-card h2,
-.profile-notice-card h2,
 .pet-easter-card h2 {
   margin: 8px 0 9px;
   color: #0f172a;
@@ -1830,7 +1822,6 @@ img {
 
 .reward-confirm-card > p:not(.modal-kicker),
 .time-reward-overflow-card > p:not(.modal-kicker),
-.profile-notice-card > p:not(.modal-kicker),
 .pet-easter-card > p:not(.modal-kicker) {
   margin: 0 auto 18px;
   max-width: 310px;
@@ -1842,12 +1833,6 @@ img {
 
 #timeRewardOverflowBody {
   white-space: pre-line;
-}
-
-.profile-notice-actions {
-  display: grid;
-  grid-template-columns: 0.8fr 1fr;
-  gap: 9px;
 }
 
 .pet-easter-card input {
@@ -1878,8 +1863,6 @@ img {
 
 .reward-confirm-primary,
 .time-reward-overflow-primary,
-.profile-notice-primary,
-.profile-notice-secondary,
 .pet-easter-primary,
 .pet-easter-secondary {
   width: 100%;
@@ -1890,14 +1873,12 @@ img {
 
 .reward-confirm-primary,
 .time-reward-overflow-primary,
-.profile-notice-primary,
 .pet-easter-primary {
   background: linear-gradient(180deg, #3182f6, #1b64da);
   color: white;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.28), 0 10px 22px rgba(49, 130, 246, 0.24);
 }
 
-.profile-notice-secondary,
 .pet-easter-secondary {
   border: 2px solid #cbd5e1;
   background: #f8fafc;

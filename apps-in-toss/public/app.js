@@ -77,7 +77,6 @@ const state = {
   realSmartMessageEnabled: false,
   notificationAgreementTemplateCode: "",
   notificationAgreementInFlight: false,
-  profileEditorInFlight: false,
   adMode: "test",
   adGroupIds: {},
   iapProductIds: {},
@@ -92,7 +91,6 @@ const state = {
   pendingIapRestoreInFlight: false,
   pendingIapProductIdsByOrderId: readPendingIapProductIds(),
   shareRewardInFlight: false,
-  gameProfileInFlight: false,
   loginInFlight: false,
   petEasterEggTapCount: 0,
   petEasterEggTapStartedAt: 0,
@@ -233,8 +231,6 @@ const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationAgreementStatus";
-const defaultNicknameNoticeStoragePrefix = "moneyHunter.defaultNicknameNotice.";
-const gameProfileWebviewUrl = "servicetoss://game-center/profile";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
@@ -803,7 +799,6 @@ async function refresh() {
     state.selectedJob = state.player.job;
   }
   render();
-  window.setTimeout(() => maybeShowDefaultNicknameNotice(), 350);
 }
 
 function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
@@ -2581,155 +2576,6 @@ function gameProfileNickname(player = state.player) {
   return String(player?.gameProfileNickname || "").trim();
 }
 
-function isDefaultGameNickname(nickname) {
-  return /^플레이어\d{4,}$/.test(String(nickname || "").trim());
-}
-
-function defaultNicknameNoticeKey(player = state.player) {
-  return `${defaultNicknameNoticeStoragePrefix}${player?.userKey || "guest"}`;
-}
-
-function maybeShowDefaultNicknameNotice() {
-  if (
-    !shouldUseGameCenter()
-    || !state.player?.job
-    || state.player?.onboardingRequired
-    || !isDefaultGameNickname(gameProfileNickname())
-  ) {
-    return;
-  }
-  const noticeKey = defaultNicknameNoticeKey();
-  if (storedValue(noticeKey) === "shown") {
-    return;
-  }
-  storeValue(noticeKey, "shown");
-  $("profileNoticeModal").classList.remove("hidden");
-}
-
-function closeProfileNoticeModal() {
-  $("profileNoticeModal").classList.add("hidden");
-}
-
-function appsInTossAppName() {
-  return String(window.__appsInToss?.appName || "gold-hunter").trim() || "gold-hunter";
-}
-
-function gameProfileEditorUrl() {
-  const url = new URL(gameProfileWebviewUrl);
-  url.searchParams.set("appName", appsInTossAppName());
-  url.searchParams.set("referrer", `appsintoss.${appsInTossAppName()}`);
-  return url.toString();
-}
-
-async function openTransparentServiceWeb(innerUrl, onClose) {
-  const bridge = await loadTossBridge();
-  const sdk = window.MoneyHunterTossSdk || {};
-  const openURL = bridge.openURL || sdk.openURL || (await loadTossSdk()).openURL;
-  if (typeof openURL !== "function") {
-    throw new Error("토스 앱에서 프로필 화면을 열 수 없어요.");
-  }
-
-  const url = new URL("supertoss://transparent-service-web");
-  url.searchParams.set("url", innerUrl);
-  if (typeof bridge.onVisibilityChangedByTransparentServiceWeb === "function") {
-    const callbackId = `moneyHunterProfile_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    url.searchParams.set("onVisibilityChangeCallback", callbackId);
-    return new Promise((resolve, reject) => {
-      let finished = false;
-      let cleanup = null;
-      const finish = () => {
-        if (finished) {
-          return;
-        }
-        finished = true;
-        cleanup?.();
-        Promise.resolve(onClose?.()).then(resolve, reject);
-      };
-      cleanup = bridge.onVisibilityChangedByTransparentServiceWeb({
-        options: { callbackId },
-        onEvent(value) {
-          if (value === true) {
-            finish();
-          }
-        },
-      });
-      Promise.resolve(openURL(url.toString())).catch((error) => {
-        cleanup?.();
-        reject(error);
-      });
-    });
-  }
-
-  await openURL(url.toString());
-  return new Promise((resolve, reject) => {
-    window.setTimeout(() => Promise.resolve(onClose?.()).then(resolve, reject), 1400);
-  });
-}
-
-async function syncGameProfileIfNeeded(options = {}) {
-  const force = Boolean(options.force);
-  if (!shouldUseGameCenter() || state.gameProfileInFlight || (!force && state.player?.gameProfileNickname)) {
-    return;
-  }
-  state.gameProfileInFlight = true;
-  try {
-    const sdk = await loadTossSdk();
-    if (typeof sdk.getGameCenterGameProfile !== "function") {
-      return;
-    }
-    const profile = await sdk.getGameCenterGameProfile();
-    if (profile?.statusCode === "PROFILE_NOT_FOUND") {
-      return;
-    }
-    const nickname = profile?.nickname || profile?.name || profile?.profile?.nickname || "";
-    if (!nickname) {
-      return;
-    }
-    setServerPlayer(await api("/api/player/game-profile", {
-      method: "POST",
-      body: JSON.stringify({ nickname }),
-    }));
-    render();
-    maybeShowDefaultNicknameNotice();
-  } catch {
-    // 게임 프로필은 랭킹용 보조 정보라 실패해도 기본 플레이를 막지 않아요.
-  } finally {
-    state.gameProfileInFlight = false;
-  }
-}
-
-async function openGameProfileEditor() {
-  if (!shouldUseGameCenter()) {
-    setMessage("토스 게임 프로필은 토스 앱에서 수정할 수 있어요.");
-    return;
-  }
-  if (gameProfileNickname()) {
-    await syncGameProfileIfNeeded({ force: true });
-    setMessage("이미 게임 프로필이 있어요. 현재 SDK에서는 앱 안 닉네임 수정 화면을 직접 열 수 없어요.");
-    renderRewardPanel(state.player);
-    return;
-  }
-  if (state.profileEditorInFlight) {
-    setMessage("게임 프로필을 여는 중이에요.");
-    return;
-  }
-  state.profileEditorInFlight = true;
-  renderRewardPanel(state.player);
-  setMessage("토스 게임 프로필을 여는 중...");
-  try {
-    await openTransparentServiceWeb(gameProfileEditorUrl(), async () => {
-      await syncGameProfileIfNeeded({ force: true });
-      render();
-      setMessage("게임 프로필을 확인했어요.");
-    });
-  } catch (error) {
-    setMessage(error.message || "게임 프로필을 열지 못했어요.");
-  } finally {
-    state.profileEditorInFlight = false;
-    renderRewardPanel(state.player);
-  }
-}
-
 async function submitLeaderboardScore() {
   if (!shouldUseGameCenter()) {
     return;
@@ -3450,10 +3296,6 @@ $("openLeaderboard").addEventListener("click", async () => {
     setMessage(error.message);
   }
 });
-
-$("closeProfileNoticeModal").addEventListener("click", closeProfileNoticeModal);
-$("dismissProfileNotice").addEventListener("click", closeProfileNoticeModal);
-$("editProfileFromNotice").addEventListener("click", closeProfileNoticeModal);
 
 $("petSkinList").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-pet-skin-action]");
