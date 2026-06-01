@@ -34,6 +34,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 			select p
 			from Player p
 			where (:favoritesOnly = false or p.adminFavorite = true)
+				and (:hiddenSkinsOnly = false or coalesce(p.ownedPetSkinKeys, '') like '%EASTER_EGG%')
 				and (
 					:query is null
 					or :query = ''
@@ -46,6 +47,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	List<Player> searchPlayers(
 			@Param("query") String query,
 			@Param("favoritesOnly") boolean favoritesOnly,
+			@Param("hiddenSkinsOnly") boolean hiddenSkinsOnly,
 			org.springframework.data.domain.Pageable pageable);
 
 	@Query("""

@@ -51,9 +51,9 @@ public class AdminPlayerService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<AdminPlayerResponse> search(String query, int limit, boolean favoritesOnly) {
+	public List<AdminPlayerResponse> search(String query, int limit, boolean favoritesOnly, boolean hiddenSkinsOnly) {
 		int safeLimit = Math.max(1, Math.min(limit, MAX_SEARCH_LIMIT));
-		return playerRepository.searchPlayers(normalize(query), favoritesOnly, PageRequest.of(0, safeLimit)).stream()
+		return playerRepository.searchPlayers(normalize(query), favoritesOnly, hiddenSkinsOnly, PageRequest.of(0, safeLimit)).stream()
 				.map(AdminPlayerResponse::from)
 				.toList();
 	}

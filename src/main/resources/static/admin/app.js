@@ -39,6 +39,7 @@ function bindEvents() {
   $("playerFilterStatus").addEventListener("change", renderPlayers);
   $("playerFilterProgress").addEventListener("change", renderPlayers);
   $("playerFavoritesOnly").addEventListener("change", loadPlayers);
+  $("playerHiddenSkinsOnly").addEventListener("change", loadPlayers);
   $("playerFilterClearButton").addEventListener("click", clearPlayerFilters);
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
@@ -702,6 +703,7 @@ async function openPlayerFromAnomaly(userKey) {
   $("playerFilterStatus").value = "ALL";
   $("playerFilterProgress").value = "ALL";
   $("playerFavoritesOnly").checked = false;
+  $("playerHiddenSkinsOnly").checked = false;
   state.selectedUserKey = userKey;
   await loadPlayers();
   showToast(`${userKey} 유저 정보를 열었어요.`);
@@ -710,7 +712,8 @@ async function openPlayerFromAnomaly(userKey) {
 async function loadPlayers() {
   const query = $("playerSearchInput").value.trim();
   const favoritesOnly = $("playerFavoritesOnly").checked;
-  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=100&favoritesOnly=${favoritesOnly}`);
+  const hiddenSkinsOnly = $("playerHiddenSkinsOnly").checked;
+  const players = await request(`/api/admin/players?query=${encodeURIComponent(query)}&limit=100&favoritesOnly=${favoritesOnly}&hiddenSkinsOnly=${hiddenSkinsOnly}`);
   state.players = players;
   if (!players.some((player) => player.userKey === state.selectedUserKey)) {
     state.selectedUserKey = players[0]?.userKey || "";
@@ -724,6 +727,7 @@ function clearPlayerFilters() {
   $("playerFilterStatus").value = "ALL";
   $("playerFilterProgress").value = "ALL";
   $("playerFavoritesOnly").checked = false;
+  $("playerHiddenSkinsOnly").checked = false;
   state.selectedUserKey = "";
   loadPlayers();
 }

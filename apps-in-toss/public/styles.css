@@ -1840,6 +1840,10 @@ img {
   line-height: 1.45;
 }
 
+#timeRewardOverflowBody {
+  white-space: pre-line;
+}
+
 .profile-notice-actions {
   display: grid;
   grid-template-columns: 0.8fr 1fr;

@@ -1733,27 +1733,28 @@ function timeRewardAvailability(currentEndAt, rewardSeconds, maxSeconds) {
 
 function timeRewardGrantLabel(availability, fallbackSeconds) {
   return availability.grantedSeconds > 0
-    ? secondsLabel(availability.grantedSeconds || fallbackSeconds)
+    ? timeRewardModalDurationLabel(availability.grantedSeconds || fallbackSeconds)
     : "최대 시간";
 }
 
 function timeRewardOverflowBody(rewardName, availability) {
   const remainingLabel = availability.remainingSeconds > 0
-    ? secondsLabel(availability.remainingSeconds)
+    ? timeRewardModalDurationLabel(availability.remainingSeconds)
     : "0분";
-  const rewardLabel = secondsLabel(availability.rewardSeconds);
-  const maxLabel = secondsLabel(availability.maxSeconds);
+  const maxLabel = timeRewardModalDurationLabel(availability.maxSeconds);
+  const particle = topicParticle(rewardName);
   if (availability.grantedSeconds <= 0) {
-    return `${rewardName} 시간이 이미 최대치(${maxLabel})예요. 광고를 봐도 시간이 더 늘어나지 않아요.`;
+    return `${rewardName}${particle} 최대 ${maxLabel}까지 충전할 수 있어요.\n현재 ${remainingLabel}이 남아 있어, 광고를 봐도 더 추가되지 않아요.`;
   }
-  const grantedLabel = secondsLabel(availability.grantedSeconds);
-  return `현재 남은 시간은 ${remainingLabel}이고, 광고 보상 ${rewardLabel}을 모두 더하면 최대치(${maxLabel})를 넘어가요. 광고를 보면 ${grantedLabel}만 충전돼요.`;
+  const grantedLabel = timeRewardModalDurationLabel(availability.grantedSeconds);
+  return `${rewardName}${particle} 최대 ${maxLabel}까지 충전할 수 있어요.\n현재 ${remainingLabel}이 남아 있어, 광고를 보면 ${grantedLabel}만 추가돼요.`;
 }
 
 function showTimeRewardOverflowModal(rewardName, availability, action) {
   state.timeRewardOverflowAction = action;
-  $("timeRewardOverflowTitle").textContent = `${rewardName} 시간이 최대치를 넘어요`;
+  $("timeRewardOverflowTitle").textContent = `${rewardName} 시간이 거의 가득 찼어요`;
   $("timeRewardOverflowBody").textContent = timeRewardOverflowBody(rewardName, availability);
+  $("confirmTimeRewardOverflowAd").textContent = "광고 보고 충전하기";
   $("timeRewardOverflowModal").classList.remove("hidden");
 }
 
@@ -1788,6 +1789,31 @@ function secondsLabel(seconds) {
     return `${hours}시간`;
   }
   return `${hours.toFixed(1).replace(/\\.0$/, "")}시간`;
+}
+
+function timeRewardModalDurationLabel(seconds) {
+  const totalMinutes = Math.max(0, Math.ceil(Number(seconds || 0) / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0 && minutes > 0) {
+    return `${hours}시간 ${minutes}분`;
+  }
+  if (hours > 0) {
+    return `${hours}시간`;
+  }
+  return `${minutes}분`;
+}
+
+function topicParticle(value) {
+  const last = [...String(value || "")].pop();
+  if (!last) {
+    return "은";
+  }
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) {
+    return "는";
+  }
+  return (code - 0xac00) % 28 > 0 ? "은" : "는";
 }
 
 function showContentPanel(panel) {

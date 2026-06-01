@@ -126,10 +126,11 @@ public class AdminController {
 			@RequestParam(defaultValue = "") String query,
 			@RequestParam(defaultValue = "30") int limit,
 			@RequestParam(defaultValue = "false") boolean favoritesOnly,
+			@RequestParam(defaultValue = "false") boolean hiddenSkinsOnly,
 			HttpServletRequest request
 	) {
 		adminAccessGuard.require(request);
-		return adminPlayerService.search(query, limit, favoritesOnly);
+		return adminPlayerService.search(query, limit, favoritesOnly, hiddenSkinsOnly);
 	}
 
 	@PostMapping("/players/{userKey}/suspend")
