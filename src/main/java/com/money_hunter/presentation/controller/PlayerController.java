@@ -199,6 +199,16 @@ public class PlayerController {
 		return playerService.claimFriendInviteReward(userKey, friendInviteCount(request));
 	}
 
+	@PostMapping("/rookie-event/days/{day}/reward/claim")
+	public PlayerStateResponse claimRookieEventDailyReward(Principal principal, @PathVariable int day) {
+		return playerService.claimRookieEventDailyReward(userKey(principal), day);
+	}
+
+	@PostMapping("/rookie-event/final-reward/claim")
+	public PlayerStateResponse claimRookieEventFinalReward(Principal principal) {
+		return playerService.claimRookieEventFinalReward(userKey(principal));
+	}
+
 	@PostMapping("/onestore/auto-hunt/claim")
 	public PlayerStateResponse claimOneStoreAutoHunt(Principal principal) {
 		String userKey = userKey(principal);

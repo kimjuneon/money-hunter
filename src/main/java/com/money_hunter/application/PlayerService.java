@@ -724,6 +724,30 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse claimRookieEventDailyReward(String userKey, int day) {
+		Player player = getOrCreatePlayer(userKey);
+		prepareRookieEvent(player);
+		completeRookieEventDayIfReady(player);
+		claimRookieEventDailyReward(player, day);
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse claimRookieEventFinalReward(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		prepareRookieEvent(player);
+		completeRookieEventDayIfReady(player);
+		if (player.isRookieEventRewardClaimed()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 이벤트 완료 보상을 받았어요.");
+		}
+		if (player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "7일 미션을 모두 완료해야 받을 수 있어요.");
+		}
+		player.claimRookieEventReward(clock.instant());
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse fillRewardGaugeForTest(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
@@ -1222,7 +1246,6 @@ public class PlayerService {
 		syncStatSkills(player);
 		prepareRookieEvent(player);
 		completeRookieEventDayIfReady(player);
-		grantPendingRookieEventDailyRewards(player);
 		player.resetFriendInviteRewardIfNewDay(LocalDate.now(clock));
 		List<SkillResponse> skills = Arrays.stream(SkillType.values())
 				.map(player::getOrCreateSkill)
@@ -1369,18 +1392,24 @@ public class PlayerService {
 				&& !player.completedRookieEventDayToday(today);
 	}
 
-	private void grantPendingRookieEventDailyRewards(Player player) {
+	private void claimRookieEventDailyReward(Player player, int day) {
 		int completedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventCompletedDays()));
 		int rewardedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventRewardedDays()));
-		if (rewardedDays >= completedDays) {
-			return;
+		if (day < 1 || day > ROOKIE_EVENT_DAYS) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 이벤트 일차예요.");
 		}
-		Instant now = clock.instant();
-		for (int day = rewardedDays + 1; day <= completedDays; day++) {
-			RookieEventDayPlan plan = rookieEventPlan(day);
-			grantRookieEventDailyReward(player, plan.dailyReward(), now);
-			player.markRookieEventDailyRewarded(day);
+		if (day > completedDays) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 일차 미션을 먼저 완료해 주세요.");
 		}
+		if (day <= rewardedDays) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 받은 일일 보상이에요.");
+		}
+		if (day != rewardedDays + 1) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이전 일일 보상부터 받아 주세요.");
+		}
+		RookieEventDayPlan plan = rookieEventPlan(day);
+		grantRookieEventDailyReward(player, plan.dailyReward(), clock.instant());
+		player.markRookieEventDailyRewarded(day);
 	}
 
 	private void grantRookieEventDailyReward(Player player, RookieEventDailyRewardPlan reward, Instant now) {
@@ -1458,6 +1487,7 @@ public class PlayerService {
 		boolean current = !rewardClaimed && !expired && !completed && plan.day() == currentDay;
 		boolean locked = !completed && (rewardClaimed || expired || plan.day() > currentDay || lockedUntilTomorrow);
 		boolean dailyRewardClaimed = plan.day() <= player.getRookieEventRewardedDays();
+		boolean dailyRewardClaimable = completed && !dailyRewardClaimed && plan.day() == player.getRookieEventRewardedDays() + 1;
 		List<RookieEventMissionResponse> missions = plan.missions().stream()
 				.map(mission -> rookieEventMissionResponse(player, mission, completed, current && !locked))
 				.toList();
@@ -1469,6 +1499,7 @@ public class PlayerService {
 				locked,
 				plan.dailyReward().label(),
 				dailyRewardClaimed,
+				dailyRewardClaimable,
 				missions);
 	}
 
@@ -1544,7 +1575,10 @@ public class PlayerService {
 
 	private boolean rookieEventExpired(Player player, Instant now) {
 		Instant endsAt = rookieEventEndsAt(player);
-		return endsAt != null && now.isAfter(endsAt) && !player.isRookieEventRewardClaimed();
+		return endsAt != null
+				&& now.isAfter(endsAt)
+				&& !player.isRookieEventRewardClaimed()
+				&& player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS;
 	}
 
 	private Instant rookieEventEndsAt(Player player) {

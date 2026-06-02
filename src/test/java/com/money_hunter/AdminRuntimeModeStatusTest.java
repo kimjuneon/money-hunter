@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
@@ -68,6 +70,36 @@ class AdminRuntimeModeStatusTest {
 		assertEquals(
 				List.of("테스트 프로모션 코드"),
 				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'point-rewards')].detail"));
+	}
+
+	@Test
+	void adminRookieEventTestToolAppliesOnlyTargetUser() throws Exception {
+		String token = loginToken();
+		mockMvc.perform(post("/api/player/job")
+						.with(user("rookie-admin-target"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.with(user("rookie-admin-other"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"ARCHER\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/admin/test-tools/rookie-event/rookie-admin-target/state")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"completedDays\":7,\"rewardedDays\":6,\"finalRewardClaimed\":false,\"reason\":\"event test\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.completedDays").value(7))
+				.andExpect(jsonPath("$.rookieEvent.rewardClaimed").value(false))
+				.andExpect(jsonPath("$.rookieEvent.days[6].rewardClaimable").value(true));
+
+		mockMvc.perform(get("/api/player")
+						.with(user("rookie-admin-other")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.completedDays").value(0))
+				.andExpect(jsonPath("$.rookieEvent.rewardClaimed").value(false));
 	}
 
 	private String loginToken() throws Exception {

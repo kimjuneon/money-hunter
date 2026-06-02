@@ -2,6 +2,7 @@ package com.money_hunter.application;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
@@ -198,6 +199,69 @@ public class AdminPlayerService {
 				adEventsDeleted);
 	}
 
+	@Transactional
+	public AdminPlayerResponse resetRookieEventForTest(String userKey) {
+		Player player = player(userKey);
+		requireOnboarded(player);
+		Instant now = clock.instant();
+		player.resetRookieEventForTest(now, LocalDate.now(clock));
+		log.warn("관리자 이벤트 테스트 초기화: userKey={}", mask(userKey));
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
+	public AdminPlayerResponse completeNextRookieEventDayForTest(String userKey) {
+		Player player = player(userKey);
+		requireOnboarded(player);
+		Instant now = clock.instant();
+		if (player.getRookieEventStartedAt() == null) {
+			player.resetRookieEventForTest(now, LocalDate.now(clock));
+		}
+		int completedDays = Math.min(7, player.getRookieEventCompletedDays() + 1);
+		int rewardedDays = Math.min(completedDays, player.getRookieEventRewardedDays());
+		player.overrideRookieEventForTest(
+				now,
+				LocalDate.now(clock),
+				completedDays,
+				rewardedDays,
+				player.isRookieEventRewardClaimed() && completedDays >= 7,
+				7);
+		log.warn(
+				"관리자 이벤트 테스트 일차 완료: userKey={}, completedDays={}, rewardedDays={}",
+				mask(userKey),
+				completedDays,
+				rewardedDays);
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
+	public AdminPlayerResponse overrideRookieEventForTest(
+			String userKey,
+			int completedDays,
+			int rewardedDays,
+			boolean finalRewardClaimed
+	) {
+		Player player = player(userKey);
+		requireOnboarded(player);
+		int safeCompletedDays = Math.max(0, Math.min(7, completedDays));
+		int safeRewardedDays = Math.max(0, Math.min(safeCompletedDays, rewardedDays));
+		boolean safeFinalRewardClaimed = finalRewardClaimed && safeCompletedDays >= 7;
+		player.overrideRookieEventForTest(
+				clock.instant(),
+				LocalDate.now(clock),
+				safeCompletedDays,
+				safeRewardedDays,
+				safeFinalRewardClaimed,
+				7);
+		log.warn(
+				"관리자 이벤트 테스트 상태 적용: userKey={}, completedDays={}, rewardedDays={}, finalRewardClaimed={}",
+				mask(userKey),
+				safeCompletedDays,
+				safeRewardedDays,
+				safeFinalRewardClaimed);
+		return AdminPlayerResponse.from(player);
+	}
+
 	private Player player(String userKey) {
 		return playerRepository.findByUserKey(requiredUserKey(userKey))
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "유저를 찾지 못했어요."));
@@ -208,6 +272,12 @@ public class AdminPlayerService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "유저 키가 필요해요.");
 		}
 		return userKey.trim();
+	}
+
+	private void requireOnboarded(Player player) {
+		if (!player.hasChosenJob()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "직업을 선택한 유저에게만 적용할 수 있어요.");
+		}
 	}
 
 	private String normalize(String query) {

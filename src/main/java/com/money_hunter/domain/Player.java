@@ -396,13 +396,51 @@ public class Player {
 		this.rookieEventLastCompletedDate = today;
 		if (rookieEventCompletedDays >= maxEventDays) {
 			this.rookieEventCompletedAt = now;
-			this.rookieEventRewardClaimedAt = now;
 		}
 		touch();
 	}
 
 	public void markRookieEventDailyRewarded(int day) {
 		this.rookieEventRewardedDays = Math.max(this.rookieEventRewardedDays, day);
+		touch();
+	}
+
+	public void claimRookieEventReward(Instant now) {
+		if (rookieEventRewardClaimedAt != null) {
+			return;
+		}
+		this.rookieEventRewardClaimedAt = now;
+		touch();
+	}
+
+	public void resetRookieEventForTest(Instant now, LocalDate today) {
+		this.rookieEventStartedAt = now;
+		this.rookieEventCompletedAt = null;
+		this.rookieEventRewardClaimedAt = null;
+		this.rookieEventCompletedDays = 0;
+		this.rookieEventRewardedDays = 0;
+		this.rookieEventLastCompletedDate = null;
+		resetRookieEventDailyProgress(today);
+		touch();
+	}
+
+	public void overrideRookieEventForTest(
+			Instant now,
+			LocalDate today,
+			int completedDays,
+			int rewardedDays,
+			boolean rewardClaimed,
+			int maxEventDays
+	) {
+		int safeCompletedDays = Math.max(0, Math.min(maxEventDays, completedDays));
+		int safeRewardedDays = Math.max(0, Math.min(safeCompletedDays, rewardedDays));
+		this.rookieEventStartedAt = rookieEventStartedAt == null ? now : rookieEventStartedAt;
+		this.rookieEventCompletedDays = safeCompletedDays;
+		this.rookieEventRewardedDays = safeRewardedDays;
+		this.rookieEventCompletedAt = safeCompletedDays >= maxEventDays ? now : null;
+		this.rookieEventRewardClaimedAt = rewardClaimed && safeCompletedDays >= maxEventDays ? now : null;
+		this.rookieEventLastCompletedDate = safeCompletedDays > 0 && safeCompletedDays < maxEventDays ? today : null;
+		resetRookieEventDailyProgress(today);
 		touch();
 	}
 

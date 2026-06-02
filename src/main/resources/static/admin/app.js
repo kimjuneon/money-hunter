@@ -16,6 +16,7 @@ const state = {
   policies: [],
   growthDays: 30,
   loadingTimer: null,
+  rookieEventTestState: null,
 };
 
 const maxGoldPerHour = 6000;
@@ -53,6 +54,10 @@ function bindEvents() {
   $("playerHiddenSkinsOnly").addEventListener("change", reloadPlayersFromFirstPage);
   $("playerActiveAutoHuntOnly").addEventListener("change", reloadPlayersFromFirstPage);
   $("playerFilterClearButton").addEventListener("click", clearPlayerFilters);
+  $("rookieEventTestLoadButton").addEventListener("click", () => loadRookieEventTestState({ notify: true }));
+  $("rookieEventTestResetButton").addEventListener("click", (event) => runRookieEventTestAction("reset", event.currentTarget));
+  $("rookieEventTestCompleteDayButton").addEventListener("click", (event) => runRookieEventTestAction("complete-next-day", event.currentTarget));
+  $("rookieEventTestApplyButton").addEventListener("click", (event) => runRookieEventTestAction("state", event.currentTarget));
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
   $("prevAuditButton").addEventListener("click", () => {
@@ -166,6 +171,7 @@ function activateView(viewId) {
     policyView: "정책값",
     auditView: "감사 로그",
     monitoringView: "모니터링",
+    testToolsView: "테스트 도구",
   }[viewId] || "대시보드";
 }
 
@@ -194,6 +200,8 @@ async function refreshCurrentView(options = {}) {
       await loadPlayers();
     } else if (state.view === "monitoringView") {
       await loadServerMetrics();
+    } else if (state.view === "testToolsView") {
+      await loadRookieEventTestState();
     } else {
       await loadOverview();
     }
@@ -209,6 +217,195 @@ async function refreshCurrentView(options = {}) {
       setButtonBusy(button, false);
     }
   }
+}
+
+async function loadRookieEventTestState(options = {}) {
+  const userKey = rookieEventTestUserKey();
+  const result = $("rookieEventTestResult");
+  result.textContent = "";
+  result.classList.remove("error-text");
+  if (!userKey) {
+    state.rookieEventTestState = null;
+    renderRookieEventTestState(null);
+    return;
+  }
+  try {
+    const data = await request(`/api/admin/test-tools/rookie-event/${encodeURIComponent(userKey)}`);
+    state.rookieEventTestState = data;
+    syncRookieEventTestInputs(data);
+    renderRookieEventTestState(data);
+    if (options.notify) {
+      result.textContent = "이벤트 상태를 불러왔어요.";
+      showToast("이벤트 상태 조회 완료");
+    }
+  } catch (error) {
+    state.rookieEventTestState = null;
+    renderRookieEventTestState(null);
+    result.textContent = error.message;
+    result.classList.add("error-text");
+    showToast(error.message, "error");
+  }
+}
+
+async function runRookieEventTestAction(action, button) {
+  const userKey = rookieEventTestUserKey();
+  const result = $("rookieEventTestResult");
+  result.textContent = "";
+  result.classList.remove("error-text");
+  if (!userKey) {
+    result.textContent = "대상 유저 키를 입력해 주세요.";
+    result.classList.add("error-text");
+    return;
+  }
+  const payload = rookieEventTestPayload();
+  if (!payload) {
+    return;
+  }
+  if (action === "state" && !confirm(`${userKey} 유저의 이벤트 상태를 직접 적용할까요?`)) {
+    return;
+  }
+  const endpoint = action === "state"
+    ? "state"
+    : action === "reset"
+      ? "reset"
+      : "complete-next-day";
+  setButtonBusy(button, true);
+  try {
+    const data = await request(`/api/admin/test-tools/rookie-event/${encodeURIComponent(userKey)}/${endpoint}`, {
+      method: "POST",
+      body: payload,
+    });
+    state.rookieEventTestState = data;
+    syncRookieEventTestInputs(data);
+    renderRookieEventTestState(data);
+    const message = {
+      reset: "이벤트 테스트 상태를 초기화했어요.",
+      "complete-next-day": "다음 일차를 완료 상태로 만들었어요.",
+      state: "이벤트 테스트 상태를 적용했어요.",
+    }[action];
+    result.textContent = message;
+    showToast(message);
+  } catch (error) {
+    result.textContent = error.message;
+    result.classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+function rookieEventTestUserKey() {
+  return $("rookieEventTestUserKey")?.value?.trim() || "";
+}
+
+function rookieEventTestPayload() {
+  const completedDays = Number($("rookieEventTestCompletedDays").value);
+  const rewardedDays = Number($("rookieEventTestRewardedDays").value);
+  const finalRewardClaimed = $("rookieEventTestFinalClaimed").checked;
+  const reason = $("rookieEventTestReason").value.trim();
+  const result = $("rookieEventTestResult");
+  if (!Number.isInteger(completedDays) || completedDays < 0 || completedDays > 7) {
+    result.textContent = "완료 일차는 0부터 7 사이로 입력해 주세요.";
+    result.classList.add("error-text");
+    return null;
+  }
+  if (!Number.isInteger(rewardedDays) || rewardedDays < 0 || rewardedDays > 7) {
+    result.textContent = "수령한 일일 보상은 0부터 7 사이로 입력해 주세요.";
+    result.classList.add("error-text");
+    return null;
+  }
+  if (rewardedDays > completedDays) {
+    result.textContent = "수령한 일일 보상 수는 완료 일차보다 클 수 없어요.";
+    result.classList.add("error-text");
+    return null;
+  }
+  if (finalRewardClaimed && completedDays < 7) {
+    result.textContent = "완료 펫 보상 수령 처리는 7일차 완료 상태에서만 가능해요.";
+    result.classList.add("error-text");
+    return null;
+  }
+  return { completedDays, rewardedDays, finalRewardClaimed, reason };
+}
+
+function syncRookieEventTestInputs(player) {
+  const event = player?.rookieEvent;
+  if (!event?.visible) {
+    return;
+  }
+  $("rookieEventTestCompletedDays").value = String(event.completedDays || 0);
+  $("rookieEventTestRewardedDays").value = String((event.days || []).filter((day) => day.rewardClaimed).length);
+  $("rookieEventTestFinalClaimed").checked = Boolean(event.rewardClaimed);
+}
+
+function renderRookieEventTestState(player) {
+  const target = $("rookieEventTestSummary");
+  if (!player) {
+    target.innerHTML = `
+      <div class="empty test-tool-empty">
+        대상 유저 키를 입력하고 상태 조회를 누르면 이벤트 상태가 표시돼요.
+      </div>
+    `;
+    return;
+  }
+  const event = player.rookieEvent || {};
+  const days = Array.isArray(event.days) ? event.days : [];
+  const finalClaimable = Boolean(event.completed && !event.rewardClaimed);
+  target.innerHTML = `
+    <div class="test-tool-metrics">
+      ${testMetric("유저", player.userKey)}
+      ${testMetric("직업", jobLabel(player.job || "미선택"))}
+      ${testMetric("이벤트", event.visible ? (event.active ? "진행 중" : event.completed ? "완료" : event.expired ? "종료" : "대기") : "미시작")}
+      ${testMetric("완료", `${formatNumber(event.completedDays || 0)} / 7일`)}
+      ${testMetric("남은 기간", event.visible ? `${formatNumber(event.daysRemaining || 0)}일` : "-")}
+      ${testMetric("최종 보상", event.rewardClaimed ? "수령 완료" : finalClaimable ? "수령 가능" : "대기")}
+      ${testMetric("SP", formatNumber(player.skillPoints))}
+      ${testMetric("자동/공속", `${formatDate(player.autoHuntEndsAt)} / ${formatDate(player.boostEndsAt)}`)}
+    </div>
+    <div class="test-tool-days">
+      ${days.map((day) => `
+        <article class="test-tool-day ${day.completed ? "is-completed" : ""}">
+          <strong>${formatNumber(day.day)}일차 · ${escapeHtml(day.title)}</strong>
+          <span>${escapeHtml(rookieEventTestDayState(day))}</span>
+          <small>${escapeHtml(day.rewardLabel || "-")} · ${escapeHtml(rookieEventTestRewardState(day))}</small>
+        </article>
+      `).join("") || `<p class="empty">이벤트 일차 정보가 없어요.</p>`}
+    </div>
+  `;
+}
+
+function testMetric(label, value) {
+  return `
+    <article class="test-tool-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </article>
+  `;
+}
+
+function rookieEventTestDayState(day) {
+  if (day.completed) {
+    return "미션 완료";
+  }
+  if (day.current) {
+    return "진행 중";
+  }
+  if (day.locked) {
+    return "대기";
+  }
+  return "미진행";
+}
+
+function rookieEventTestRewardState(day) {
+  if (day.rewardClaimed) {
+    return "일일 보상 수령 완료";
+  }
+  if (day.rewardClaimable) {
+    return "일일 보상 수령 가능";
+  }
+  if (day.completed) {
+    return "이전 보상 먼저 수령";
+  }
+  return "미션 완료 후 가능";
 }
 
 async function loadOverview() {

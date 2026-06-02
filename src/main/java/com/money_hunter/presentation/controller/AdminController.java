@@ -7,6 +7,7 @@ import com.money_hunter.application.AdminAccessGuard;
 import com.money_hunter.application.AdminAuditService;
 import com.money_hunter.application.AdminMonitoringService;
 import com.money_hunter.application.AdminPlayerService;
+import com.money_hunter.application.PlayerService;
 import com.money_hunter.application.RuntimeEconomyService;
 import com.money_hunter.application.RuntimeEconomyService.PolicyChangeResult;
 import com.money_hunter.application.RuntimeEconomyService.PolicyDefinition;
@@ -26,6 +27,8 @@ import com.money_hunter.presentation.dto.request.AdminRevenueCalibrationRequest;
 import com.money_hunter.application.dto.response.AdminAuditLogResponse;
 import com.money_hunter.application.dto.response.AdminAuditPageResponse;
 import com.money_hunter.application.dto.response.AdminPolicyResponse;
+import com.money_hunter.application.dto.response.PlayerStateResponse;
+import com.money_hunter.presentation.dto.request.AdminRookieEventTestRequest;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
@@ -53,6 +56,7 @@ public class AdminController {
 	private final AdminAuditService adminAuditService;
 	private final AdminPlayerService adminPlayerService;
 	private final AdminAnomalyCaseService anomalyCaseService;
+	private final PlayerService playerService;
 
 	public AdminController(
 			AdminAccessGuard adminAccessGuard,
@@ -60,7 +64,8 @@ public class AdminController {
 			RuntimeEconomyService economyService,
 			AdminAuditService adminAuditService,
 			AdminPlayerService adminPlayerService,
-			AdminAnomalyCaseService anomalyCaseService
+			AdminAnomalyCaseService anomalyCaseService,
+			PlayerService playerService
 	) {
 		this.adminAccessGuard = adminAccessGuard;
 		this.monitoringService = monitoringService;
@@ -68,6 +73,7 @@ public class AdminController {
 		this.adminAuditService = adminAuditService;
 		this.adminPlayerService = adminPlayerService;
 		this.anomalyCaseService = anomalyCaseService;
+		this.playerService = playerService;
 	}
 
 	@GetMapping("/overview")
@@ -309,6 +315,76 @@ public class AdminController {
 				optionalReason(requestBody.reason()),
 				request);
 		return player;
+	}
+
+	@GetMapping("/test-tools/rookie-event/{userKey}")
+	public PlayerStateResponse rookieEventTestState(@PathVariable String userKey, HttpServletRequest request) {
+		adminAccessGuard.require(request);
+		return playerService.getState(userKey);
+	}
+
+	@PostMapping("/test-tools/rookie-event/{userKey}/reset")
+	public PlayerStateResponse resetRookieEventForTest(
+			@PathVariable String userKey,
+			@Valid @RequestBody(required = false) AdminRookieEventTestRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse player = adminPlayerService.resetRookieEventForTest(userKey);
+		adminAuditService.record(
+				admin,
+				"ROOKIE_EVENT_TEST_RESET",
+				player.userKey(),
+				null,
+				"completedDays=0,rewardedDays=0,finalRewardClaimed=false",
+				optionalReason(requestBody == null ? null : requestBody.reason()),
+				request);
+		return playerService.getState(player.userKey());
+	}
+
+	@PostMapping("/test-tools/rookie-event/{userKey}/complete-next-day")
+	public PlayerStateResponse completeNextRookieEventDayForTest(
+			@PathVariable String userKey,
+			@Valid @RequestBody(required = false) AdminRookieEventTestRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse player = adminPlayerService.completeNextRookieEventDayForTest(userKey);
+		adminAuditService.record(
+				admin,
+				"ROOKIE_EVENT_TEST_COMPLETE_DAY",
+				player.userKey(),
+				null,
+				"completedDays+1",
+				optionalReason(requestBody == null ? null : requestBody.reason()),
+				request);
+		return playerService.getState(player.userKey());
+	}
+
+	@PostMapping("/test-tools/rookie-event/{userKey}/state")
+	public PlayerStateResponse overrideRookieEventForTest(
+			@PathVariable String userKey,
+			@Valid @RequestBody AdminRookieEventTestRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		int completedDays = requestBody.completedDays() == null ? 0 : requestBody.completedDays();
+		int rewardedDays = requestBody.rewardedDays() == null ? 0 : requestBody.rewardedDays();
+		boolean finalRewardClaimed = Boolean.TRUE.equals(requestBody.finalRewardClaimed());
+		AdminPlayerResponse player = adminPlayerService.overrideRookieEventForTest(
+				userKey,
+				completedDays,
+				rewardedDays,
+				finalRewardClaimed);
+		adminAuditService.record(
+				admin,
+				"ROOKIE_EVENT_TEST_STATE",
+				player.userKey(),
+				null,
+				"completedDays=" + completedDays + ",rewardedDays=" + rewardedDays + ",finalRewardClaimed=" + finalRewardClaimed,
+				optionalReason(requestBody.reason()),
+				request);
+		return playerService.getState(player.userKey());
 	}
 
 	@GetMapping("/policies")

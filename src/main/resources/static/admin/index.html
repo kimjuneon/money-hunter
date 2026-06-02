@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260602-02" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260603-01" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -37,10 +37,11 @@
           <button class="nav-item active" data-view="dashboardView">대시보드</button>
           <button class="nav-item" data-view="policyView">정책값</button>
           <button class="nav-item" data-view="playerView">유저 관리</button>
-          <button class="nav-item" data-view="anomalyView">이상징후</button>
-          <button class="nav-item" data-view="auditView">감사 로그</button>
-          <button class="nav-item" data-view="monitoringView">모니터링</button>
-        </nav>
+	          <button class="nav-item" data-view="anomalyView">이상징후</button>
+	          <button class="nav-item" data-view="auditView">감사 로그</button>
+	          <button class="nav-item" data-view="monitoringView">모니터링</button>
+	          <button class="nav-item" data-view="testToolsView">테스트 도구</button>
+	        </nav>
         <button id="logoutButton" class="ghost">로그아웃</button>
       </aside>
 
@@ -180,8 +181,8 @@
           </section>
         </section>
 
-        <section id="monitoringView" class="view hidden">
-          <section class="panel">
+	        <section id="monitoringView" class="view hidden">
+	          <section class="panel">
             <div class="panel-head">
               <div>
                 <h3>서버 모니터링</h3>
@@ -193,9 +194,59 @@
             <div id="serverRuntimePanel" class="monitoring-panel"></div>
           </section>
         </section>
+
+        <section id="testToolsView" class="view hidden">
+	          <section class="panel">
+	            <div class="panel-head">
+	              <div>
+	                <h3>테스트 도구</h3>
+	                <p>대상 유저를 지정해서 이벤트 진행 상태와 보상 수령 상태를 검증해요.</p>
+	              </div>
+	              <span class="muted">유저 단위 적용</span>
+	            </div>
+	            <div class="test-tool-card">
+	              <div class="test-tool-head">
+	                <div>
+	                  <strong>7일 사냥 동행 이벤트</strong>
+	                  <span>운영 데이터에 즉시 반영되고 감사 로그에 기록돼요.</span>
+	                </div>
+	              </div>
+	              <div class="test-tool-grid">
+	                <label>
+	                  <span>대상 유저 키</span>
+	                  <input id="rookieEventTestUserKey" type="text" placeholder="userKey 입력" autocomplete="off" />
+	                </label>
+	                <label>
+	                  <span>완료 일차</span>
+	                  <input id="rookieEventTestCompletedDays" type="number" min="0" max="7" value="0" />
+	                </label>
+	                <label>
+	                  <span>수령한 일일 보상</span>
+	                  <input id="rookieEventTestRewardedDays" type="number" min="0" max="7" value="0" />
+	                </label>
+	                <label class="test-tool-check">
+	                  <input id="rookieEventTestFinalClaimed" type="checkbox" />
+	                  <span>완료 펫 보상 수령 처리</span>
+	                </label>
+	              </div>
+	              <label class="test-tool-reason">
+	                <span>운영 메모</span>
+	                <input id="rookieEventTestReason" type="text" maxlength="500" placeholder="감사 로그에 남길 사유" />
+	              </label>
+	              <div class="test-tool-actions">
+	                <button id="rookieEventTestLoadButton" class="ghost" type="button">상태 조회</button>
+	                <button id="rookieEventTestResetButton" class="secondary" type="button">이벤트 초기화</button>
+	                <button id="rookieEventTestCompleteDayButton" class="secondary" type="button">다음 일차 완료</button>
+	                <button id="rookieEventTestApplyButton" class="danger" type="button">상태 직접 적용</button>
+	              </div>
+	              <p id="rookieEventTestResult" class="feedback"></p>
+	              <div id="rookieEventTestSummary" class="test-tool-summary"></div>
+	            </div>
+	          </section>
+	        </section>
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260602-01"></script>
+    <script src="/admin/app.js?v=20260603-01"></script>
   </body>
 </html>

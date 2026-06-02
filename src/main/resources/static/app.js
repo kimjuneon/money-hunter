@@ -1804,6 +1804,10 @@ function renderRookieEventModal(event) {
   $("rookieEventRewardName").textContent = event.rewardName || "별빛토";
   $("rookieEventRewardCopy").textContent = event.rewardDescription || "이벤트 전용 펫 · 일반 펫 15레벨 성능";
   $("rookieEventRewardStatus").textContent = rookieEventRewardStatusText(event);
+  const finalClaimButton = $("rookieEventFinalClaimButton");
+  const finalClaimable = rookieEventFinalRewardClaimable(event);
+  finalClaimButton.classList.toggle("hidden", !finalClaimable);
+  finalClaimButton.disabled = !finalClaimable;
   renderRookieEventDayTabs(days);
   renderRookieEventSelectedDay(selectedDay);
 }
@@ -1828,7 +1832,14 @@ function rookieEventRewardStatusText(event) {
   if (event.expired) {
     return "이벤트 종료";
   }
-  return "7일차 완료 시 즉시 획득";
+  if (rookieEventFinalRewardClaimable(event)) {
+    return "보상 받기 버튼으로 획득 가능";
+  }
+  return "7일차 완료 후 수령 가능";
+}
+
+function rookieEventFinalRewardClaimable(event) {
+  return Boolean(event?.completed && !event.rewardClaimed);
 }
 
 function renderRookieEventDayTabs(days) {
@@ -1875,10 +1886,74 @@ function rookieEventDailyRewardElement(day) {
   title.textContent = "일일 보상";
   const label = document.createElement("span");
   label.textContent = day.rewardLabel || "보상 확인";
+  const actions = document.createElement("div");
+  actions.className = "rookie-event-day-reward-actions";
   const stateText = document.createElement("small");
-  stateText.textContent = day.rewardClaimed ? "지급 완료" : "미션 완료 시 지급";
-  reward.append(title, label, stateText);
+  stateText.textContent = rookieEventDailyRewardStateText(day);
+  actions.append(stateText);
+  if (day.rewardClaimable) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "rookie-event-claim";
+    button.textContent = "보상 받기";
+    button.addEventListener("click", () => claimRookieEventDailyReward(day.day, button));
+    actions.append(button);
+  }
+  reward.append(title, label, actions);
   return reward;
+}
+
+function rookieEventDailyRewardStateText(day) {
+  if (day.rewardClaimed) {
+    return "지급 완료";
+  }
+  if (day.rewardClaimable) {
+    return "수령 가능";
+  }
+  if (day.completed) {
+    return "이전 보상 먼저 수령";
+  }
+  return "미션 완료 후 수령 가능";
+}
+
+async function claimRookieEventDailyReward(day, button) {
+  await claimRookieEventReward(
+    button,
+    () => api(`/api/player/rookie-event/days/${day}/reward/claim`, { method: "POST" }),
+    `${day}일차 일일 보상을 받았어요.`,
+  );
+}
+
+async function claimRookieEventFinalReward(button) {
+  await claimRookieEventReward(
+    button,
+    () => api("/api/player/rookie-event/final-reward/claim", { method: "POST" }),
+    "이벤트 펫 별빛토를 받았어요.",
+  );
+}
+
+async function claimRookieEventReward(button, request, message) {
+  if (button) {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  }
+  try {
+    setMessage("보상을 지급하는 중이에요.");
+    const player = await requestWithLoginRetry(request);
+    setServerPlayer(player, { resetDisplayGold: true });
+    setMessage(message);
+    render();
+    if (!$("rookieEventModal").classList.contains("hidden")) {
+      renderRookieEventModal(state.player?.rookieEvent);
+    }
+  } catch (error) {
+    setMessage(error.message || "보상 수령에 실패했어요.");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.setAttribute("aria-busy", "false");
+    }
+  }
 }
 
 function rookieEventDayStateText(day) {
@@ -3889,6 +3964,9 @@ $("petSkinModal").addEventListener("click", (event) => {
 
 $("rookieEventButton").addEventListener("click", openRookieEventModal);
 $("closeRookieEventModal").addEventListener("click", closeRookieEventModal);
+$("rookieEventFinalClaimButton").addEventListener("click", (event) => {
+  claimRookieEventFinalReward(event.currentTarget);
+});
 $("rookieEventModal").addEventListener("click", (event) => {
   if (event.target.id === "rookieEventModal") {
     closeRookieEventModal();

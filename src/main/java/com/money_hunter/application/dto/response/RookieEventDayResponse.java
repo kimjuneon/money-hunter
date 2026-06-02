@@ -10,6 +10,7 @@ public record RookieEventDayResponse(
 		boolean locked,
 		String rewardLabel,
 		boolean rewardClaimed,
+		boolean rewardClaimable,
 		List<RookieEventMissionResponse> missions
 ) {
 }

@@ -1031,11 +1031,139 @@ nav {
 }
 
 .actions .ghost {
-  color: #334155;
+	color: #334155;
+}
+
+.test-tool-card {
+	display: grid;
+	gap: 14px;
+	padding: 14px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: #ffffff;
+}
+
+.test-tool-head strong,
+.test-tool-head span,
+.test-tool-grid label span,
+.test-tool-reason span {
+	display: block;
+}
+
+.test-tool-head span,
+.test-tool-grid label span,
+.test-tool-reason span {
+	margin-top: 4px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 900;
+}
+
+.test-tool-grid {
+	display: grid;
+	grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(130px, 0.45fr));
+	gap: 10px;
+	align-items: end;
+}
+
+.test-tool-check {
+	display: flex;
+	min-height: 42px;
+	align-items: center;
+	gap: 8px;
+	padding: 0 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: #f8fafc;
+}
+
+.test-tool-check input {
+	width: auto;
+	min-height: auto;
+}
+
+.test-tool-check span {
+	margin: 0;
+	color: var(--ink);
+}
+
+.test-tool-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.test-tool-actions button {
+	padding: 0 13px;
+}
+
+.test-tool-summary {
+	display: grid;
+	gap: 12px;
+}
+
+.test-tool-empty {
+	padding: 18px;
+	border: 1px dashed var(--line);
+	border-radius: 8px;
+	background: #f8fafc;
+	color: var(--muted);
+	font-weight: 900;
+	text-align: center;
+}
+
+.test-tool-metrics {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.test-tool-metric,
+.test-tool-day {
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: #f8fafc;
+}
+
+.test-tool-metric span,
+.test-tool-day span,
+.test-tool-day small {
+	display: block;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 900;
+}
+
+.test-tool-metric strong {
+	display: block;
+	margin-top: 4px;
+	word-break: break-word;
+}
+
+.test-tool-days {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.test-tool-day {
+	display: grid;
+	gap: 5px;
+}
+
+.test-tool-day.is-completed {
+	border-color: rgba(22, 163, 74, 0.32);
+	background: #f0fdf4;
+}
+
+.test-tool-day strong {
+	font-size: 13px;
+	line-height: 1.35;
 }
 
 .audit-row {
-  grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .anomaly-summary {
@@ -1361,12 +1489,15 @@ nav {
   .quick-policy-card,
   .quick-policy-card.calibration-card,
   .quick-policy-card.direct-policy-card,
-  .monitoring-grid,
-  .runtime-status-grid,
-  .growth-summary,
-  .player-console {
-    grid-template-columns: 1fr;
-  }
+	  .monitoring-grid,
+	  .runtime-status-grid,
+	  .growth-summary,
+	  .test-tool-grid,
+	  .test-tool-metrics,
+	  .test-tool-days,
+	  .player-console {
+	    grid-template-columns: 1fr;
+	  }
 
   #playerView > .panel {
     min-height: auto;
