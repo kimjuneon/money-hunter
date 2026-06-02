@@ -13,6 +13,7 @@ import com.money_hunter.infrastructure.persistence.LoginSessionRepository;
 import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.slf4j.Logger;
@@ -52,11 +53,26 @@ public class AdminPlayerService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<AdminPlayerResponse> search(String query, int limit, boolean favoritesOnly, boolean hiddenSkinsOnly, String sort) {
-		int safeLimit = Math.max(1, Math.min(limit, MAX_SEARCH_LIMIT));
-		return playerRepository.searchPlayers(normalize(query), favoritesOnly, hiddenSkinsOnly, PageRequest.of(0, safeLimit, playerSort(sort))).stream()
-				.map(AdminPlayerResponse::from)
-				.toList();
+	public Page<AdminPlayerResponse> search(
+			String query,
+			int page,
+			int size,
+			String favoriteMode,
+			String statusMode,
+			String progressMode,
+			boolean hiddenSkinsOnly,
+			String sort
+	) {
+		int safePage = Math.max(0, page);
+		int safeSize = Math.max(1, Math.min(size, MAX_SEARCH_LIMIT));
+		return playerRepository.searchPlayers(
+						normalize(query),
+						normalizedFavoriteMode(favoriteMode),
+						normalizedStatusMode(statusMode),
+						normalizedProgressMode(progressMode),
+						hiddenSkinsOnly,
+						PageRequest.of(safePage, safeSize, playerSort(sort)))
+				.map(AdminPlayerResponse::from);
 	}
 
 	@Transactional(readOnly = true)
@@ -207,10 +223,14 @@ public class AdminPlayerService {
 			}
 		}
 		if (orders.isEmpty()) {
-			orders.add(Sort.Order.desc("updatedAt"));
+			orders.add(Sort.Order.desc("lastAccessedAt"));
 		}
+		boolean hasLastAccessedAt = orders.stream().anyMatch(order -> order.getProperty().equals("lastAccessedAt"));
 		boolean hasUpdatedAt = orders.stream().anyMatch(order -> order.getProperty().equals("updatedAt"));
 		boolean hasUserKey = orders.stream().anyMatch(order -> order.getProperty().equals("userKey"));
+		if (!hasLastAccessedAt) {
+			orders.add(Sort.Order.desc("lastAccessedAt"));
+		}
 		if (!hasUpdatedAt) {
 			orders.add(Sort.Order.desc("updatedAt"));
 		}
@@ -239,6 +259,7 @@ public class AdminPlayerService {
 	private String sortProperty(String field) {
 		return switch (normalize(field).toLowerCase(java.util.Locale.ROOT)) {
 			case "favorite", "adminfavorite" -> "adminFavorite";
+			case "access", "accessed", "lastaccess", "lastaccessed", "lastaccessedat" -> "lastAccessedAt";
 			case "updated", "updatedat" -> "updatedAt";
 			case "created", "createdat" -> "createdAt";
 			case "score", "cumulativegold", "cumulativegoldearned" -> "cumulativeGoldEarned";
@@ -252,6 +273,31 @@ public class AdminPlayerService {
 			case "profile", "gameprofileupdatedat" -> "gameProfileUpdatedAt";
 			case "userkey" -> "userKey";
 			default -> "";
+		};
+	}
+
+	private String normalizedFavoriteMode(String mode) {
+		return switch (normalize(mode).toUpperCase(java.util.Locale.ROOT)) {
+			case "FAVORITE", "FAVORITES", "ONLY" -> "FAVORITE";
+			case "NOT_FAVORITE", "NOT-FAVORITE", "UNFAVORITE", "UNFAVORITED" -> "NOT_FAVORITE";
+			default -> "ALL";
+		};
+	}
+
+	private String normalizedStatusMode(String mode) {
+		return switch (normalize(mode).toUpperCase(java.util.Locale.ROOT)) {
+			case "ACTIVE" -> "ACTIVE";
+			case "SUSPENDED" -> "SUSPENDED";
+			default -> "ALL";
+		};
+	}
+
+	private String normalizedProgressMode(String mode) {
+		return switch (normalize(mode).toUpperCase(java.util.Locale.ROOT)) {
+			case "ONBOARDED" -> "ONBOARDED";
+			case "NEEDS_JOB" -> "NEEDS_JOB";
+			case "FEATURE_TUTORIAL_DONE" -> "FEATURE_TUTORIAL_DONE";
+			default -> "ALL";
 		};
 	}
 

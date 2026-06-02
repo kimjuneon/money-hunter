@@ -611,7 +611,7 @@ nav {
 
 .player-search {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 140px 160px minmax(170px, 0.9fr) 110px 120px 90px 90px;
+  grid-template-columns: minmax(180px, 1fr) 130px 150px minmax(170px, 0.9fr) 150px 110px 120px 90px 90px;
   gap: 10px;
   margin-bottom: 12px;
 }

@@ -7,6 +7,10 @@ const state = {
   toastTimer: null,
   overview: null,
   players: [],
+  playerPage: 0,
+  playerSize: 30,
+  playerTotalElements: 0,
+  playerTotalPages: 1,
   selectedUserKey: "",
   playerDetailExpanded: false,
   policies: [],
@@ -38,13 +42,15 @@ function bindEvents() {
   $("loginForm").addEventListener("submit", login);
   $("playerSearchForm").addEventListener("submit", (event) => {
     event.preventDefault();
+    state.playerPage = 0;
     loadPlayers();
   });
-  $("playerFilterStatus").addEventListener("change", renderPlayers);
-  $("playerFilterProgress").addEventListener("change", renderPlayers);
-  $("playerSortPreset").addEventListener("change", loadPlayers);
-  $("playerFavoritesOnly").addEventListener("change", loadPlayers);
-  $("playerHiddenSkinsOnly").addEventListener("change", loadPlayers);
+  $("playerFilterStatus").addEventListener("change", reloadPlayersFromFirstPage);
+  $("playerFilterProgress").addEventListener("change", reloadPlayersFromFirstPage);
+  $("playerSortPreset").addEventListener("change", reloadPlayersFromFirstPage);
+  $("playerFavoriteMode").addEventListener("change", reloadPlayersFromFirstPage);
+  $("playerPageSize").addEventListener("change", reloadPlayersFromFirstPage);
+  $("playerHiddenSkinsOnly").addEventListener("change", reloadPlayersFromFirstPage);
   $("playerFilterClearButton").addEventListener("click", clearPlayerFilters);
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
@@ -57,6 +63,18 @@ function bindEvents() {
   $("nextAuditButton").addEventListener("click", () => {
     state.auditPage += 1;
     loadAudits();
+  });
+  $("prevPlayerButton").addEventListener("click", () => {
+    if (state.playerPage > 0) {
+      state.playerPage -= 1;
+      loadPlayers();
+    }
+  });
+  $("nextPlayerButton").addEventListener("click", () => {
+    if (state.playerPage + 1 < state.playerTotalPages) {
+      state.playerPage += 1;
+      loadPlayers();
+    }
   });
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.addEventListener("click", () => switchView(button.dataset.view));
@@ -699,26 +717,45 @@ async function openPlayerFromAnomaly(userKey) {
   $("playerSearchInput").value = userKey;
   $("playerFilterStatus").value = "ALL";
   $("playerFilterProgress").value = "ALL";
-  $("playerFavoritesOnly").checked = false;
+  $("playerFavoriteMode").value = "ALL";
   $("playerHiddenSkinsOnly").checked = false;
+  state.playerPage = 0;
   state.selectedUserKey = userKey;
   await loadPlayers();
   showToast(`${userKey} 유저 정보를 열었어요.`);
 }
 
+function reloadPlayersFromFirstPage() {
+  state.playerPage = 0;
+  state.selectedUserKey = "";
+  loadPlayers();
+}
+
 async function loadPlayers() {
   const query = $("playerSearchInput").value.trim();
-  const favoritesOnly = $("playerFavoritesOnly").checked;
   const hiddenSkinsOnly = $("playerHiddenSkinsOnly").checked;
+  state.playerSize = Number($("playerPageSize").value || 30);
   const params = new URLSearchParams({
     query,
-    limit: "100",
-    favoritesOnly: String(favoritesOnly),
+    page: String(state.playerPage),
+    size: String(state.playerSize),
+    favoriteMode: $("playerFavoriteMode").value,
+    status: $("playerFilterStatus").value,
+    progress: $("playerFilterProgress").value,
     hiddenSkinsOnly: String(hiddenSkinsOnly),
     sort: $("playerSortPreset").value,
   });
-  const players = await request(`/api/admin/players?${params}`);
+  const data = await request(`/api/admin/players?${params}`);
+  const players = Array.isArray(data) ? data : data.content || [];
   state.players = players;
+  state.playerPage = Number(data.page ?? state.playerPage);
+  state.playerSize = Number(data.size ?? state.playerSize);
+  state.playerTotalElements = Number(data.totalElements ?? players.length);
+  state.playerTotalPages = Math.max(1, Number(data.totalPages ?? 1));
+  if (state.playerPage >= state.playerTotalPages && state.playerPage > 0) {
+    state.playerPage = state.playerTotalPages - 1;
+    return loadPlayers();
+  }
   if (!players.some((player) => player.userKey === state.selectedUserKey)) {
     state.selectedUserKey = players[0]?.userKey || "";
     state.playerDetailExpanded = false;
@@ -730,16 +767,21 @@ function clearPlayerFilters() {
   $("playerSearchInput").value = "";
   $("playerFilterStatus").value = "ALL";
   $("playerFilterProgress").value = "ALL";
-  $("playerSortPreset").value = "updatedAt:desc";
-  $("playerFavoritesOnly").checked = false;
+  $("playerSortPreset").value = "lastAccessedAt:desc";
+  $("playerFavoriteMode").value = "ALL";
+  $("playerPageSize").value = "30";
   $("playerHiddenSkinsOnly").checked = false;
+  state.playerPage = 0;
   state.selectedUserKey = "";
   loadPlayers();
 }
 
 function renderPlayers() {
-  const players = filteredPlayers();
-  $("playerCount").textContent = `${players.length}명`;
+  const players = state.players;
+  $("playerCount").textContent = `${formatNumber(state.playerTotalElements)}명`;
+  $("playerPageInfo").textContent = `${state.playerPage + 1} / ${state.playerTotalPages}`;
+  $("prevPlayerButton").disabled = state.playerPage <= 0;
+  $("nextPlayerButton").disabled = state.playerPage + 1 >= state.playerTotalPages;
   $("playerList").innerHTML = players.map((player) => playerRow(player)).join("")
     || `<p class="empty">검색 결과가 없어요.</p>`;
   if (!players.some((player) => player.userKey === state.selectedUserKey)) {
@@ -770,27 +812,13 @@ function renderPlayers() {
   });
 }
 
-function filteredPlayers() {
-  const status = $("playerFilterStatus").value;
-  const progress = $("playerFilterProgress").value;
-  return state.players.filter((player) => {
-    const statusMatched = status === "ALL"
-      || (status === "ACTIVE" && !player.suspended)
-      || (status === "SUSPENDED" && player.suspended);
-    const progressMatched = progress === "ALL"
-      || (progress === "ONBOARDED" && !player.onboardingRequired)
-      || (progress === "NEEDS_JOB" && player.onboardingRequired)
-      || (progress === "FEATURE_TUTORIAL_DONE" && player.featureTutorialCompleted);
-    return statusMatched && progressMatched;
-  });
-}
-
 function playerRow(player) {
   const status = player.suspended ? "정지" : "정상";
   const statusClass = player.suspended ? "suspended" : "active";
   const job = player.job || "미선택";
   const autoHunt = player.autoHuntEndsAt ? new Date(player.autoHuntEndsAt).toLocaleString("ko-KR") : "-";
   const boost = player.boostEndsAt ? new Date(player.boostEndsAt).toLocaleString("ko-KR") : "-";
+  const lastAccessed = formatDate(player.lastAccessedAt);
   const selected = player.userKey === state.selectedUserKey ? "selected" : "";
   const name = playerDisplayName(player);
   return `
@@ -809,7 +837,7 @@ function playerRow(player) {
           <span class="player-status ${statusClass}">${status}</span>
         </div>
         <p>${escapeHtml(jobLabel(job))} · Lv.${formatNumber(player.level)} · 보유 ${formatNumber(player.gold)}G · 누적 ${formatNumber(player.cumulativeGoldEarned || player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
-        <small>자동사냥 ${escapeHtml(autoHunt)} · 공속버프 ${escapeHtml(boost)}</small>
+        <small>최근 접속 ${escapeHtml(lastAccessed)} · 자동사냥 ${escapeHtml(autoHunt)} · 공속버프 ${escapeHtml(boost)}</small>
         ${player.suspended ? `<small>정지 사유: ${escapeHtml(player.suspensionReason || "-")}</small>` : ""}
       </div>
       <div class="player-actions">
@@ -841,6 +869,7 @@ function renderSelectedPlayerDetail() {
     ["유저 식별 ID", player.userKey],
     ["관리자 별명", player.adminNickname || "미설정"],
     ["게임 프로필", player.gameProfileNickname || "미동기화"],
+    ["마지막 접속", formatDate(player.lastAccessedAt)],
     ["히든 스킨", player.hiddenPetSkinsUnlocked ? "해금" : "미해금"],
     ["골드", `${formatNumber(player.gold)}G`],
     ["누적 골드", `${formatNumber(player.cumulativeGoldEarned || player.gold)}G`],
@@ -997,7 +1026,9 @@ async function togglePlayerFavorite(button) {
     const message = favorite ? "즐겨찾기에 추가했어요." : "즐겨찾기에서 해제했어요.";
     $("playerResult").textContent = message;
     showToast(message);
-    if ($("playerFavoritesOnly").checked && !favorite) {
+    if ($("playerFavoriteMode").value === "FAVORITE" && !favorite) {
+      await loadPlayers();
+    } else if ($("playerFavoriteMode").value === "NOT_FAVORITE" && favorite) {
       await loadPlayers();
     }
   } catch (error) {

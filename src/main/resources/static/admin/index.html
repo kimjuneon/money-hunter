@@ -98,39 +98,52 @@
                 <option value="ONBOARDED">게임 시작</option>
                 <option value="NEEDS_JOB">직업 미선택</option>
                 <option value="FEATURE_TUTORIAL_DONE">튜토리얼 완료</option>
-              </select>
-              <select id="playerSortPreset" aria-label="정렬 기준">
-                <option value="updatedAt:desc">최근 수정순</option>
-                <option value="createdAt:desc">신규 가입순</option>
-                <option value="createdAt:asc">오래된 가입순</option>
-                <option value="favorite:desc,updatedAt:desc">즐겨찾기 우선</option>
-                <option value="cumulativeGoldEarned:desc">누적 골드 높은순</option>
-                <option value="gold:desc">보유 골드 높은순</option>
+	              </select>
+	              <select id="playerSortPreset" aria-label="정렬 기준">
+	                <option value="lastAccessedAt:desc">최근 접속순</option>
+	                <option value="updatedAt:desc">최근 수정순</option>
+	                <option value="createdAt:desc">신규 가입순</option>
+	                <option value="createdAt:asc">오래된 가입순</option>
+	                <option value="favorite:desc,lastAccessedAt:desc">즐겨찾기 우선</option>
+	                <option value="cumulativeGoldEarned:desc">누적 골드 높은순</option>
+	                <option value="gold:desc">보유 골드 높은순</option>
                 <option value="level:desc,experience:desc">레벨 높은순</option>
                 <option value="skillPoints:desc">SP 많은순</option>
                 <option value="defeatedMonsters:desc">처치 몬스터순</option>
                 <option value="autoHuntEndsAt:asc">자동사냥 종료 임박순</option>
                 <option value="boostEndsAt:asc">공속버프 종료 임박순</option>
-                <option value="gameProfileUpdatedAt:desc">프로필 최근 갱신순</option>
-              </select>
-              <label class="favorite-filter">
-                <input id="playerFavoritesOnly" type="checkbox" />
-                <span>즐겨찾기</span>
-              </label>
-              <label class="favorite-filter">
-                <input id="playerHiddenSkinsOnly" type="checkbox" />
-                <span>히든 스킨</span>
+	                <option value="gameProfileUpdatedAt:desc">프로필 최근 갱신순</option>
+	              </select>
+	              <select id="playerFavoriteMode" aria-label="즐겨찾기 필터">
+	                <option value="ALL">전체 즐겨찾기</option>
+	                <option value="FAVORITE">즐겨찾기만</option>
+	                <option value="NOT_FAVORITE">즐겨찾기 안 된 유저</option>
+	              </select>
+	              <select id="playerPageSize" aria-label="페이지 크기">
+	                <option value="20">20명씩</option>
+	                <option value="30" selected>30명씩</option>
+	                <option value="50">50명씩</option>
+	                <option value="100">100명씩</option>
+	              </select>
+	              <label class="favorite-filter">
+	                <input id="playerHiddenSkinsOnly" type="checkbox" />
+	                <span>히든 스킨</span>
               </label>
               <button class="secondary" type="submit">검색</button>
               <button id="playerFilterClearButton" class="ghost" type="button">초기화</button>
             </form>
             <p id="playerResult" class="feedback"></p>
             <div class="player-console">
-              <div id="playerList" class="player-list"></div>
-              <aside id="playerDetail" class="player-detail"></aside>
-            </div>
-          </section>
-        </section>
+	              <div id="playerList" class="player-list"></div>
+	              <aside id="playerDetail" class="player-detail"></aside>
+	            </div>
+	            <div class="pager player-pager">
+	              <button id="prevPlayerButton" class="ghost" type="button">이전</button>
+	              <span id="playerPageInfo" class="muted">1 / 1</span>
+	              <button id="nextPlayerButton" class="ghost" type="button">다음</button>
+	            </div>
+	          </section>
+	        </section>
 
         <section id="policyView" class="view hidden">
           <section class="panel">

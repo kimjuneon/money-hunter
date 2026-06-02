@@ -123,8 +123,11 @@ public class Player {
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
-    @Column(nullable = false)
+	@Column(nullable = false)
 	private Instant createdAt;
+
+	@Column(nullable = false)
+	private Instant lastAccessedAt;
 
     @Column(nullable = false)
 	private Instant updatedAt;
@@ -139,6 +142,7 @@ public class Player {
 		this.userKey = userKey;
 		this.lastSettledAt = now;
 		this.createdAt = now;
+		this.lastAccessedAt = now;
 		this.updatedAt = now;
 	}
 
@@ -433,6 +437,10 @@ public class Player {
 		touch();
 	}
 
+	public void markAccessed(Instant accessedAt) {
+		this.lastAccessedAt = accessedAt;
+	}
+
 	public void setAdminFavorite(boolean adminFavorite) {
 		this.adminFavorite = adminFavorite;
 		touch();
@@ -546,11 +554,12 @@ public class Player {
 		this.adminFavorite = false;
 		this.ownedPetSkinKeys = "FIRE_FOX,ICE";
 		this.petOneSkinKey = "FIRE_FOX";
-		this.petTwoSkinKey = "ICE";
-		this.lastSettledAt = now;
-		this.skills.forEach(PlayerSkill::resetLevel);
-		touch();
-	}
+			this.petTwoSkinKey = "ICE";
+			this.lastSettledAt = now;
+			this.lastAccessedAt = now;
+			this.skills.forEach(PlayerSkill::resetLevel);
+			touch();
+		}
 
 	private void addOwnedPetSkin(String skinKey) {
 		LinkedHashSet<String> keys = new LinkedHashSet<>(ownedPetSkinKeyList());

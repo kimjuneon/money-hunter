@@ -30,14 +30,15 @@ public record AdminPlayerResponse(
 		Instant gameProfileUpdatedAt,
 		boolean tutorialRewardClaimed,
 		boolean featureTutorialCompleted,
-		Instant autoHuntEndsAt,
-		Instant boostEndsAt,
-		boolean suspended,
-		Instant suspendedAt,
-		String suspensionReason,
-		Instant createdAt,
-		Instant updatedAt
-) {
+			Instant autoHuntEndsAt,
+			Instant boostEndsAt,
+			boolean suspended,
+			Instant suspendedAt,
+			String suspensionReason,
+			Instant createdAt,
+			Instant lastAccessedAt,
+			Instant updatedAt
+	) {
 	private static final Set<String> EASTER_EGG_PET_SKINS = Set.of(
 			"EASTER_EGG_JUNEON",
 			"EASTER_EGG_EULGIN",
@@ -71,13 +72,14 @@ public record AdminPlayerResponse(
 				player.getGameProfileUpdatedAt(),
 				player.hasClaimedTutorialReward(),
 				player.hasCompletedFeatureTutorial(),
-				player.getAutoHuntEndsAt(),
-				player.getBoostEndsAt(),
-				player.isSuspended(),
-				player.getSuspendedAt(),
-				player.getSuspensionReason(),
-				player.getCreatedAt(),
-				player.getUpdatedAt());
+					player.getAutoHuntEndsAt(),
+					player.getBoostEndsAt(),
+					player.isSuspended(),
+					player.getSuspendedAt(),
+					player.getSuspensionReason(),
+					player.getCreatedAt(),
+					player.getLastAccessedAt(),
+					player.getUpdatedAt());
 	}
 
 	private static boolean hasHiddenPetSkinsUnlocked(Player player) {

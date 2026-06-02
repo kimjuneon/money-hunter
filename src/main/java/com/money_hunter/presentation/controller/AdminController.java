@@ -10,6 +10,7 @@ import com.money_hunter.application.AdminPlayerService;
 import com.money_hunter.application.RuntimeEconomyService;
 import com.money_hunter.application.RuntimeEconomyService.PolicyChangeResult;
 import com.money_hunter.application.RuntimeEconomyService.PolicyDefinition;
+import com.money_hunter.application.dto.response.AdminPlayerPageResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResponse;
 import com.money_hunter.domain.AdminAnomalyStatus;
@@ -122,16 +123,31 @@ public class AdminController {
 	}
 
 	@GetMapping("/players")
-	public List<AdminPlayerResponse> players(
+	public AdminPlayerPageResponse players(
 			@RequestParam(defaultValue = "") String query,
-			@RequestParam(defaultValue = "30") int limit,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "30") int size,
+			@RequestParam(defaultValue = "") String favoriteMode,
 			@RequestParam(defaultValue = "false") boolean favoritesOnly,
+			@RequestParam(defaultValue = "ALL") String status,
+			@RequestParam(defaultValue = "ALL") String progress,
 			@RequestParam(defaultValue = "false") boolean hiddenSkinsOnly,
-			@RequestParam(defaultValue = "updatedAt:desc") String sort,
+			@RequestParam(defaultValue = "lastAccessedAt:desc") String sort,
 			HttpServletRequest request
 	) {
 		adminAccessGuard.require(request);
-		return adminPlayerService.search(query, limit, favoritesOnly, hiddenSkinsOnly, sort);
+		String resolvedFavoriteMode = favoriteMode == null || favoriteMode.isBlank()
+				? (favoritesOnly ? "FAVORITE" : "ALL")
+				: favoriteMode;
+		return AdminPlayerPageResponse.from(adminPlayerService.search(
+				query,
+				page,
+				size,
+				resolvedFavoriteMode,
+				status,
+				progress,
+				hiddenSkinsOnly,
+				sort));
 	}
 
 	@PostMapping("/players/{userKey}/suspend")

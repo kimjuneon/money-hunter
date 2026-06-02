@@ -173,6 +173,7 @@ public class PlayerService {
 	@Transactional
 	public PlayerStateResponse getState(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
+		player.markAccessed(clock.instant());
 		long settledGold = settle(player);
 		publishAutoHuntEndNotificationIfDue(player, clock.instant(), settledGold);
 		return toState(player);

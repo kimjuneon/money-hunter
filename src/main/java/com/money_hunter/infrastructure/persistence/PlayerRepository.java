@@ -31,23 +31,40 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	long totalGold();
 
 	@Query("""
-			select p
-			from Player p
-			where (:favoritesOnly = false or p.adminFavorite = true)
-				and (:hiddenSkinsOnly = false or coalesce(p.ownedPetSkinKeys, '') like '%EASTER_EGG%')
-				and (
-					:query is null
+				select p
+				from Player p
+				where (
+						:favoriteMode = 'ALL'
+						or (:favoriteMode = 'FAVORITE' and p.adminFavorite = true)
+						or (:favoriteMode = 'NOT_FAVORITE' and p.adminFavorite = false)
+					)
+					and (
+						:statusMode = 'ALL'
+						or (:statusMode = 'ACTIVE' and p.suspendedAt is null)
+						or (:statusMode = 'SUSPENDED' and p.suspendedAt is not null)
+					)
+					and (
+						:progressMode = 'ALL'
+						or (:progressMode = 'ONBOARDED' and p.job is not null)
+						or (:progressMode = 'NEEDS_JOB' and p.job is null)
+						or (:progressMode = 'FEATURE_TUTORIAL_DONE' and p.featureTutorialCompletedAt is not null)
+					)
+					and (:hiddenSkinsOnly = false or coalesce(p.ownedPetSkinKeys, '') like '%EASTER_EGG%')
+					and (
+						:query is null
 					or :query = ''
 					or lower(p.userKey) like lower(concat('%', :query, '%'))
 					or lower(coalesce(p.adminNickname, '')) like lower(concat('%', :query, '%'))
 					or lower(coalesce(p.gameProfileNickname, '')) like lower(concat('%', :query, '%'))
 				)
-			""")
-	List<Player> searchPlayers(
-			@Param("query") String query,
-			@Param("favoritesOnly") boolean favoritesOnly,
-			@Param("hiddenSkinsOnly") boolean hiddenSkinsOnly,
-			org.springframework.data.domain.Pageable pageable);
+				""")
+		org.springframework.data.domain.Page<Player> searchPlayers(
+				@Param("query") String query,
+				@Param("favoriteMode") String favoriteMode,
+				@Param("statusMode") String statusMode,
+				@Param("progressMode") String progressMode,
+				@Param("hiddenSkinsOnly") boolean hiddenSkinsOnly,
+				org.springframework.data.domain.Pageable pageable);
 
 	@Query("""
 			select p.userKey as userKey,
@@ -109,14 +126,14 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 
 	@Modifying
 	@Query(value = """
-			insert into players (
-				user_key, character_slots, gold, skill_points, level, experience,
-				current_monster_key, current_monster_hp, defeated_monsters,
-				last_settled_at, created_at, updated_at
-			)
-			values (:userKey, 1, 0, 0, 1, 0, 'BOSS_ROCK', 120, 0, :now, :now, :now)
-			on conflict (user_key) do nothing
-			""", nativeQuery = true)
+				insert into players (
+					user_key, character_slots, gold, skill_points, level, experience,
+					current_monster_key, current_monster_hp, defeated_monsters,
+					last_settled_at, created_at, last_accessed_at, updated_at
+				)
+				values (:userKey, 1, 0, 0, 1, 0, 'BOSS_ROCK', 120, 0, :now, :now, :now, :now)
+				on conflict (user_key) do nothing
+				""", nativeQuery = true)
 	void insertIfAbsent(@Param("userKey") String userKey, @Param("now") Instant now);
 
 	interface PlayerGoldSnapshot {

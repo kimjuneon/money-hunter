@@ -94,6 +94,12 @@ const state = {
   gameProfileSyncTimer: null,
   gameProfileSyncInFlight: false,
   lastGameProfileSyncAt: 0,
+  lastGameProfileMissingAt: 0,
+  lastGameProfileEditorOpenedAt: 0,
+  gameProfileEditorInFlight: false,
+  gameProfileCreationDeferred: false,
+  pendingLeaderboardScoreSubmit: false,
+  pendingLeaderboardOpen: false,
   leaderboardEntrySubmitTimer: null,
   leaderboardSubmitInFlight: false,
   lastLeaderboardScoreSubmitted: null,
@@ -237,6 +243,7 @@ const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationAgreementStatus";
+const gameProfileWebviewUrl = "servicetoss://game-center/profile";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
@@ -540,6 +547,7 @@ async function finishFeatureTutorial() {
     setServerPlayer(await api("/api/player/tutorial/feature/complete", { method: "POST" }));
     render();
     setMessage("튜토리얼을 완료했어요. 이제 자유롭게 성장해보세요.");
+    window.setTimeout(() => maybeResumeDeferredGameProfileCreation(), 350);
   } catch (error) {
     setMessage(error.message || "튜토리얼 완료 저장에 실패했어요.");
   }
@@ -1198,6 +1206,7 @@ function render() {
   syncBgmState();
   refreshWhenAutoHuntEnds(hunting);
   maybeStartFeatureTutorial();
+  maybeResumeDeferredGameProfileCreation();
 }
 
 function renderDummyBanner() {
@@ -2592,6 +2601,15 @@ function canSyncGameProfile() {
   return shouldUseGameCenter() && isTossMiniRuntime() && Boolean(state.player) && !state.player?.onboardingRequired;
 }
 
+function shouldDeferGameProfileEditor() {
+  return (
+    !canSyncGameProfile()
+    || state.featureTutorialActive
+    || state.player?.featureTutorialRequired === true
+    || !state.player?.job
+  );
+}
+
 function cancelScheduledGameProfileSync() {
   window.clearTimeout(state.gameProfileSyncTimer);
   state.gameProfileSyncTimer = null;
@@ -2604,10 +2622,13 @@ function scheduleGameProfileSync(delayMs = 1200) {
   if (Date.now() - state.lastGameProfileSyncAt < 5 * 60 * 1000) {
     return;
   }
+  if (Date.now() - state.lastGameProfileMissingAt < 60 * 1000) {
+    return;
+  }
   cancelScheduledGameProfileSync();
   state.gameProfileSyncTimer = window.setTimeout(() => {
     state.gameProfileSyncTimer = null;
-    syncGameProfileIfNeeded({ silent: true }).catch(() => {});
+    ensureGameProfile({ silent: true, openIfMissing: true, source: "auto" }).catch(() => {});
   }, delayMs);
 }
 
@@ -2626,31 +2647,96 @@ function syncedProfileNickname(profile) {
   return String(profile.nickname || profile.name || profile.profile?.nickname || "").trim();
 }
 
+function appsInTossAppName() {
+  return String(window.__appsInToss?.appName || "gold-hunter").trim() || "gold-hunter";
+}
+
+function gameProfileEditorUrl() {
+  const url = new URL(gameProfileWebviewUrl);
+  url.searchParams.set("appName", appsInTossAppName());
+  url.searchParams.set("referrer", `appsintoss.${appsInTossAppName()}`);
+  return url.toString();
+}
+
+async function openTransparentServiceWeb(innerUrl, onClose) {
+  const bridge = await loadTossBridge();
+  const sdk = window.MoneyHunterTossSdk || {};
+  const openURL = bridge.openURL || sdk.openURL || (await loadTossSdk()).openURL;
+  if (typeof openURL !== "function") {
+    throw new Error("토스 앱에서 게임 프로필 화면을 열 수 없어요.");
+  }
+
+  const url = new URL("supertoss://transparent-service-web");
+  url.searchParams.set("url", innerUrl);
+  if (typeof bridge.onVisibilityChangedByTransparentServiceWeb === "function") {
+    const callbackId = `moneyHunterProfile_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    url.searchParams.set("onVisibilityChangeCallback", callbackId);
+    return new Promise((resolve, reject) => {
+      let finished = false;
+      let cleanup = null;
+      const finish = () => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        cleanup?.();
+        Promise.resolve(onClose?.()).then(resolve, reject);
+      };
+      cleanup = bridge.onVisibilityChangedByTransparentServiceWeb({
+        options: { callbackId },
+        onEvent(value) {
+          if (value === true) {
+            finish();
+          }
+        },
+        onError(error) {
+          if (!finished) {
+            cleanup?.();
+            reject(error);
+          }
+        },
+      });
+      Promise.resolve(openURL(url.toString())).catch((error) => {
+        cleanup?.();
+        reject(error);
+      });
+    });
+  }
+
+  await openURL(url.toString());
+  return new Promise((resolve, reject) => {
+    window.setTimeout(() => Promise.resolve(onClose?.()).then(resolve, reject), 1400);
+  });
+}
+
 async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
   if (!canSyncGameProfile() || state.gameProfileSyncInFlight) {
-    return;
+    return { statusCode: "SKIPPED" };
   }
   const now = Date.now();
   if (!force && now - state.lastGameProfileSyncAt < 5 * 60 * 1000) {
-    return;
+    return { statusCode: "COOLDOWN" };
   }
-  state.lastGameProfileSyncAt = now;
   state.gameProfileSyncInFlight = true;
   try {
     const bridge = await gameCenterProfileBridge();
     if (typeof bridge.getGameCenterGameProfile !== "function") {
-      return;
+      return { statusCode: "UNSUPPORTED" };
     }
     const profile = await bridge.getGameCenterGameProfile();
     if (!profile || profile.statusCode !== "SUCCESS") {
-      return;
+      if (profile?.statusCode === "PROFILE_NOT_FOUND") {
+        state.lastGameProfileMissingAt = Date.now();
+      }
+      return { statusCode: profile?.statusCode || "UNSUPPORTED" };
     }
     const nickname = syncedProfileNickname(profile);
     if (!nickname) {
-      return;
+      return { statusCode: "EMPTY_PROFILE" };
     }
+    state.lastGameProfileSyncAt = Date.now();
     if (!force && nickname === gameProfileNickname()) {
-      return;
+      return { statusCode: "SUCCESS", nickname, unchanged: true };
     }
     const updatedPlayer = await api("/api/player/game-profile", {
       method: "POST",
@@ -2658,12 +2744,101 @@ async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
     });
     setServerPlayer(updatedPlayer);
     render();
+    return { statusCode: "SUCCESS", nickname };
   } catch (error) {
     if (!silent) {
       throw error;
     }
+    return { statusCode: "ERROR", error };
   } finally {
     state.gameProfileSyncInFlight = false;
+  }
+}
+
+async function ensureGameProfile({ force = false, silent = true, openIfMissing = false, source = "auto" } = {}) {
+  const result = await syncGameProfileIfNeeded({ force, silent });
+  if (result?.statusCode === "PROFILE_NOT_FOUND" && openIfMissing) {
+    return openGameProfileEditorAfterMissing({ source, silent });
+  }
+  return result;
+}
+
+function rememberPendingLeaderboardActions({ submitScore = false, openLeaderboard = false } = {}) {
+  state.pendingLeaderboardScoreSubmit = state.pendingLeaderboardScoreSubmit || submitScore;
+  state.pendingLeaderboardOpen = state.pendingLeaderboardOpen || openLeaderboard;
+}
+
+function queueGameProfileCreation({ submitScore = false, openLeaderboard = false } = {}) {
+  state.gameProfileCreationDeferred = true;
+  rememberPendingLeaderboardActions({ submitScore, openLeaderboard });
+}
+
+function maybeResumeDeferredGameProfileCreation() {
+  if (!state.gameProfileCreationDeferred || shouldDeferGameProfileEditor() || state.gameProfileEditorInFlight) {
+    return;
+  }
+  state.gameProfileCreationDeferred = false;
+  openGameProfileEditorAfterMissing({ source: "deferred", silent: true }).catch(() => {});
+}
+
+async function openGameProfileEditorAfterMissing({ source = "auto", silent = true } = {}) {
+  rememberPendingLeaderboardActions({
+    submitScore: source === "score" || source === "leaderboard",
+    openLeaderboard: source === "leaderboard",
+  });
+  if (shouldDeferGameProfileEditor()) {
+    queueGameProfileCreation({
+      submitScore: source === "score" || source === "leaderboard",
+      openLeaderboard: source === "leaderboard",
+    });
+    return { statusCode: "DEFERRED" };
+  }
+  if (state.gameProfileEditorInFlight) {
+    return { statusCode: "IN_FLIGHT" };
+  }
+  const now = Date.now();
+  const forceOpen = source === "leaderboard";
+  if (!forceOpen && now - state.lastGameProfileEditorOpenedAt < 60 * 1000) {
+    return { statusCode: "PROFILE_NOT_FOUND" };
+  }
+  state.lastGameProfileEditorOpenedAt = now;
+  state.gameProfileEditorInFlight = true;
+  setMessage("토스 게임 프로필을 먼저 만들게요.");
+  try {
+    await openTransparentServiceWeb(gameProfileEditorUrl(), async () => {
+      const syncResult = await syncGameProfileIfNeeded({ force: true, silent: true });
+      if (syncResult?.statusCode === "SUCCESS") {
+        setMessage("게임 프로필을 확인했어요.");
+        await flushPendingLeaderboardActions();
+      } else if (syncResult?.statusCode === "PROFILE_NOT_FOUND") {
+        setMessage("토스 게임센터 프로필을 만든 뒤 랭킹에 참여할 수 있어요.");
+      }
+    });
+    return { statusCode: "PROFILE_EDITOR_OPENED" };
+  } catch (error) {
+    if (!silent) {
+      throw error;
+    }
+    setMessage(error.message || "게임 프로필 화면을 열지 못했어요.");
+    return { statusCode: "ERROR", error };
+  } finally {
+    state.gameProfileEditorInFlight = false;
+  }
+}
+
+async function flushPendingLeaderboardActions() {
+  const shouldSubmitScore = state.pendingLeaderboardScoreSubmit || state.pendingLeaderboardOpen;
+  const shouldOpenLeaderboard = state.pendingLeaderboardOpen;
+  state.pendingLeaderboardScoreSubmit = false;
+  state.pendingLeaderboardOpen = false;
+  if (shouldSubmitScore) {
+    await submitLeaderboardScore({ silent: true, force: true, ensureProfile: false });
+  }
+  if (shouldOpenLeaderboard) {
+    const sdk = await loadTossSdk();
+    if (typeof sdk.openGameCenterLeaderboard === "function") {
+      await sdk.openGameCenterLeaderboard();
+    }
   }
 }
 
@@ -2695,9 +2870,15 @@ function scheduleLeaderboardEntryScoreSubmit(delayMs = 2000) {
   }, delayMs);
 }
 
-async function submitLeaderboardScore({ silent = false, force = false } = {}) {
+async function submitLeaderboardScore({ silent = false, force = false, ensureProfile = true, source = "score" } = {}) {
   if (!canSubmitLeaderboardScore()) {
     return;
+  }
+  if (ensureProfile) {
+    const profileResult = await ensureGameProfile({ force: true, silent: true, openIfMissing: true, source });
+    if (["PROFILE_NOT_FOUND", "DEFERRED", "IN_FLIGHT", "ERROR"].includes(profileResult?.statusCode)) {
+      return profileResult;
+    }
   }
   const scoreValue = leaderboardGoldScore(state.player);
   if (!force && state.lastLeaderboardScoreSubmitted !== null && scoreValue <= state.lastLeaderboardScoreSubmitted) {
@@ -2716,6 +2897,9 @@ async function submitLeaderboardScore({ silent = false, force = false } = {}) {
     const result = await submit({ score: String(scoreValue) });
     if (result?.statusCode === "SUCCESS") {
       state.lastLeaderboardScoreSubmitted = scoreValue;
+    } else if (result?.statusCode === "PROFILE_NOT_FOUND") {
+      state.lastGameProfileMissingAt = Date.now();
+      await openGameProfileEditorAfterMissing({ source, silent: true });
     }
     return result;
   } catch (error) {
@@ -2741,11 +2925,14 @@ async function openGameLeaderboard() {
     setMessage("현재 토스 앱에서 랭킹을 열 수 없어요.");
     return;
   }
-  await syncGameProfileIfNeeded({ force: true, silent: true });
   cancelScheduledLeaderboardScoreSubmit();
-  const submitResult = await submitLeaderboardScore({ force: true });
+  const submitResult = await submitLeaderboardScore({ force: true, source: "leaderboard" });
   if (submitResult?.statusCode === "PROFILE_NOT_FOUND") {
     setMessage("토스 게임센터 프로필을 만든 뒤 랭킹에 참여할 수 있어요.");
+    return;
+  }
+  if (["DEFERRED", "IN_FLIGHT", "PROFILE_EDITOR_OPENED"].includes(submitResult?.statusCode)) {
+    return;
   }
   await sdk.openGameCenterLeaderboard();
 }
