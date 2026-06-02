@@ -441,6 +441,30 @@ public class PlayerService {
 		return toState(player);
 	}
 
+	public void logGameProfileSyncEvent(
+			String userKey,
+			String statusCode,
+			String source,
+			String runtime,
+			String hostname,
+			String appName,
+			String webViewType,
+			Boolean sdkAvailable,
+			String message
+	) {
+		log.info(
+				"게임 프로필 동기화 상태: userKey={}, status={}, source={}, runtime={}, host={}, appName={}, webViewType={}, sdkAvailable={}, message={}",
+				mask(userKey),
+				truncate(statusCode, 40),
+				truncate(source, 40),
+				truncate(runtime, 40),
+				truncate(hostname, 120),
+				truncate(appName, 80),
+				truncate(webViewType, 40),
+				sdkAvailable,
+				truncate(message, 160));
+	}
+
 	@Transactional
 	public PlayerStateResponse grantIapProduct(String userKey, String orderId, String productId) {
 		Player player = getOrCreatePlayer(userKey);
@@ -796,6 +820,14 @@ public class PlayerService {
 
 	private String normalize(String value) {
 		return value == null ? "" : value.trim();
+	}
+
+	private String truncate(String value, int maxLength) {
+		String normalized = normalize(value);
+		if (normalized.length() <= maxLength) {
+			return normalized;
+		}
+		return normalized.substring(0, maxLength);
 	}
 
 	private String normalizePetSkinKey(String skinKey) {

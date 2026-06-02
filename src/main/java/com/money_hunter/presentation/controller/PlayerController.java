@@ -9,6 +9,7 @@ import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
 import com.money_hunter.presentation.dto.request.FriendInviteRewardClaimRequest;
 import com.money_hunter.presentation.dto.request.GameProfileRequest;
+import com.money_hunter.presentation.dto.request.GameProfileSyncEventRequest;
 import com.money_hunter.presentation.dto.request.IapGrantRequest;
 import com.money_hunter.presentation.dto.request.PetSkinEquipRequest;
 import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
@@ -112,6 +113,23 @@ public class PlayerController {
 			@Valid @RequestBody GameProfileRequest request
 	) {
 		return playerService.updateGameProfile(userKey(principal), request.nickname());
+	}
+
+	@PostMapping("/game-profile/sync-events")
+	public void logGameProfileSyncEvent(
+			Principal principal,
+			@Valid @RequestBody GameProfileSyncEventRequest request
+	) {
+		playerService.logGameProfileSyncEvent(
+				userKey(principal),
+				request.statusCode(),
+				request.source(),
+				request.runtime(),
+				request.hostname(),
+				request.appName(),
+				request.webViewType(),
+				request.sdkAvailable(),
+				request.message());
 	}
 
 	@PostMapping("/skills/upgrade")

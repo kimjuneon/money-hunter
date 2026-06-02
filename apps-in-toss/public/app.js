@@ -95,6 +95,8 @@ const state = {
   gameProfileSyncInFlight: false,
   lastGameProfileSyncAt: 0,
   lastGameProfileMissingAt: 0,
+  lastGameProfileSyncEventAt: 0,
+  lastGameProfileSyncEventKey: "",
   lastGameProfileEditorOpenedAt: 0,
   gameProfileEditorInFlight: false,
   gameProfileCreationDeferred: false,
@@ -549,6 +551,7 @@ async function finishFeatureTutorial() {
     setServerPlayer(await api("/api/player/tutorial/feature/complete", { method: "POST" }));
     render();
     setMessage("튜토리얼을 완료했어요. 이제 자유롭게 성장해보세요.");
+    scheduleGameProfileSync(800);
     window.setTimeout(() => maybeResumeDeferredGameProfileCreation(), 350);
   } catch (error) {
     setMessage(error.message || "튜토리얼 완료 저장에 실패했어요.");
@@ -2618,6 +2621,60 @@ function shouldDeferGameProfileEditor() {
   );
 }
 
+function gameProfileSyncLogValue(value, maxLength = 160) {
+  const normalized = String(value || "").trim();
+  return normalized.length > maxLength ? normalized.slice(0, maxLength) : normalized;
+}
+
+function gameProfileSyncRuntime() {
+  if (isTossMiniRuntime()) {
+    return "toss-mini";
+  }
+  return "web";
+}
+
+function gameProfileSyncErrorMessage(error) {
+  if (!error) {
+    return "";
+  }
+  return gameProfileSyncLogValue(error.message || error.code || error.name || String(error));
+}
+
+function reportGameProfileSyncEvent(event = {}) {
+  if (!shouldUseGameCenter() || !state.authToken) {
+    return;
+  }
+  const eventKey = [
+    event.statusCode || "",
+    event.source || "auto",
+    event.message || "",
+  ].join(":");
+  const now = Date.now();
+  if (eventKey === state.lastGameProfileSyncEventKey && now - state.lastGameProfileSyncEventAt < 30 * 1000) {
+    return;
+  }
+  state.lastGameProfileSyncEventKey = eventKey;
+  state.lastGameProfileSyncEventAt = now;
+  const body = {
+    statusCode: gameProfileSyncLogValue(event.statusCode, 40),
+    source: gameProfileSyncLogValue(event.source || "auto", 40),
+    runtime: gameProfileSyncRuntime(),
+    hostname: gameProfileSyncLogValue(window.location.hostname, 120),
+    appName: gameProfileSyncLogValue(window.__appsInToss?.appName || appsInTossAppName(), 80),
+    webViewType: gameProfileSyncLogValue(window.__appsInToss?.webViewType || "", 40),
+    sdkAvailable: Boolean(window.MoneyHunterTossSdk || window.ReactNativeWebView || window.__appsInToss),
+    message: gameProfileSyncLogValue(event.message),
+  };
+  fetch(apiUrl("/api/player/game-profile/sync-events"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authRequestHeaders(),
+    },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
 function cancelScheduledGameProfileSync() {
   window.clearTimeout(state.gameProfileSyncTimer);
   state.gameProfileSyncTimer = null;
@@ -2717,8 +2774,13 @@ async function openTransparentServiceWeb(innerUrl, onClose) {
   });
 }
 
-async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
+async function syncGameProfileIfNeeded({ force = false, silent = true, source = "auto" } = {}) {
   if (!canSyncGameProfile() || state.gameProfileSyncInFlight) {
+    reportGameProfileSyncEvent({
+      statusCode: "SKIPPED",
+      source,
+      message: !canSyncGameProfile() ? "canSyncGameProfile=false" : "sync-in-flight",
+    });
     return { statusCode: "SKIPPED" };
   }
   const now = Date.now();
@@ -2729,6 +2791,7 @@ async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
   try {
     const bridge = await gameCenterProfileBridge();
     if (typeof bridge.getGameCenterGameProfile !== "function") {
+      reportGameProfileSyncEvent({ statusCode: "UNSUPPORTED", source, message: "missing-getGameCenterGameProfile" });
       return { statusCode: "UNSUPPORTED" };
     }
     const profile = await bridge.getGameCenterGameProfile();
@@ -2736,14 +2799,21 @@ async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
       if (profile?.statusCode === "PROFILE_NOT_FOUND") {
         state.lastGameProfileMissingAt = Date.now();
       }
+      reportGameProfileSyncEvent({
+        statusCode: profile?.statusCode || "UNSUPPORTED",
+        source,
+        message: profile ? "profile-status" : "empty-profile-response",
+      });
       return { statusCode: profile?.statusCode || "UNSUPPORTED" };
     }
     const nickname = syncedProfileNickname(profile);
     if (!nickname) {
+      reportGameProfileSyncEvent({ statusCode: "EMPTY_PROFILE", source, message: "missing-nickname" });
       return { statusCode: "EMPTY_PROFILE" };
     }
     state.lastGameProfileSyncAt = Date.now();
     if (!force && nickname === gameProfileNickname()) {
+      reportGameProfileSyncEvent({ statusCode: "SUCCESS", source, message: "unchanged" });
       return { statusCode: "SUCCESS", nickname, unchanged: true };
     }
     const updatedPlayer = await api("/api/player/game-profile", {
@@ -2752,8 +2822,10 @@ async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
     });
     setServerPlayer(updatedPlayer);
     render();
+    reportGameProfileSyncEvent({ statusCode: "SUCCESS", source, message: "saved" });
     return { statusCode: "SUCCESS", nickname };
   } catch (error) {
+    reportGameProfileSyncEvent({ statusCode: "ERROR", source, message: gameProfileSyncErrorMessage(error) });
     if (!silent) {
       throw error;
     }
@@ -2764,7 +2836,7 @@ async function syncGameProfileIfNeeded({ force = false, silent = true } = {}) {
 }
 
 async function ensureGameProfile({ force = false, silent = true, openIfMissing = false, source = "auto" } = {}) {
-  const result = await syncGameProfileIfNeeded({ force, silent });
+  const result = await syncGameProfileIfNeeded({ force, silent, source });
   if (result?.statusCode === "PROFILE_NOT_FOUND" && openIfMissing) {
     return openGameProfileEditorAfterMissing({ source, silent });
   }
@@ -2799,22 +2871,26 @@ async function openGameProfileEditorAfterMissing({ source = "auto", silent = tru
       submitScore: source === "score" || source === "leaderboard",
       openLeaderboard: source === "leaderboard",
     });
+    reportGameProfileSyncEvent({ statusCode: "DEFERRED", source, message: "profile-editor-deferred" });
     return { statusCode: "DEFERRED" };
   }
   if (state.gameProfileEditorInFlight) {
+    reportGameProfileSyncEvent({ statusCode: "IN_FLIGHT", source, message: "profile-editor-in-flight" });
     return { statusCode: "IN_FLIGHT" };
   }
   const now = Date.now();
   const forceOpen = source === "leaderboard";
   if (!forceOpen && now - state.lastGameProfileEditorOpenedAt < 60 * 1000) {
+    reportGameProfileSyncEvent({ statusCode: "PROFILE_NOT_FOUND", source, message: "profile-editor-cooldown" });
     return { statusCode: "PROFILE_NOT_FOUND" };
   }
   state.lastGameProfileEditorOpenedAt = now;
   state.gameProfileEditorInFlight = true;
   setMessage("토스 게임 프로필을 먼저 만들게요.");
   try {
+    reportGameProfileSyncEvent({ statusCode: "PROFILE_EDITOR_OPENING", source, message: "open-profile-editor" });
     await openTransparentServiceWeb(gameProfileEditorUrl(), async () => {
-      const syncResult = await syncGameProfileIfNeeded({ force: true, silent: true });
+      const syncResult = await syncGameProfileIfNeeded({ force: true, silent: true, source });
       if (syncResult?.statusCode === "SUCCESS") {
         setMessage("게임 프로필을 확인했어요.");
         await flushPendingLeaderboardActions();
@@ -2824,6 +2900,7 @@ async function openGameProfileEditorAfterMissing({ source = "auto", silent = tru
     });
     return { statusCode: "PROFILE_EDITOR_OPENED" };
   } catch (error) {
+    reportGameProfileSyncEvent({ statusCode: "PROFILE_EDITOR_ERROR", source, message: gameProfileSyncErrorMessage(error) });
     if (!silent) {
       throw error;
     }
