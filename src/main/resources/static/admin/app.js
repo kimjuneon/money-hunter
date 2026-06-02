@@ -51,6 +51,7 @@ function bindEvents() {
   $("playerFavoriteMode").addEventListener("change", reloadPlayersFromFirstPage);
   $("playerPageSize").addEventListener("change", reloadPlayersFromFirstPage);
   $("playerHiddenSkinsOnly").addEventListener("change", reloadPlayersFromFirstPage);
+  $("playerActiveAutoHuntOnly").addEventListener("change", reloadPlayersFromFirstPage);
   $("playerFilterClearButton").addEventListener("click", clearPlayerFilters);
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
@@ -481,43 +482,44 @@ function renderLineChart(points) {
   if (!points.length) {
     return `<p class="empty">유저 추이 데이터가 아직 없어요.</p>`;
   }
-  const width = 720;
-  const height = 250;
-  const left = 42;
-  const right = width - 18;
-  const top = 24;
-  const bottom = height - 44;
-  const chartWidth = right - left;
-  const chartHeight = bottom - top;
+  const width = 640;
+  const height = 176;
   const maxTotal = Math.max(1, ...points.map((point) => Number(point.totalPlayers || 0)));
-  const x = (index) => left + (points.length === 1 ? chartWidth : chartWidth * index / (points.length - 1));
-  const y = (value) => bottom - chartHeight * Number(value || 0) / maxTotal;
+  const x = (index) => points.length === 1 ? width / 2 : width * index / (points.length - 1);
+  const y = (value) => height - height * Number(value || 0) / maxTotal;
   const linePoints = points.map((point, index) => `${x(index).toFixed(1)},${y(point.totalPlayers).toFixed(1)}`).join(" ");
-  const areaPoints = `${left},${bottom} ${linePoints} ${right},${bottom}`;
+  const areaPoints = `0,${height} ${linePoints} ${width},${height}`;
   const lastPoint = points[points.length - 1];
   const lastX = x(points.length - 1).toFixed(1);
   const lastY = y(lastPoint.totalPlayers).toFixed(1);
+  const lastLabelLeft = Math.min(98, Math.max(14, Number(lastX) / width * 100));
+  const lastLabelTop = Math.min(90, Math.max(12, Number(lastY) / height * 100));
   const labelStep = Math.max(1, Math.ceil(points.length / 6));
   const labels = points
-    .filter((_, index) => index === 0 || index === points.length - 1 || index % labelStep === 0)
-    .map((point, index, filtered) => {
-      const originalIndex = points.indexOf(point);
-      const anchor = index === 0 ? "start" : index === filtered.length - 1 ? "end" : "middle";
-      return `<text x="${x(originalIndex).toFixed(1)}" y="${height - 12}" text-anchor="${anchor}">${escapeHtml(point.date.slice(5))}</text>`;
+    .map((point, index) => ({ point, index }))
+    .filter(({ index }) => index === 0 || index === points.length - 1 || index % labelStep === 0)
+    .map(({ point, index }) => {
+      const position = points.length === 1 ? 50 : index / (points.length - 1) * 100;
+      const edgeClass = index === 0 ? " first" : index === points.length - 1 ? " last" : "";
+      return `<span class="growth-x-label${edgeClass}" style="left: ${position.toFixed(2)}%">${escapeHtml(point.date.slice(5))}</span>`;
     }).join("");
   return `
     <div class="growth-chart" role="img" aria-label="전체 유저 선형 그래프">
-      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-        <line class="chart-grid" x1="${left}" y1="${top}" x2="${right}" y2="${top}"></line>
-        <line class="chart-grid" x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}"></line>
-        <text class="chart-axis" x="${left}" y="${top - 6}">${formatNumber(maxTotal)}명</text>
-        <text class="chart-axis" x="${left}" y="${bottom + 18}">0명</text>
-        <polygon class="growth-area" points="${areaPoints}"></polygon>
-        <polyline class="growth-line" points="${linePoints}"></polyline>
-        <circle class="growth-dot" cx="${lastX}" cy="${lastY}" r="5"></circle>
-        <text class="growth-last-label" x="${Math.max(left + 52, Number(lastX) - 8)}" y="${Math.max(top + 16, Number(lastY) - 10)}" text-anchor="end">${formatNumber(lastPoint.totalPlayers)}명</text>
-        ${labels}
-      </svg>
+      <div class="growth-chart-body">
+        <span class="chart-y-label chart-y-max">${formatNumber(maxTotal)}명</span>
+        <span class="chart-y-label chart-y-zero">0명</span>
+        <div class="growth-plot">
+          <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+            <line class="chart-grid" x1="0" y1="0" x2="${width}" y2="0"></line>
+            <line class="chart-grid" x1="0" y1="${height}" x2="${width}" y2="${height}"></line>
+            <polygon class="growth-area" points="${areaPoints}"></polygon>
+            <polyline class="growth-line" points="${linePoints}"></polyline>
+            <circle class="growth-dot" cx="${lastX}" cy="${lastY}" r="5"></circle>
+          </svg>
+          <span class="growth-value-label" style="left: ${lastLabelLeft.toFixed(2)}%; top: ${lastLabelTop.toFixed(2)}%">${formatNumber(lastPoint.totalPlayers)}명</span>
+        </div>
+      </div>
+      <div class="growth-x-labels">${labels}</div>
     </div>
   `;
 }
@@ -719,6 +721,7 @@ async function openPlayerFromAnomaly(userKey) {
   $("playerFilterProgress").value = "ALL";
   $("playerFavoriteMode").value = "ALL";
   $("playerHiddenSkinsOnly").checked = false;
+  $("playerActiveAutoHuntOnly").checked = false;
   state.playerPage = 0;
   state.selectedUserKey = userKey;
   await loadPlayers();
@@ -734,6 +737,7 @@ function reloadPlayersFromFirstPage() {
 async function loadPlayers() {
   const query = $("playerSearchInput").value.trim();
   const hiddenSkinsOnly = $("playerHiddenSkinsOnly").checked;
+  const activeAutoHuntOnly = $("playerActiveAutoHuntOnly").checked;
   state.playerSize = Number($("playerPageSize").value || 30);
   const params = new URLSearchParams({
     query,
@@ -743,6 +747,7 @@ async function loadPlayers() {
     status: $("playerFilterStatus").value,
     progress: $("playerFilterProgress").value,
     hiddenSkinsOnly: String(hiddenSkinsOnly),
+    activeAutoHuntOnly: String(activeAutoHuntOnly),
     sort: $("playerSortPreset").value,
   });
   const data = await request(`/api/admin/players?${params}`);
@@ -771,6 +776,7 @@ function clearPlayerFilters() {
   $("playerFavoriteMode").value = "ALL";
   $("playerPageSize").value = "30";
   $("playerHiddenSkinsOnly").checked = false;
+  $("playerActiveAutoHuntOnly").checked = false;
   state.playerPage = 0;
   state.selectedUserKey = "";
   loadPlayers();

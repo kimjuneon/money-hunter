@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260601-01" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260602-01" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -128,7 +128,11 @@
 	              <label class="favorite-filter">
 	                <input id="playerHiddenSkinsOnly" type="checkbox" />
 	                <span>히든 스킨</span>
-              </label>
+	              </label>
+	              <label class="favorite-filter">
+	                <input id="playerActiveAutoHuntOnly" type="checkbox" />
+	                <span>자동사냥 중</span>
+	              </label>
               <button class="secondary" type="submit">검색</button>
               <button id="playerFilterClearButton" class="ghost" type="button">초기화</button>
             </form>
@@ -192,6 +196,6 @@
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260601-01"></script>
+    <script src="/admin/app.js?v=20260602-01"></script>
   </body>
 </html>

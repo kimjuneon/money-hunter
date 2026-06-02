@@ -50,6 +50,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 						or (:progressMode = 'FEATURE_TUTORIAL_DONE' and p.featureTutorialCompletedAt is not null)
 					)
 					and (:hiddenSkinsOnly = false or coalesce(p.ownedPetSkinKeys, '') like '%EASTER_EGG%')
+					and (:activeAutoHuntOnly = false or (p.autoHuntEndsAt is not null and p.autoHuntEndsAt > :now))
 					and (
 						:query is null
 					or :query = ''
@@ -64,6 +65,8 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 				@Param("statusMode") String statusMode,
 				@Param("progressMode") String progressMode,
 				@Param("hiddenSkinsOnly") boolean hiddenSkinsOnly,
+				@Param("activeAutoHuntOnly") boolean activeAutoHuntOnly,
+				@Param("now") Instant now,
 				org.springframework.data.domain.Pageable pageable);
 
 	@Query("""

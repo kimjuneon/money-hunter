@@ -61,6 +61,7 @@ public class AdminPlayerService {
 			String statusMode,
 			String progressMode,
 			boolean hiddenSkinsOnly,
+			boolean activeAutoHuntOnly,
 			String sort
 	) {
 		int safePage = Math.max(0, page);
@@ -71,6 +72,8 @@ public class AdminPlayerService {
 						normalizedStatusMode(statusMode),
 						normalizedProgressMode(progressMode),
 						hiddenSkinsOnly,
+						activeAutoHuntOnly,
+						clock.instant(),
 						PageRequest.of(safePage, safeSize, playerSort(sort)))
 				.map(AdminPlayerResponse::from);
 	}

@@ -491,27 +491,86 @@ nav {
 .growth-chart {
   margin-top: 14px;
   overflow: hidden;
+  padding: 16px 16px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
 }
 
-.growth-chart svg {
+.growth-chart-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  min-height: 190px;
+}
+
+.growth-plot {
+  position: relative;
+  min-width: 0;
+  height: 190px;
+}
+
+.growth-plot svg {
   display: block;
   width: 100%;
-  height: 260px;
+  height: 100%;
+  overflow: visible;
 }
 
 .chart-grid {
   stroke: #e2e8f0;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  shape-rendering: crispEdges;
 }
 
-.chart-axis,
-.growth-chart text {
+.chart-y-label,
+.growth-x-label,
+.growth-value-label {
+  color: #64748b;
+  font-family: inherit;
   fill: #64748b;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
+  line-height: 1;
+  text-rendering: geometricPrecision;
+  white-space: nowrap;
+}
+
+.chart-y-label {
+  position: absolute;
+  left: 0;
+  width: 46px;
+  text-align: right;
+}
+
+.chart-y-max {
+  top: 0;
+}
+
+.chart-y-zero {
+  bottom: 0;
+}
+
+.growth-x-labels {
+  position: relative;
+  height: 18px;
+  margin-top: 9px;
+  margin-left: 54px;
+}
+
+.growth-x-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.growth-x-label.first {
+  transform: translateX(0);
+}
+
+.growth-x-label.last {
+  transform: translateX(-100%);
 }
 
 .growth-area {
@@ -524,18 +583,27 @@ nav {
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .growth-dot {
   fill: #ffffff;
   stroke: #2563eb;
   stroke-width: 4;
+  vector-effect: non-scaling-stroke;
 }
 
-.growth-last-label {
-  fill: #172033;
+.growth-value-label {
+  position: absolute;
+  padding: 4px 6px;
+  border: 1px solid #dbeafe;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #172033;
   font-size: 13px;
-  font-weight: 1000;
+  font-weight: 800;
+  transform: translate(-100%, -120%);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
 .panel {
@@ -617,7 +685,7 @@ nav {
 
 .player-search {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 130px 150px minmax(170px, 0.9fr) 150px 110px 120px 90px 90px;
+  grid-template-columns: minmax(190px, 1.4fr) 130px 150px minmax(170px, 0.9fr) 150px 110px 120px 128px 90px 90px;
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -634,6 +702,10 @@ nav {
   color: #334155;
   font-size: 13px;
   font-weight: 900;
+}
+
+.favorite-filter span {
+  white-space: nowrap;
 }
 
 .favorite-filter input {

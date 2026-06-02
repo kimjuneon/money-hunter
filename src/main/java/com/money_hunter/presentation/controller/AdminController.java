@@ -132,6 +132,7 @@ public class AdminController {
 			@RequestParam(defaultValue = "ALL") String status,
 			@RequestParam(defaultValue = "ALL") String progress,
 			@RequestParam(defaultValue = "false") boolean hiddenSkinsOnly,
+			@RequestParam(defaultValue = "false") boolean activeAutoHuntOnly,
 			@RequestParam(defaultValue = "lastAccessedAt:desc") String sort,
 			HttpServletRequest request
 	) {
@@ -147,6 +148,7 @@ public class AdminController {
 				status,
 				progress,
 				hiddenSkinsOnly,
+				activeAutoHuntOnly,
 				sort));
 	}
 
