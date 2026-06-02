@@ -438,7 +438,9 @@ function isOneStoreTarget() {
 }
 
 function isTossMiniRuntime() {
-  return window.location.hostname.endsWith("tossmini.com") || Boolean(window.MoneyHunterTossSdk);
+  return window.location.hostname.endsWith("tossmini.com")
+    || Boolean(window.MoneyHunterTossSdk)
+    || Boolean(window.__appsInToss);
 }
 
 function rewardGateLabel() {
