@@ -111,6 +111,7 @@ const state = {
   petEasterEggPasswordOpen: false,
   petEasterEggSkinsHidden: storedValue(hiddenPetSkinsStorageKey) === "true",
   petSkinModalSlot: 1,
+  rookieEventSelectedDay: 1,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
 
@@ -205,6 +206,12 @@ const attackMotionMsByJob = {
 };
 
 const petAssetVersion = "20260601-02";
+const eventAssetVersion = "20260602-01";
+const rookieEventAssets = {
+  pet: `/assets/events/rookie-event-pet.png?v=${eventAssetVersion}`,
+  badge: `/assets/events/rookie-event-badge.png?v=${eventAssetVersion}`,
+  trail: `/assets/events/rookie-event-trail.png?v=${eventAssetVersion}`,
+};
 const petSkinMeta = {
   FIRE_FOX: { key: "FIRE_FOX", name: "해빛냥", image: "/assets/pet-flarefox.svg", attack: "/assets/pet-flarefox-attack.svg", copy: "불꽃 발톱으로 추가 공격" },
   ICE: { key: "ICE", name: "물방울토", image: "/assets/pet-aquabun.svg", attack: "/assets/pet-aquabun-attack.svg", copy: "물방울 탄환으로 추가 공격" },
@@ -1183,6 +1190,7 @@ function render() {
   renderRewardPanel(player);
   renderShopPanel(player);
   renderPets(player);
+  renderRookieEvent(player);
   const autoHuntCooldownReady = timeRewardAdCooldownReady("AUTO_HUNT", player);
   const boostCooldownReady = timeRewardAdCooldownReady("BOOST", player);
   $("autoHuntAd").disabled = !autoHuntCooldownReady;
@@ -1413,6 +1421,7 @@ function restoreBattleVisualAssets() {
   petMeta.forEach((pet, index) => {
     refreshImageSource(pet.imageId, petSkinForSlot(index + 1, state.player).image);
   });
+  refreshImageSource("petRookieEvent", rookieEventAssets.pet);
 }
 
 function monsterSignature(monster) {
@@ -1735,6 +1744,137 @@ function renderPets(player) {
       element.src = petSkinForSlot(index + 1, player).image;
     }
   });
+  const eventPet = $("petRookieEvent");
+  const showEventPet = Boolean(player?.rookieEvent?.rewardClaimed);
+  eventPet.classList.toggle("hidden", !showEventPet);
+  if (showEventPet) {
+    eventPet.src = rookieEventAssets.pet;
+  }
+}
+
+function renderRookieEvent(player) {
+  const event = player?.rookieEvent;
+  const visible = Boolean(event?.visible);
+  const button = $("rookieEventButton");
+  button.classList.toggle("hidden", !visible);
+  document.querySelector(".battle-screen").classList.toggle("has-rookie-event", visible);
+  if (!visible) {
+    closeRookieEventModal();
+    return;
+  }
+  $("rookieEventButtonProgress").textContent = `${event.completedDays || 0}/7`;
+  if (!$("rookieEventModal").classList.contains("hidden")) {
+    renderRookieEventModal(event);
+  }
+}
+
+function openRookieEventModal() {
+  const event = state.player?.rookieEvent;
+  if (!event?.visible) {
+    return;
+  }
+  state.rookieEventSelectedDay = event.currentDay || 1;
+  $("rookieEventModal").classList.remove("hidden");
+  renderRookieEventModal(event);
+}
+
+function closeRookieEventModal() {
+  const modal = $("rookieEventModal");
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+function renderRookieEventModal(event) {
+  const days = Array.isArray(event?.days) ? event.days : [];
+  const selectedDay = days.find((day) => day.day === state.rookieEventSelectedDay)
+    || days.find((day) => day.day === event.currentDay)
+    || days[0];
+  if (!selectedDay) {
+    return;
+  }
+  state.rookieEventSelectedDay = selectedDay.day;
+  $("rookieEventSummary").textContent = rookieEventSummaryText(event);
+  $("rookieEventDaysLeft").textContent = event.rewardClaimed
+    ? "보상 획득 완료"
+    : event.expired
+      ? "이벤트 종료"
+      : `${event.daysRemaining || 0}일 남음`;
+  $("rookieEventProgress").textContent = `${event.completedDays || 0} / 7일 완료`;
+  $("rookieEventRewardName").textContent = event.rewardName || "별빛토";
+  $("rookieEventRewardCopy").textContent = event.rewardDescription || "이벤트 전용 펫 · 일반 펫 15레벨 성능";
+  $("rookieEventRewardStatus").textContent = rookieEventRewardStatusText(event);
+  renderRookieEventDayTabs(days);
+  renderRookieEventSelectedDay(selectedDay);
+}
+
+function rookieEventSummaryText(event) {
+  if (event.rewardClaimed) {
+    return "별빛토가 전투에 함께하고 있어요.";
+  }
+  if (event.expired) {
+    return "이벤트 기간이 종료됐어요.";
+  }
+  if (event.lockedUntilTomorrow) {
+    return "오늘 미션을 완료했어요. 다음 일차는 내일 열려요.";
+  }
+  return "7일 동안 일일 미션을 완료하고 이벤트 전용 펫을 받아요.";
+}
+
+function rookieEventRewardStatusText(event) {
+  if (event.rewardClaimed) {
+    return "전투 보너스 적용 중";
+  }
+  if (event.expired) {
+    return "이벤트 종료";
+  }
+  return "7일차 완료 시 즉시 획득";
+}
+
+function renderRookieEventDayTabs(days) {
+  const tabs = $("rookieEventDayTabs");
+  tabs.replaceChildren(...days.map((day) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `${day.day}일`;
+    button.classList.toggle("is-current", day.current || day.day === state.rookieEventSelectedDay);
+    button.classList.toggle("is-completed", day.completed);
+    button.classList.toggle("is-locked", day.locked);
+    button.addEventListener("click", () => {
+      state.rookieEventSelectedDay = day.day;
+      renderRookieEventModal(state.player?.rookieEvent);
+    });
+    return button;
+  }));
+}
+
+function renderRookieEventSelectedDay(day) {
+  $("rookieEventSelectedDayTitle").textContent = `${day.day}일차 · ${day.title}`;
+  $("rookieEventSelectedDayState").textContent = rookieEventDayStateText(day);
+  const missions = Array.isArray(day.missions) ? day.missions : [];
+  $("rookieEventMissionList").replaceChildren(...missions.map((mission) => {
+    const row = document.createElement("div");
+    row.className = "rookie-event-mission";
+    row.classList.toggle("is-completed", mission.completed);
+    const label = document.createElement("strong");
+    label.textContent = mission.label;
+    const progress = document.createElement("span");
+    progress.textContent = mission.completed ? "완료" : mission.progressText;
+    const bar = document.createElement("i");
+    bar.style.setProperty("--progress", `${Math.max(0, Math.min(100, mission.progressPercent || 0))}%`);
+    row.append(label, progress, bar);
+    return row;
+  }));
+}
+
+function rookieEventDayStateText(day) {
+  if (day.completed) {
+    return "완료";
+  }
+  if (day.locked) {
+    return "대기";
+  }
+  return "진행 중";
 }
 
 function skillPointRewardsAvailable(player = state.player) {
@@ -3730,6 +3870,14 @@ $("closePetSkinModal").addEventListener("click", closePetSkinModal);
 $("petSkinModal").addEventListener("click", (event) => {
   if (event.target.id === "petSkinModal") {
     closePetSkinModal();
+  }
+});
+
+$("rookieEventButton").addEventListener("click", openRookieEventModal);
+$("closeRookieEventModal").addEventListener("click", closeRookieEventModal);
+$("rookieEventModal").addEventListener("click", (event) => {
+  if (event.target.id === "rookieEventModal") {
+    closeRookieEventModal();
   }
 });
 

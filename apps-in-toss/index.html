@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260601-02" />
+    <link rel="stylesheet" href="/styles.css?v=20260602-01" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -31,6 +31,10 @@
           </div>
 
           <div class="speech-bubble" id="battleTip">보상으로 자동사냥을 시작하세요</div>
+          <button id="rookieEventButton" class="rookie-event-button hidden" type="button" aria-label="7일 사냥 동행 이벤트">
+            <img src="/assets/events/rookie-event-badge.png?v=20260602-01" alt="" />
+            <span id="rookieEventButtonProgress">0/7</span>
+          </button>
 
           <div class="hunter-wrap">
             <div id="mainHero" class="hero-sprite warrior" aria-hidden="true">
@@ -43,6 +47,7 @@
           <div id="petParty" class="pet-party" aria-hidden="true">
             <img id="petFlare" class="pet-sprite pet-flare hidden" src="/assets/pet-flarefox.svg" alt="" />
             <img id="petAqua" class="pet-sprite pet-aqua hidden" src="/assets/pet-aquabun.svg" alt="" />
+            <img id="petRookieEvent" class="pet-sprite pet-event hidden" src="/assets/events/rookie-event-pet.png?v=20260602-01" alt="" />
           </div>
 
           <div class="monster-wrap" aria-hidden="true">
@@ -436,6 +441,41 @@
         </div>
       </section>
 
+      <section id="rookieEventModal" class="rookie-event-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rookieEventTitle">
+        <div class="rookie-event-card">
+          <button id="closeRookieEventModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <div class="rookie-event-hero">
+            <img class="rookie-event-trail" src="/assets/events/rookie-event-trail.png?v=20260602-01" alt="" />
+            <div class="rookie-event-copy">
+              <p class="modal-kicker">EVENT</p>
+              <h2 id="rookieEventTitle">7일 사냥 동행</h2>
+              <p id="rookieEventSummary">7일 미션을 완료하고 이벤트 전용 펫을 받아요.</p>
+            </div>
+            <img class="rookie-event-pet-preview" src="/assets/events/rookie-event-pet.png?v=20260602-01" alt="" />
+          </div>
+          <div class="rookie-event-meta">
+            <span id="rookieEventDaysLeft">30일 남음</span>
+            <strong id="rookieEventProgress">0 / 7일 완료</strong>
+          </div>
+          <div id="rookieEventDayTabs" class="rookie-event-day-tabs" aria-label="이벤트 일차 선택"></div>
+          <div class="rookie-event-missions">
+            <div class="rookie-event-mission-heading">
+              <strong id="rookieEventSelectedDayTitle">1일차</strong>
+              <span id="rookieEventSelectedDayState">진행 중</span>
+            </div>
+            <div id="rookieEventMissionList" class="rookie-event-mission-list"></div>
+          </div>
+          <div class="rookie-event-reward">
+            <img src="/assets/events/rookie-event-pet.png?v=20260602-01" alt="" />
+            <div>
+              <strong id="rookieEventRewardName">별빛토</strong>
+              <p id="rookieEventRewardCopy">이벤트 전용 펫 · 일반 펫 15레벨 성능</p>
+              <small id="rookieEventRewardStatus">7일차 완료 시 즉시 획득</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="petSkinModal" class="pet-skin-modal hidden" role="dialog" aria-modal="true" aria-labelledby="petSkinModalTitle">
         <div class="pet-skin-modal-card">
           <div class="pet-skin-modal-header">
@@ -491,6 +531,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260601-02"></script>
+    <script src="/app.js?v=20260602-01"></script>
   </body>
 </html>

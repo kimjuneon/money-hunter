@@ -51,9 +51,10 @@ public record PlayerStateResponse(
 			int normalAttackIntervalMillis,
 			int boostedAttackIntervalMillis,
 			Instant autoHuntEndsAt,
-			Instant boostEndsAt,
+		Instant boostEndsAt,
 		MonsterResponse monster,
 		List<SkillResponse> skills,
+		RookieEventResponse rookieEvent,
 		NotificationResponse latestNotification
 ) {
 }

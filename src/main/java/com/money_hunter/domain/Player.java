@@ -120,6 +120,37 @@ public class Player {
 	@Column(nullable = false, length = 40)
 	private String petTwoSkinKey = "ICE";
 
+	private Instant rookieEventStartedAt;
+
+	private Instant rookieEventCompletedAt;
+
+	private Instant rookieEventRewardClaimedAt;
+
+	@Column(nullable = false)
+	private int rookieEventCompletedDays = 0;
+
+	private LocalDate rookieEventCurrentDate;
+
+	private LocalDate rookieEventLastCompletedDate;
+
+	@Column(nullable = false)
+	private long rookieEventDailyHuntMillis = 0;
+
+	@Column(nullable = false)
+	private int rookieEventDailyMonsters = 0;
+
+	@Column(nullable = false)
+	private int rookieEventDailyBoostMonsters = 0;
+
+	@Column(nullable = false)
+	private long rookieEventDailyGold = 0;
+
+	@Column(nullable = false)
+	private int rookieEventDailySettlements = 0;
+
+	@Column(nullable = false)
+	private int rookieEventDailySkillPointsSpent = 0;
+
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
@@ -308,6 +339,63 @@ public class Player {
 			this.friendInviteRewardCount = 0;
 			touch();
 		}
+	}
+
+	public void startRookieEvent(Instant now, LocalDate today) {
+		if (rookieEventStartedAt != null) {
+			return;
+		}
+		this.rookieEventStartedAt = now;
+		resetRookieEventDailyProgress(today);
+		touch();
+	}
+
+	public void ensureRookieEventDay(LocalDate today) {
+		if (today == null) {
+			return;
+		}
+		if (!today.equals(rookieEventCurrentDate)) {
+			resetRookieEventDailyProgress(today);
+		}
+	}
+
+	public boolean isRookieEventRewardClaimed() {
+		return rookieEventRewardClaimedAt != null;
+	}
+
+	public boolean completedRookieEventDayToday(LocalDate today) {
+		return today != null && today.equals(rookieEventLastCompletedDate);
+	}
+
+	public void addRookieEventCombatProgress(long huntMillis, long gold, int monsters, int boostMonsters) {
+		this.rookieEventDailyHuntMillis += Math.max(0, huntMillis);
+		this.rookieEventDailyGold += Math.max(0, gold);
+		this.rookieEventDailyMonsters += Math.max(0, monsters);
+		this.rookieEventDailyBoostMonsters += Math.max(0, boostMonsters);
+		touch();
+	}
+
+	public void addRookieEventSettlement() {
+		this.rookieEventDailySettlements += 1;
+		touch();
+	}
+
+	public void addRookieEventSkillPointSpent() {
+		this.rookieEventDailySkillPointsSpent += 1;
+		touch();
+	}
+
+	public void completeRookieEventDay(LocalDate today, Instant now, int maxEventDays) {
+		if (today == null || completedRookieEventDayToday(today) || rookieEventCompletedDays >= maxEventDays) {
+			return;
+		}
+		this.rookieEventCompletedDays += 1;
+		this.rookieEventLastCompletedDate = today;
+		if (rookieEventCompletedDays >= maxEventDays) {
+			this.rookieEventCompletedAt = now;
+			this.rookieEventRewardClaimedAt = now;
+		}
+		touch();
 	}
 
 	public void spendSkillPoint() {
@@ -554,12 +642,24 @@ public class Player {
 		this.adminFavorite = false;
 		this.ownedPetSkinKeys = "FIRE_FOX,ICE";
 		this.petOneSkinKey = "FIRE_FOX";
-			this.petTwoSkinKey = "ICE";
-			this.lastSettledAt = now;
-			this.lastAccessedAt = now;
-			this.skills.forEach(PlayerSkill::resetLevel);
-			touch();
-		}
+		this.petTwoSkinKey = "ICE";
+		this.rookieEventStartedAt = null;
+		this.rookieEventCompletedAt = null;
+		this.rookieEventRewardClaimedAt = null;
+		this.rookieEventCompletedDays = 0;
+		this.rookieEventCurrentDate = null;
+		this.rookieEventLastCompletedDate = null;
+		this.rookieEventDailyHuntMillis = 0;
+		this.rookieEventDailyMonsters = 0;
+		this.rookieEventDailyBoostMonsters = 0;
+		this.rookieEventDailyGold = 0;
+		this.rookieEventDailySettlements = 0;
+		this.rookieEventDailySkillPointsSpent = 0;
+		this.lastSettledAt = now;
+		this.lastAccessedAt = now;
+		this.skills.forEach(PlayerSkill::resetLevel);
+		touch();
+	}
 
 	private void addOwnedPetSkin(String skinKey) {
 		LinkedHashSet<String> keys = new LinkedHashSet<>(ownedPetSkinKeyList());
@@ -578,6 +678,17 @@ public class Player {
 
 	private int nextLevelExperience(int level) {
 		return 1000 + level * level * 500;
+	}
+
+	private void resetRookieEventDailyProgress(LocalDate today) {
+		this.rookieEventCurrentDate = today;
+		this.rookieEventDailyHuntMillis = 0;
+		this.rookieEventDailyMonsters = 0;
+		this.rookieEventDailyBoostMonsters = 0;
+		this.rookieEventDailyGold = 0;
+		this.rookieEventDailySettlements = 0;
+		this.rookieEventDailySkillPointsSpent = 0;
+		touch();
 	}
 
 	private void touch() {

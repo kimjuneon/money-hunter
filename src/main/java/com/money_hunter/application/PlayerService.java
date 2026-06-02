@@ -38,6 +38,9 @@ import com.money_hunter.application.dto.response.NotificationResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.MonsterResponse;
 import com.money_hunter.application.dto.response.RewardClaimResponse;
+import com.money_hunter.application.dto.response.RookieEventDayResponse;
+import com.money_hunter.application.dto.response.RookieEventMissionResponse;
+import com.money_hunter.application.dto.response.RookieEventResponse;
 import com.money_hunter.application.dto.response.SkillResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +73,10 @@ public class PlayerService {
 	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final Duration AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY = Duration.ofMinutes(5);
+	private static final Duration ROOKIE_EVENT_DURATION = Duration.ofDays(30);
+	private static final long DAY_SECONDS = 86_400L;
+	private static final int ROOKIE_EVENT_DAYS = 7;
+	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
 	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Set<String> PET_SKIN_KEYS = Set.of(
@@ -120,6 +127,59 @@ public class PlayerService {
 			AdEventType.SKILL_POINT,
 			AdEventType.REWARD_CLAIM
 	);
+	private static final List<RookieEventDayPlan> ROOKIE_EVENT_PLANS = List.of(
+			new RookieEventDayPlan(1, "1일차 사냥 준비", List.of(
+					new RookieMissionPlan("hunt_1h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS, "사냥 1시간 진행하기"),
+					new RookieMissionPlan("monsters_20", RookieMissionType.MONSTERS, 20, "몬스터 20마리 처치하기"),
+					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
+			)),
+			new RookieEventDayPlan(2, "2일차 채굴 감각", List.of(
+					new RookieMissionPlan("hunt_2h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 2, "사냥 2시간 진행하기"),
+					new RookieMissionPlan("monsters_35", RookieMissionType.MONSTERS, 35, "몬스터 35마리 처치하기"),
+					new RookieMissionPlan("gold_5000", RookieMissionType.GOLD, 5_000, "골드 5,000G 모으기")
+			)),
+			new RookieEventDayPlan(3, "3일차 성장 루틴", List.of(
+					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
+					new RookieMissionPlan("monsters_50", RookieMissionType.MONSTERS, 50, "몬스터 50마리 처치하기"),
+					new RookieMissionPlan("spend_sp_1", RookieMissionType.SKILL_POINTS_SPENT, 1, "스킬포인트 1개 사용하기")
+			)),
+			new RookieEventDayPlan(4, "4일차 빠른 전투", List.of(
+					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
+					new RookieMissionPlan("boost_monsters_20", RookieMissionType.BOOST_MONSTERS, 20, "공속버프 상태로 몬스터 20마리 처치하기"),
+					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
+			)),
+			new RookieEventDayPlan(5, "5일차 보상 축적", List.of(
+					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
+					new RookieMissionPlan("monsters_70", RookieMissionType.MONSTERS, 70, "몬스터 70마리 처치하기"),
+					new RookieMissionPlan("gold_15000", RookieMissionType.GOLD, 15_000, "골드 15,000G 모으기")
+			)),
+			new RookieEventDayPlan(6, "6일차 실력 증명", List.of(
+					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
+					new RookieMissionPlan("monsters_90", RookieMissionType.MONSTERS, 90, "몬스터 90마리 처치하기"),
+					new RookieMissionPlan("level_10", RookieMissionType.LEVEL, 10, "10레벨 달성하기")
+			)),
+			new RookieEventDayPlan(7, "7일차 동행 완성", List.of(
+					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
+					new RookieMissionPlan("monsters_100", RookieMissionType.MONSTERS, 100, "몬스터 100마리 처치하기"),
+					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
+			))
+	);
+
+	private enum RookieMissionType {
+		HUNT_MILLIS,
+		MONSTERS,
+		BOOST_MONSTERS,
+		GOLD,
+		SETTLEMENTS,
+		SKILL_POINTS_SPENT,
+		LEVEL
+	}
+
+	private record RookieMissionPlan(String key, RookieMissionType type, long target, String label) {
+	}
+
+	private record RookieEventDayPlan(int day, String title, List<RookieMissionPlan> missions) {
+	}
 
 	private final PlayerRepository playerRepository;
 	private final AdEventRepository adEventRepository;
@@ -174,6 +234,7 @@ public class PlayerService {
 	public PlayerStateResponse getState(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		player.markAccessed(clock.instant());
+		prepareRookieEvent(player);
 		long settledGold = settle(player);
 		publishAutoHuntEndNotificationIfDue(player, clock.instant(), settledGold);
 		return toState(player);
@@ -338,6 +399,7 @@ public class PlayerService {
 			throw new IllegalStateException("Skill is already at max level.");
 		}
 		player.spendSkillPoint();
+		recordRookieEventSkillPointSpent(player);
 		skill.levelUp();
 		log.info("스킬 강화: userKey={}, type={}, level={}, remainingSp={}", mask(userKey), type, skill.getLevel(), player.getSkillPoints());
 		return toState(player);
@@ -856,6 +918,7 @@ public class PlayerService {
 	}
 
 	private long settle(Player player) {
+		prepareRookieEvent(player);
 		Instant now = clock.instant();
 		Instant huntEnd = player.getAutoHuntEndsAt();
 		if (huntEnd == null || !huntEnd.isAfter(player.getLastSettledAt())) {
@@ -892,9 +955,15 @@ public class PlayerService {
 		}
 
 		long rewardMicros = combatRewardMicros(player, normalMillis, boostedMillis);
+		long goldBefore = player.getGold();
+		int monstersBefore = player.getDefeatedMonsters();
 		player.reserveDefeatGold(defeatRewardMicros(rewardMicros));
 		player.collectHitGold(hitRewardMicros(rewardMicros));
 		resolveAggregateDamage(player, attackCounts);
+		long goldDelta = Math.max(0, player.getGold() - goldBefore);
+		int monsterDelta = Math.max(0, player.getDefeatedMonsters() - monstersBefore);
+		int boostMonsterDelta = boostedMillis > 0 ? monsterDelta : 0;
+		recordRookieEventCombatProgress(player, millis, goldDelta, monsterDelta, boostMonsterDelta);
 		player.setLastSettledAt(settlementEnd);
 	}
 
@@ -1121,6 +1190,8 @@ public class PlayerService {
 	private PlayerStateResponse toState(Player player) {
 		ensureMonster(player);
 		syncStatSkills(player);
+		prepareRookieEvent(player);
+		completeRookieEventDayIfReady(player);
 		player.resetFriendInviteRewardIfNewDay(LocalDate.now(clock));
 		List<SkillResponse> skills = Arrays.stream(SkillType.values())
 				.map(player::getOrCreateSkill)
@@ -1176,6 +1247,7 @@ public class PlayerService {
 				player.getBoostEndsAt(),
 				monsterResponse(player),
 				skills,
+				rookieEventResponse(player),
 				latestNotification(player));
 	}
 
@@ -1189,6 +1261,234 @@ public class PlayerService {
 						notification.getSentAt(),
 						notification.getSettledGold()))
 				.orElse(null);
+	}
+
+	private void prepareRookieEvent(Player player) {
+		if (!player.hasChosenJob()) {
+			return;
+		}
+		Instant now = clock.instant();
+		LocalDate today = LocalDate.now(clock);
+		if (player.getRookieEventStartedAt() == null) {
+			player.startRookieEvent(now, today);
+		}
+		if (!player.isRookieEventRewardClaimed()
+				&& !rookieEventExpired(player, now)
+				&& !player.completedRookieEventDayToday(today)) {
+			player.ensureRookieEventDay(today);
+		}
+	}
+
+	private void recordRookieEventCombatProgress(
+			Player player,
+			long huntMillis,
+			long gold,
+			int monsters,
+			int boostMonsters
+	) {
+		if (!canProgressRookieEvent(player)) {
+			return;
+		}
+		player.addRookieEventCombatProgress(huntMillis, gold, monsters, boostMonsters);
+		player.addRookieEventSettlement();
+		completeRookieEventDayIfReady(player);
+	}
+
+	private void recordRookieEventSkillPointSpent(Player player) {
+		if (!canProgressRookieEvent(player)) {
+			return;
+		}
+		player.addRookieEventSkillPointSpent();
+		completeRookieEventDayIfReady(player);
+	}
+
+	private boolean canProgressRookieEvent(Player player) {
+		prepareRookieEvent(player);
+		Instant now = clock.instant();
+		LocalDate today = LocalDate.now(clock);
+		return player.getRookieEventStartedAt() != null
+				&& !player.isRookieEventRewardClaimed()
+				&& player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS
+				&& !rookieEventExpired(player, now)
+				&& !player.completedRookieEventDayToday(today);
+	}
+
+	private void completeRookieEventDayIfReady(Player player) {
+		if (!canEvaluateRookieEventDay(player)) {
+			return;
+		}
+		RookieEventDayPlan plan = rookieEventPlan(currentRookieEventDay(player));
+		boolean completed = plan.missions().stream()
+				.allMatch(mission -> rookieMissionValue(player, mission) >= mission.target());
+		if (completed) {
+			player.completeRookieEventDay(LocalDate.now(clock), clock.instant(), ROOKIE_EVENT_DAYS);
+		}
+	}
+
+	private boolean canEvaluateRookieEventDay(Player player) {
+		Instant now = clock.instant();
+		LocalDate today = LocalDate.now(clock);
+		return player.getRookieEventStartedAt() != null
+				&& !player.isRookieEventRewardClaimed()
+				&& player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS
+				&& !rookieEventExpired(player, now)
+				&& !player.completedRookieEventDayToday(today);
+	}
+
+	private RookieEventResponse rookieEventResponse(Player player) {
+		if (!player.hasChosenJob() || player.getRookieEventStartedAt() == null) {
+			return new RookieEventResponse(
+					false,
+					false,
+					false,
+					false,
+					false,
+					false,
+					null,
+					null,
+					0,
+					0,
+					1,
+					"별빛토",
+					"일반 펫 15레벨 기준 성능의 이벤트 전용 펫",
+					ROOKIE_EVENT_PET_SKILL_LEVEL,
+					List.of());
+		}
+		Instant now = clock.instant();
+		Instant endsAt = rookieEventEndsAt(player);
+		int completedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventCompletedDays()));
+		boolean rewardClaimed = player.isRookieEventRewardClaimed();
+		boolean expired = rookieEventExpired(player, now);
+		boolean completed = rewardClaimed || completedDays >= ROOKIE_EVENT_DAYS;
+		boolean lockedUntilTomorrow = !completed
+				&& !expired
+				&& player.completedRookieEventDayToday(LocalDate.now(clock));
+		int currentDay = Math.min(ROOKIE_EVENT_DAYS, completedDays + 1);
+		List<RookieEventDayResponse> days = ROOKIE_EVENT_PLANS.stream()
+				.map(plan -> rookieEventDayResponse(player, plan, currentDay, completedDays, expired, rewardClaimed, lockedUntilTomorrow))
+				.toList();
+		return new RookieEventResponse(
+				true,
+				!completed && !expired,
+				expired,
+				completed,
+				rewardClaimed,
+				lockedUntilTomorrow,
+				player.getRookieEventStartedAt(),
+				endsAt,
+				daysRemaining(now, endsAt),
+				completedDays,
+				currentDay,
+				"별빛토",
+				"일반 펫 15레벨 기준 성능 · 펫 보유 수 제한 미포함",
+				ROOKIE_EVENT_PET_SKILL_LEVEL,
+				days);
+	}
+
+	private RookieEventDayResponse rookieEventDayResponse(
+			Player player,
+			RookieEventDayPlan plan,
+			int currentDay,
+			int completedDays,
+			boolean expired,
+			boolean rewardClaimed,
+			boolean lockedUntilTomorrow
+	) {
+		boolean completed = plan.day() <= completedDays;
+		boolean current = !rewardClaimed && !expired && !completed && plan.day() == currentDay;
+		boolean locked = !completed && (rewardClaimed || expired || plan.day() > currentDay || lockedUntilTomorrow);
+		List<RookieEventMissionResponse> missions = plan.missions().stream()
+				.map(mission -> rookieEventMissionResponse(player, mission, completed, current && !locked))
+				.toList();
+		return new RookieEventDayResponse(plan.day(), plan.title(), current, completed, locked, missions);
+	}
+
+	private RookieEventMissionResponse rookieEventMissionResponse(
+			Player player,
+			RookieMissionPlan mission,
+			boolean dayCompleted,
+			boolean showProgress
+	) {
+		long progress = dayCompleted ? mission.target() : showProgress ? rookieMissionValue(player, mission) : 0;
+		int progressPercent = progressPercent(progress, mission.target());
+		boolean completed = dayCompleted || progress >= mission.target();
+		return new RookieEventMissionResponse(
+				mission.key(),
+				mission.label(),
+				rookieMissionProgressText(mission, progress),
+				progressPercent,
+				completed);
+	}
+
+	private long rookieMissionValue(Player player, RookieMissionPlan mission) {
+		return switch (mission.type()) {
+			case HUNT_MILLIS -> player.getRookieEventDailyHuntMillis();
+			case MONSTERS -> player.getRookieEventDailyMonsters();
+			case BOOST_MONSTERS -> player.getRookieEventDailyBoostMonsters();
+			case GOLD -> player.getRookieEventDailyGold();
+			case SETTLEMENTS -> player.getRookieEventDailySettlements();
+			case SKILL_POINTS_SPENT -> player.getRookieEventDailySkillPointsSpent();
+			case LEVEL -> player.getLevel();
+		};
+	}
+
+	private String rookieMissionProgressText(RookieMissionPlan mission, long progress) {
+		long capped = Math.min(progress, mission.target());
+		return switch (mission.type()) {
+			case HUNT_MILLIS -> formatDuration(capped) + " / " + formatDuration(mission.target());
+			case GOLD -> String.format("%,dG / %,dG", capped, mission.target());
+			case LEVEL -> capped + "레벨 / " + mission.target() + "레벨";
+			default -> capped + " / " + mission.target();
+		};
+	}
+
+	private String formatDuration(long millis) {
+		long totalMinutes = millis / 60_000L;
+		long hours = totalMinutes / 60L;
+		long minutes = totalMinutes % 60L;
+		if (hours > 0 && minutes > 0) {
+			return hours + "시간 " + minutes + "분";
+		}
+		if (hours > 0) {
+			return hours + "시간";
+		}
+		return minutes + "분";
+	}
+
+	private int progressPercent(long progress, long target) {
+		if (target <= 0) {
+			return 100;
+		}
+		return (int) Math.max(0, Math.min(100, progress * 100 / target));
+	}
+
+	private RookieEventDayPlan rookieEventPlan(int day) {
+		return ROOKIE_EVENT_PLANS.stream()
+				.filter(plan -> plan.day() == day)
+				.findFirst()
+				.orElse(ROOKIE_EVENT_PLANS.get(0));
+	}
+
+	private int currentRookieEventDay(Player player) {
+		return Math.min(ROOKIE_EVENT_DAYS, Math.max(1, player.getRookieEventCompletedDays() + 1));
+	}
+
+	private boolean rookieEventExpired(Player player, Instant now) {
+		Instant endsAt = rookieEventEndsAt(player);
+		return endsAt != null && now.isAfter(endsAt) && !player.isRookieEventRewardClaimed();
+	}
+
+	private Instant rookieEventEndsAt(Player player) {
+		Instant startedAt = player.getRookieEventStartedAt();
+		return startedAt == null ? null : startedAt.plus(ROOKIE_EVENT_DURATION);
+	}
+
+	private int daysRemaining(Instant now, Instant endsAt) {
+		if (endsAt == null || !endsAt.isAfter(now)) {
+			return 0;
+		}
+		long seconds = Duration.between(now, endsAt).getSeconds();
+		return (int) ((seconds + DAY_SECONDS - 1) / DAY_SECONDS);
 	}
 
 	private void publishAutoHuntEndNotificationIfDue(Player player, Instant now, long settledGold) {
@@ -1338,7 +1638,7 @@ public class PlayerService {
 		double unlockRate = pets * PET_UNLOCK_PAYOUT_RATE;
 		double skillRate = petSkillProgress(player, SkillType.PET_FLARE_ATTACK, 1) * PET_SKILL_PAYOUT_RATE
 				+ petSkillProgress(player, SkillType.PET_AQUA_ATTACK, 2) * PET_SKILL_PAYOUT_RATE;
-		return unlockRate + skillRate;
+		return unlockRate + skillRate + rookieEventPetPayoutRate(player);
 	}
 
 	private double petSkillProgress(Player player, SkillType type, int requiredPetCount) {
@@ -1361,7 +1661,22 @@ public class PlayerService {
 					player.getOrCreateSkill(SkillType.PET_AQUA_ATTACK).getLevel(),
 					MAX_PET_SKILL_DAMAGE_BONUS);
 		}
-		return damage;
+		return damage + rookieEventPetDamage(player);
+	}
+
+	private double rookieEventPetPayoutRate(Player player) {
+		if (!player.isRookieEventRewardClaimed()) {
+			return 0;
+		}
+		return PET_UNLOCK_PAYOUT_RATE
+				+ (ROOKIE_EVENT_PET_SKILL_LEVEL / (double) PlayerSkill.MAX_LEVEL) * PET_SKILL_PAYOUT_RATE;
+	}
+
+	private int rookieEventPetDamage(Player player) {
+		if (!player.isRookieEventRewardClaimed()) {
+			return 0;
+		}
+		return 4 + scaledSkillValue(ROOKIE_EVENT_PET_SKILL_LEVEL, MAX_PET_SKILL_DAMAGE_BONUS);
 	}
 
 	private int scaledSkillValue(int level, int maxValue) {
@@ -1413,6 +1728,7 @@ public class PlayerService {
 			throw new IllegalStateException("Skill is already at max level.");
 		}
 		player.spendSkillPoint();
+		recordRookieEventSkillPointSpent(player);
 		setSharedStatLevel(player, level + 1);
 		return toState(player);
 	}
