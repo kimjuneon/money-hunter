@@ -1184,10 +1184,10 @@ function render() {
   $("boostAd").disabled = !boostCooldownReady;
   $("huntTime").textContent = !autoHuntCooldownReady
     ? timeRewardCooldownLabel(player.autoHuntEndsAt, nextTimeRewardAdAvailableAt("AUTO_HUNT", player))
-    : timeRewardReadyLabel(player.autoHuntEndsAt, player.autoHuntAdSeconds);
+    : timeRewardReadyLabel(player.autoHuntEndsAt, player.autoHuntAdSeconds, player.maxAdSeconds);
   $("boostTime").textContent = !boostCooldownReady
     ? timeRewardCooldownLabel(player.boostEndsAt, nextTimeRewardAdAvailableAt("BOOST", player))
-    : timeRewardReadyLabel(player.boostEndsAt, player.boostAdSeconds);
+    : timeRewardReadyLabel(player.boostEndsAt, player.boostAdSeconds, player.maxAdSeconds);
   const spAvailable = skillPointRewardsAvailable(player);
   const spCooldownReady = skillPointAdCooldownReady(player);
   $("skillAd").disabled = !spAvailable || !spCooldownReady;
@@ -1768,10 +1768,16 @@ function timeRewardCooldownLabel(currentEndAt, cooldownEndAt) {
   return `${effectLabel} · 쿨 ${remain(cooldownEndAt)}`;
 }
 
-function timeRewardReadyLabel(currentEndAt, rewardSeconds) {
-  return remainingSecondsFrom(currentEndAt) > 0
-    ? remain(currentEndAt)
-    : `${rewardGateLabel()} · ${secondsLabel(rewardSeconds)}`;
+function timeRewardReadyLabel(currentEndAt, rewardSeconds, maxSeconds) {
+  const remainingSeconds = remainingSecondsFrom(currentEndAt);
+  if (remainingSeconds <= 0) {
+    return `${rewardGateLabel()} · ${secondsLabel(rewardSeconds)}`;
+  }
+  const reward = Number(rewardSeconds || 3600);
+  const max = Number(maxSeconds || 14400);
+  return remainingSeconds + reward <= max
+    ? `${remain(currentEndAt)} · 추가 가능`
+    : remain(currentEndAt);
 }
 
 function timeRewardAvailability(currentEndAt, rewardSeconds, maxSeconds) {
