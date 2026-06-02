@@ -542,6 +542,12 @@ nav {
   padding: 18px;
 }
 
+#playerView > .panel {
+  display: flex;
+  min-height: calc(100vh - 56px);
+  flex-direction: column;
+}
+
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -640,7 +646,17 @@ nav {
   display: grid;
   grid-template-columns: minmax(360px, 1fr) minmax(320px, 420px);
   gap: 14px;
-  align-items: start;
+  min-height: 0;
+  max-height: calc(100vh - 292px);
+  align-items: stretch;
+}
+
+.player-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .player-row {
@@ -722,11 +738,15 @@ nav {
   top: 96px;
   display: grid;
   gap: 14px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  scrollbar-gutter: stable;
 }
 
 .detail-head {
@@ -1252,6 +1272,20 @@ nav {
   .growth-summary,
   .player-console {
     grid-template-columns: 1fr;
+  }
+
+  #playerView > .panel {
+    min-height: auto;
+  }
+
+  .player-console {
+    max-height: none;
+  }
+
+  .player-list,
+  .player-detail {
+    max-height: none;
+    overflow-y: visible;
   }
 
   .anomaly-summary {
