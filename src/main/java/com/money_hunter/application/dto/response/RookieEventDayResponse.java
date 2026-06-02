@@ -8,6 +8,8 @@ public record RookieEventDayResponse(
 		boolean current,
 		boolean completed,
 		boolean locked,
+		String rewardLabel,
+		boolean rewardClaimed,
 		List<RookieEventMissionResponse> missions
 ) {
 }

@@ -2011,6 +2011,47 @@ img {
   gap: 7px;
 }
 
+.rookie-event-day-reward {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid rgba(234, 179, 8, 0.28);
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.rookie-event-day-reward strong,
+.rookie-event-day-reward span,
+.rookie-event-day-reward small {
+  font-size: 12px;
+  font-weight: 1000;
+  line-height: 1.25;
+}
+
+.rookie-event-day-reward strong {
+  color: #92400e;
+}
+
+.rookie-event-day-reward span {
+  color: #172033;
+}
+
+.rookie-event-day-reward small {
+  color: #a16207;
+  white-space: nowrap;
+}
+
+.rookie-event-day-reward.is-claimed {
+  border-color: rgba(22, 163, 74, 0.3);
+  background: #f0fdf4;
+}
+
+.rookie-event-day-reward.is-claimed small {
+  color: #166534;
+}
+
 .rookie-event-mission {
   display: grid;
   grid-template-columns: 1fr auto;

@@ -1852,7 +1852,7 @@ function renderRookieEventSelectedDay(day) {
   $("rookieEventSelectedDayTitle").textContent = `${day.day}일차 · ${day.title}`;
   $("rookieEventSelectedDayState").textContent = rookieEventDayStateText(day);
   const missions = Array.isArray(day.missions) ? day.missions : [];
-  $("rookieEventMissionList").replaceChildren(...missions.map((mission) => {
+  $("rookieEventMissionList").replaceChildren(rookieEventDailyRewardElement(day), ...missions.map((mission) => {
     const row = document.createElement("div");
     row.className = "rookie-event-mission";
     row.classList.toggle("is-completed", mission.completed);
@@ -1865,6 +1865,20 @@ function renderRookieEventSelectedDay(day) {
     row.append(label, progress, bar);
     return row;
   }));
+}
+
+function rookieEventDailyRewardElement(day) {
+  const reward = document.createElement("div");
+  reward.className = "rookie-event-day-reward";
+  reward.classList.toggle("is-claimed", day.rewardClaimed);
+  const title = document.createElement("strong");
+  title.textContent = "일일 보상";
+  const label = document.createElement("span");
+  label.textContent = day.rewardLabel || "보상 확인";
+  const stateText = document.createElement("small");
+  stateText.textContent = day.rewardClaimed ? "지급 완료" : "미션 완료 시 지급";
+  reward.append(title, label, stateText);
+  return reward;
 }
 
 function rookieEventDayStateText(day) {

@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
+
 import com.jayway.jsonpath.JsonPath;
 import com.money_hunter.domain.PlayerSkill;
 import com.money_hunter.domain.SkillType;
@@ -115,7 +117,40 @@ class RealRewardAdSessionTest {
 				.andExpect(jsonPath("$.rookieEvent.currentDay", is(1)))
 				.andExpect(jsonPath("$.rookieEvent.eventPetSkillLevel", is(15)))
 				.andExpect(jsonPath("$.rookieEvent.rewardDescription", containsString("펫 보유 수 제한 미포함")))
+				.andExpect(jsonPath("$.rookieEvent.days[0].title", is("사냥 준비")))
+				.andExpect(jsonPath("$.rookieEvent.days[0].rewardLabel", is("SP 1개")))
+				.andExpect(jsonPath("$.rookieEvent.days[1].rewardLabel", is("자동전투 1시간")))
+				.andExpect(jsonPath("$.rookieEvent.days[2].rewardLabel", is("공속버프 1시간")))
 				.andExpect(jsonPath("$.rookieEvent.days[5].missions[2].label", is("10레벨 달성하기")));
+	}
+
+	@Test
+	void rookieEventDayCompletionGrantsDailyRewardOnce() throws Exception {
+		mockMvc.perform(post("/api/player/job")
+						.with(user("rookie-event-reward-user"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey("rookie-event-reward-user").orElseThrow();
+			player.addRookieEventCombatProgress(Duration.ofHours(1).toMillis(), 0, 20, 0);
+			player.addRookieEventSettlement();
+		});
+
+		mockMvc.perform(get("/api/player")
+						.with(user("rookie-event-reward-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.completedDays", is(1)))
+				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimed", is(true)))
+				.andExpect(jsonPath("$.skillPoints", is(1)));
+
+		mockMvc.perform(get("/api/player")
+						.with(user("rookie-event-reward-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.completedDays", is(1)))
+				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimed", is(true)))
+				.andExpect(jsonPath("$.skillPoints", is(1)));
 	}
 
 	@Test

@@ -128,37 +128,37 @@ public class PlayerService {
 			AdEventType.REWARD_CLAIM
 	);
 	private static final List<RookieEventDayPlan> ROOKIE_EVENT_PLANS = List.of(
-			new RookieEventDayPlan(1, "1일차 사냥 준비", List.of(
+			new RookieEventDayPlan(1, "사냥 준비", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_1h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS, "사냥 1시간 진행하기"),
 					new RookieMissionPlan("monsters_20", RookieMissionType.MONSTERS, 20, "몬스터 20마리 처치하기"),
 					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
 			)),
-			new RookieEventDayPlan(2, "2일차 채굴 감각", List.of(
+			new RookieEventDayPlan(2, "채굴 감각", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_2h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 2, "사냥 2시간 진행하기"),
 					new RookieMissionPlan("monsters_35", RookieMissionType.MONSTERS, 35, "몬스터 35마리 처치하기"),
 					new RookieMissionPlan("gold_5000", RookieMissionType.GOLD, 5_000, "골드 5,000G 모으기")
 			)),
-			new RookieEventDayPlan(3, "3일차 성장 루틴", List.of(
+			new RookieEventDayPlan(3, "성장 루틴", boostReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("monsters_50", RookieMissionType.MONSTERS, 50, "몬스터 50마리 처치하기"),
 					new RookieMissionPlan("spend_sp_1", RookieMissionType.SKILL_POINTS_SPENT, 1, "스킬포인트 1개 사용하기")
 			)),
-			new RookieEventDayPlan(4, "4일차 빠른 전투", List.of(
+			new RookieEventDayPlan(4, "빠른 전투", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("boost_monsters_20", RookieMissionType.BOOST_MONSTERS, 20, "공속버프 상태로 몬스터 20마리 처치하기"),
 					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
 			)),
-			new RookieEventDayPlan(5, "5일차 보상 축적", List.of(
+			new RookieEventDayPlan(5, "보상 축적", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("monsters_70", RookieMissionType.MONSTERS, 70, "몬스터 70마리 처치하기"),
 					new RookieMissionPlan("gold_15000", RookieMissionType.GOLD, 15_000, "골드 15,000G 모으기")
 			)),
-			new RookieEventDayPlan(6, "6일차 실력 증명", List.of(
+			new RookieEventDayPlan(6, "실력 증명", boostReward(), List.of(
 					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
 					new RookieMissionPlan("monsters_90", RookieMissionType.MONSTERS, 90, "몬스터 90마리 처치하기"),
 					new RookieMissionPlan("level_10", RookieMissionType.LEVEL, 10, "10레벨 달성하기")
 			)),
-			new RookieEventDayPlan(7, "7일차 동행 완성", List.of(
+			new RookieEventDayPlan(7, "동행 완성", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
 					new RookieMissionPlan("monsters_100", RookieMissionType.MONSTERS, 100, "몬스터 100마리 처치하기"),
 					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
@@ -175,10 +175,36 @@ public class PlayerService {
 		LEVEL
 	}
 
+	private enum RookieEventDailyRewardType {
+		SKILL_POINT,
+		AUTO_HUNT_SECONDS,
+		BOOST_SECONDS
+	}
+
 	private record RookieMissionPlan(String key, RookieMissionType type, long target, String label) {
 	}
 
-	private record RookieEventDayPlan(int day, String title, List<RookieMissionPlan> missions) {
+	private record RookieEventDailyRewardPlan(RookieEventDailyRewardType type, long amount, String label) {
+	}
+
+	private record RookieEventDayPlan(
+			int day,
+			String title,
+			RookieEventDailyRewardPlan dailyReward,
+			List<RookieMissionPlan> missions
+	) {
+	}
+
+	private static RookieEventDailyRewardPlan skillPointReward() {
+		return new RookieEventDailyRewardPlan(RookieEventDailyRewardType.SKILL_POINT, 1, "SP 1개");
+	}
+
+	private static RookieEventDailyRewardPlan autoHuntReward() {
+		return new RookieEventDailyRewardPlan(RookieEventDailyRewardType.AUTO_HUNT_SECONDS, 3_600, "자동전투 1시간");
+	}
+
+	private static RookieEventDailyRewardPlan boostReward() {
+		return new RookieEventDailyRewardPlan(RookieEventDailyRewardType.BOOST_SECONDS, 3_600, "공속버프 1시간");
 	}
 
 	private final PlayerRepository playerRepository;
@@ -1192,6 +1218,7 @@ public class PlayerService {
 		syncStatSkills(player);
 		prepareRookieEvent(player);
 		completeRookieEventDayIfReady(player);
+		grantPendingRookieEventDailyRewards(player);
 		player.resetFriendInviteRewardIfNewDay(LocalDate.now(clock));
 		List<SkillResponse> skills = Arrays.stream(SkillType.values())
 				.map(player::getOrCreateSkill)
@@ -1335,6 +1362,32 @@ public class PlayerService {
 				&& !player.completedRookieEventDayToday(today);
 	}
 
+	private void grantPendingRookieEventDailyRewards(Player player) {
+		int completedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventCompletedDays()));
+		int rewardedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventRewardedDays()));
+		if (rewardedDays >= completedDays) {
+			return;
+		}
+		Instant now = clock.instant();
+		for (int day = rewardedDays + 1; day <= completedDays; day++) {
+			RookieEventDayPlan plan = rookieEventPlan(day);
+			grantRookieEventDailyReward(player, plan.dailyReward(), now);
+			player.markRookieEventDailyRewarded(day);
+		}
+	}
+
+	private void grantRookieEventDailyReward(Player player, RookieEventDailyRewardPlan reward, Instant now) {
+		switch (reward.type()) {
+			case SKILL_POINT -> player.addSkillPoint();
+			case AUTO_HUNT_SECONDS -> {
+				player.setAutoHuntEndsAt(addUncappedTime(player.getAutoHuntEndsAt(), reward.amount(), now));
+				player.clearAutoHuntEndNotification();
+				clearUnreadAutoHuntEndNotifications(player, now);
+			}
+			case BOOST_SECONDS -> player.setBoostEndsAt(addUncappedTime(player.getBoostEndsAt(), reward.amount(), now));
+		}
+	}
+
 	private RookieEventResponse rookieEventResponse(Player player) {
 		if (!player.hasChosenJob() || player.getRookieEventStartedAt() == null) {
 			return new RookieEventResponse(
@@ -1397,10 +1450,19 @@ public class PlayerService {
 		boolean completed = plan.day() <= completedDays;
 		boolean current = !rewardClaimed && !expired && !completed && plan.day() == currentDay;
 		boolean locked = !completed && (rewardClaimed || expired || plan.day() > currentDay || lockedUntilTomorrow);
+		boolean dailyRewardClaimed = plan.day() <= player.getRookieEventRewardedDays();
 		List<RookieEventMissionResponse> missions = plan.missions().stream()
 				.map(mission -> rookieEventMissionResponse(player, mission, completed, current && !locked))
 				.toList();
-		return new RookieEventDayResponse(plan.day(), plan.title(), current, completed, locked, missions);
+		return new RookieEventDayResponse(
+				plan.day(),
+				plan.title(),
+				current,
+				completed,
+				locked,
+				plan.dailyReward().label(),
+				dailyRewardClaimed,
+				missions);
 	}
 
 	private RookieEventMissionResponse rookieEventMissionResponse(

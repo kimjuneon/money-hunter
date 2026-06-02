@@ -129,6 +129,9 @@ public class Player {
 	@Column(nullable = false)
 	private int rookieEventCompletedDays = 0;
 
+	@Column(nullable = false)
+	private int rookieEventRewardedDays = 0;
+
 	private LocalDate rookieEventCurrentDate;
 
 	private LocalDate rookieEventLastCompletedDate;
@@ -398,6 +401,11 @@ public class Player {
 		touch();
 	}
 
+	public void markRookieEventDailyRewarded(int day) {
+		this.rookieEventRewardedDays = Math.max(this.rookieEventRewardedDays, day);
+		touch();
+	}
+
 	public void spendSkillPoint() {
 		if (skillPoints < 1) {
 			throw new IllegalStateException("Not enough skill points.");
@@ -647,6 +655,7 @@ public class Player {
 		this.rookieEventCompletedAt = null;
 		this.rookieEventRewardClaimedAt = null;
 		this.rookieEventCompletedDays = 0;
+		this.rookieEventRewardedDays = 0;
 		this.rookieEventCurrentDate = null;
 		this.rookieEventLastCompletedDate = null;
 		this.rookieEventDailyHuntMillis = 0;
