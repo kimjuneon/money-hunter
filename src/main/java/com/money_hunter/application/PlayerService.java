@@ -73,7 +73,11 @@ public class PlayerService {
 	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final Duration AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY = Duration.ofMinutes(5);
-	private static final Duration ROOKIE_EVENT_DURATION = Duration.ofDays(30);
+	private static final Instant ROOKIE_EVENT_START_AVAILABLE_FROM = Instant.parse("2026-06-02T15:00:00Z");
+	private static final Duration ROOKIE_EVENT_START_WINDOW = Duration.ofDays(30);
+	private static final Duration ROOKIE_EVENT_PLAYER_DURATION = Duration.ofDays(10);
+	private static final Instant ROOKIE_EVENT_START_AVAILABLE_UNTIL =
+			ROOKIE_EVENT_START_AVAILABLE_FROM.plus(ROOKIE_EVENT_START_WINDOW);
 	private static final long DAY_SECONDS = 86_400L;
 	private static final int ROOKIE_EVENT_DAYS = 7;
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
@@ -1297,6 +1301,9 @@ public class PlayerService {
 		Instant now = clock.instant();
 		LocalDate today = LocalDate.now(clock);
 		if (player.getRookieEventStartedAt() == null) {
+			if (!rookieEventStartAvailable(now)) {
+				return;
+			}
 			player.startRookieEvent(now, today);
 		}
 		if (!player.isRookieEventRewardClaimed()
@@ -1542,7 +1549,12 @@ public class PlayerService {
 
 	private Instant rookieEventEndsAt(Player player) {
 		Instant startedAt = player.getRookieEventStartedAt();
-		return startedAt == null ? null : startedAt.plus(ROOKIE_EVENT_DURATION);
+		return startedAt == null ? null : startedAt.plus(ROOKIE_EVENT_PLAYER_DURATION);
+	}
+
+	private boolean rookieEventStartAvailable(Instant now) {
+		return !now.isBefore(ROOKIE_EVENT_START_AVAILABLE_FROM)
+				&& now.isBefore(ROOKIE_EVENT_START_AVAILABLE_UNTIL);
 	}
 
 	private int daysRemaining(Instant now, Instant endsAt) {

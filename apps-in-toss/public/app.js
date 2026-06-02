@@ -1799,7 +1799,7 @@ function renderRookieEventModal(event) {
     ? "보상 획득 완료"
     : event.expired
       ? "이벤트 종료"
-      : `${event.daysRemaining || 0}일 남음`;
+      : `진행 기간 ${event.daysRemaining || 0}일 남음`;
   $("rookieEventProgress").textContent = `${event.completedDays || 0} / 7일 완료`;
   $("rookieEventRewardName").textContent = event.rewardName || "별빛토";
   $("rookieEventRewardCopy").textContent = event.rewardDescription || "이벤트 전용 펫 · 일반 펫 15레벨 성능";
@@ -1818,7 +1818,7 @@ function rookieEventSummaryText(event) {
   if (event.lockedUntilTomorrow) {
     return "오늘 미션을 완료했어요. 다음 일차는 내일 열려요.";
   }
-  return "7일 동안 일일 미션을 완료하고 이벤트 전용 펫을 받아요.";
+  return "시작 후 10일 안에 7일 미션을 완료하고 이벤트 전용 펫을 받아요.";
 }
 
 function rookieEventRewardStatusText(event) {

@@ -112,7 +112,7 @@ class RealRewardAdSessionTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.rookieEvent.visible", is(true)))
 				.andExpect(jsonPath("$.rookieEvent.active", is(true)))
-				.andExpect(jsonPath("$.rookieEvent.daysRemaining", is(30)))
+				.andExpect(jsonPath("$.rookieEvent.daysRemaining", is(10)))
 				.andExpect(jsonPath("$.rookieEvent.completedDays", is(0)))
 				.andExpect(jsonPath("$.rookieEvent.currentDay", is(1)))
 				.andExpect(jsonPath("$.rookieEvent.eventPetSkillLevel", is(15)))
