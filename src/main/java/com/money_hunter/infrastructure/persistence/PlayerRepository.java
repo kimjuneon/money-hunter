@@ -150,6 +150,31 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 			@Param("maxEventDays") int maxEventDays,
 			org.springframework.data.domain.Pageable pageable);
 
+	@Query("""
+			select p
+			from Player p
+			where p.lastAccessedAt <= :inactiveSince
+				and p.job is not null
+				and p.suspendedAt is null
+				and (
+					p.dormantSpRewardSentStage < :maxStage
+					or p.dormantSpRewardStreakAccessedAt is null
+					or p.dormantSpRewardStreakAccessedAt <> p.lastAccessedAt
+				)
+				and (
+					p.dormantSpRewardLastSentAt is null
+					or p.dormantSpRewardLastSentAt <= :repeatBefore
+					or p.dormantSpRewardStreakAccessedAt is null
+					or p.dormantSpRewardStreakAccessedAt <> p.lastAccessedAt
+				)
+			order by p.lastAccessedAt asc, p.id asc
+			""")
+	List<Player> findDormantSpRewardNotificationTargets(
+			@Param("inactiveSince") Instant inactiveSince,
+			@Param("repeatBefore") Instant repeatBefore,
+			@Param("maxStage") int maxStage,
+			org.springframework.data.domain.Pageable pageable);
+
 	@Modifying
 	@Query(value = """
 				insert into players (

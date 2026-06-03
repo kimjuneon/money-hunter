@@ -12,7 +12,10 @@ public record SmartMessageProperties(
 		boolean rookieEventMissionArrivedEnabled,
 		String rookieEventMissionArrivedTemplateSetCode,
 		String rookieEventMissionAgreementTemplateCode,
-		int rookieEventMissionBatchSize
+		int rookieEventMissionBatchSize,
+		boolean dormantSpRewardEnabled,
+		String dormantSpRewardTemplateSetCode,
+		int dormantSpRewardBatchSize
 ) {
 	public String normalizedAutoHuntEndedTemplateSetCode() {
 		return value(autoHuntEndedTemplateSetCode);
@@ -44,6 +47,18 @@ public record SmartMessageProperties(
 
 	public Map<String, String> rookieEventMissionArrivedContext(int day) {
 		return Map.of("day", String.valueOf(Math.max(1, day)));
+	}
+
+	public String normalizedDormantSpRewardTemplateSetCode() {
+		return value(dormantSpRewardTemplateSetCode);
+	}
+
+	public int safeDormantSpRewardBatchSize() {
+		return Math.max(1, Math.min(500, dormantSpRewardBatchSize));
+	}
+
+	public Map<String, String> dormantSpRewardContext() {
+		return Map.of();
 	}
 
 	private String value(String raw) {

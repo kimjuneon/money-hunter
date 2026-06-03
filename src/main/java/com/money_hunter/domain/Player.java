@@ -164,6 +164,13 @@ public class Player {
 	@Column(nullable = false)
 	private int rookieEventMissionMessageSentDay = 0;
 
+	private Instant dormantSpRewardStreakAccessedAt;
+
+	@Column(nullable = false)
+	private int dormantSpRewardSentStage = 0;
+
+	private Instant dormantSpRewardLastSentAt;
+
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
@@ -444,6 +451,20 @@ public class Player {
 
 	public void markRookieEventMissionNotificationAgreed(Instant agreedAt) {
 		this.rookieEventMissionNotificationAgreedAt = agreedAt;
+		touch();
+	}
+
+	public int dormantSpRewardSentStageForCurrentStreak() {
+		if (dormantSpRewardStreakAccessedAt == null || !dormantSpRewardStreakAccessedAt.equals(lastAccessedAt)) {
+			return 0;
+		}
+		return Math.max(0, dormantSpRewardSentStage);
+	}
+
+	public void markDormantSpRewardSent(Instant streakAccessedAt, int sentStage, Instant sentAt) {
+		this.dormantSpRewardStreakAccessedAt = streakAccessedAt;
+		this.dormantSpRewardSentStage = Math.max(0, sentStage);
+		this.dormantSpRewardLastSentAt = sentAt;
 		touch();
 	}
 
@@ -759,6 +780,9 @@ public class Player {
 		this.rookieEventMissionNotificationAgreedAt = null;
 		this.rookieEventMissionMessageSentDate = null;
 		this.rookieEventMissionMessageSentDay = 0;
+		this.dormantSpRewardStreakAccessedAt = null;
+		this.dormantSpRewardSentStage = 0;
+		this.dormantSpRewardLastSentAt = null;
 		this.lastSettledAt = now;
 		this.lastAccessedAt = now;
 		this.skills.forEach(PlayerSkill::resetLevel);

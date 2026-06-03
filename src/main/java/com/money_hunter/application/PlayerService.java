@@ -75,6 +75,7 @@ public class PlayerService {
 	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final Duration AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY = Duration.ofMinutes(5);
+	private static final Duration DORMANT_SP_REWARD_REPEAT_INTERVAL = Duration.ofDays(2);
 	private static final Instant ROOKIE_EVENT_START_AVAILABLE_FROM = Instant.parse("2026-06-02T15:00:00Z");
 	private static final Duration ROOKIE_EVENT_START_WINDOW = Duration.ofDays(30);
 	private static final long ROOKIE_EVENT_PLAYER_DAYS = 10;
@@ -84,6 +85,8 @@ public class PlayerService {
 			ROOKIE_EVENT_START_AVAILABLE_FROM.plus(ROOKIE_EVENT_START_WINDOW);
 	private static final int ROOKIE_EVENT_DAYS = 7;
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
+	private static final int DORMANT_SP_REWARD_AMOUNT = 1;
+	private static final List<Integer> DORMANT_SP_REWARD_INACTIVE_DAYS = List.of(3, 5, 7, 9);
 	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Set<String> PET_SKIN_KEYS = Set.of(
@@ -967,6 +970,32 @@ public class PlayerService {
 		}
 		if (sentCount > 0) {
 			log.info("신규 이벤트 미션 스마트메시지 스케줄러 처리: sentCount={}", sentCount);
+		}
+		return sentCount;
+	}
+
+	@Transactional
+	public int publishDormantSpRewardNotifications() {
+		String templateSetCode = smartMessageProperties.normalizedDormantSpRewardTemplateSetCode();
+		if (!appProperties.realSmartMessageEnabled()
+				|| !smartMessageProperties.dormantSpRewardEnabled()
+				|| templateSetCode.isBlank()) {
+			return 0;
+		}
+		Instant now = clock.instant();
+		List<Player> players = playerRepository.findDormantSpRewardNotificationTargets(
+				now.minus(Duration.ofDays(DORMANT_SP_REWARD_INACTIVE_DAYS.get(0))),
+				now.minus(DORMANT_SP_REWARD_REPEAT_INTERVAL),
+				DORMANT_SP_REWARD_INACTIVE_DAYS.size(),
+				PageRequest.of(0, smartMessageProperties.safeDormantSpRewardBatchSize()));
+		int sentCount = 0;
+		for (Player player : players) {
+			if (grantDormantSpRewardAndSendSmartMessageIfEligible(player, now, templateSetCode)) {
+				sentCount += 1;
+			}
+		}
+		if (sentCount > 0) {
+			log.info("휴면 SP 보상 스마트메시지 스케줄러 처리: sentCount={}", sentCount);
 		}
 		return sentCount;
 	}
@@ -1864,6 +1893,76 @@ public class PlayerService {
 					day,
 					templateSetCode,
 					now.plusSeconds(600),
+					exception.getMessage(),
+					exception);
+			return false;
+		}
+	}
+
+	private boolean grantDormantSpRewardAndSendSmartMessageIfEligible(Player player, Instant now, String templateSetCode) {
+		int sentStage = player.dormantSpRewardSentStageForCurrentStreak();
+		if (sentStage >= DORMANT_SP_REWARD_INACTIVE_DAYS.size()) {
+			return false;
+		}
+		Instant lastAccessedAt = player.getLastAccessedAt();
+		int inactivityDays = (int) Math.max(0, Duration.between(lastAccessedAt, now).toDays());
+		int requiredInactiveDays = DORMANT_SP_REWARD_INACTIVE_DAYS.get(sentStage);
+		if (inactivityDays < requiredInactiveDays) {
+			return false;
+		}
+		if (sentStage > 0
+				&& player.getDormantSpRewardLastSentAt() != null
+				&& player.getDormantSpRewardLastSentAt().isAfter(now.minus(DORMANT_SP_REWARD_REPEAT_INTERVAL))) {
+			return false;
+		}
+		int nextStage = sentStage + 1;
+		if (!sendDormantSpRewardSmartMessage(player, now, nextStage, inactivityDays, templateSetCode)) {
+			return false;
+		}
+		player.addSkillPoints(DORMANT_SP_REWARD_AMOUNT);
+		player.markDormantSpRewardSent(lastAccessedAt, nextStage, now);
+		adEventRepository.save(new AdEvent(player, AdEventType.DORMANT_SP_REWARD, DORMANT_SP_REWARD_AMOUNT, now));
+		log.info(
+				"휴면 SP 보상 지급: userKey={}, stage={}, inactivityDays={}, amount={}, skillPoints={}",
+				mask(player.getUserKey()),
+				nextStage,
+				inactivityDays,
+				DORMANT_SP_REWARD_AMOUNT,
+				player.getSkillPoints());
+		return true;
+	}
+
+	private boolean sendDormantSpRewardSmartMessage(
+			Player player,
+			Instant now,
+			int stage,
+			int inactivityDays,
+			String templateSetCode
+	) {
+		try {
+			TossSmartMessageClient.SmartMessageSendResult result = tossSmartMessageClient.sendMessage(
+					player.getUserKey(),
+					templateSetCode,
+					smartMessageProperties.dormantSpRewardContext());
+			log.info(
+					"휴면 SP 보상 스마트메시지 발송 요청 완료: userKey={}, stage={}, inactivityDays={}, templateSetCode={}, msgCount={}, sentPushCount={}, sentInboxCount={}, failureSummary={}",
+					mask(player.getUserKey()),
+					stage,
+					inactivityDays,
+					templateSetCode,
+					result.msgCount(),
+					result.sentPushCount(),
+					result.sentInboxCount(),
+					result.failureSummary());
+			return true;
+		} catch (RuntimeException exception) {
+			log.warn(
+					"휴면 SP 보상 스마트메시지 발송 실패: userKey={}, stage={}, inactivityDays={}, templateSetCode={}, retryAfter={}, message={}",
+					mask(player.getUserKey()),
+					stage,
+					inactivityDays,
+					templateSetCode,
+					now.plus(DORMANT_SP_REWARD_REPEAT_INTERVAL),
 					exception.getMessage(),
 					exception);
 			return false;

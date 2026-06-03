@@ -74,6 +74,9 @@ money-hunter:
     rookie-event-mission-arrived-template-set-code: ${TOSS_ROOKIE_EVENT_MISSION_ARRIVED_TEMPLATE_SET_CODE:gold-hunter-GOLD_HUNTER_ROOKIE_MISSION_ARRIVED_V1}
     rookie-event-mission-agreement-template-code: ${TOSS_ROOKIE_EVENT_MISSION_AGREEMENT_TEMPLATE_CODE:}
     rookie-event-mission-batch-size: ${TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_BATCH_SIZE:100}
+    dormant-sp-reward-enabled: ${TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_ENABLED:false}
+    dormant-sp-reward-template-set-code: ${TOSS_DORMANT_SP_REWARD_TEMPLATE_SET_CODE:gold-hunter-GOLD_HUNTER_DORMANT_SP_GRANTED_V1}
+    dormant-sp-reward-batch-size: ${TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_BATCH_SIZE:100}
   security:
     cors:
       allowed-origin-patterns:
