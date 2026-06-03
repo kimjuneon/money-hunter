@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260603-05" />
+    <link rel="stylesheet" href="/styles.css?v=20260603-06" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -312,6 +312,20 @@
         </article>
       </section>
 
+      <section id="homeShortcutGuideModal" class="home-shortcut-guide-modal hidden" role="dialog" aria-modal="true" aria-labelledby="homeShortcutGuideTitle">
+        <article class="home-shortcut-guide-card">
+          <button id="closeHomeShortcutGuide" class="modal-close" type="button" aria-label="닫기">×</button>
+          <span id="homeShortcutGuideCount" class="tutorial-count">1 / 3</span>
+          <h2 id="homeShortcutGuideTitle">... 메뉴 열기</h2>
+          <p id="homeShortcutGuideBody">토스 화면 오른쪽 위의 ... 메뉴를 눌러요.</p>
+          <div id="homeShortcutGuidePreview" class="home-shortcut-guide-preview" aria-hidden="true"></div>
+          <div class="tutorial-actions">
+            <button id="homeShortcutGuideBack" type="button">이전</button>
+            <button id="homeShortcutGuideNext" type="button">다음</button>
+          </div>
+        </article>
+      </section>
+
       <section id="loginModal" class="login-modal hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
         <div class="login-card">
           <p class="modal-kicker">Money Hunter</p>
@@ -542,6 +556,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260603-05"></script>
+    <script src="/app.js?v=20260603-06"></script>
   </body>
 </html>

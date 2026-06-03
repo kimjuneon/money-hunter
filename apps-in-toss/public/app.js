@@ -115,6 +115,7 @@ const state = {
   petSkinModalSlot: 1,
   rookieEventSelectedDay: 1,
   rookieHomeShortcutReturnHandled: false,
+  homeShortcutGuideIndex: 0,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
 
@@ -341,6 +342,24 @@ const featureTutorialSteps = [
     target: "#muteToggle",
     title: "사운드",
     body: "BGM이나 타격음이 부담스러우면 오른쪽 위 버튼으로 바로 끌 수 있어요.",
+  },
+];
+
+const homeShortcutGuideSteps = [
+  {
+    title: "... 메뉴 열기",
+    body: "토스 화면 오른쪽 위의 ... 메뉴를 눌러요.",
+    preview: "menu",
+  },
+  {
+    title: "휴대폰 홈 화면에 추가 선택",
+    body: "메뉴에서 휴대폰 홈 화면에 추가를 선택해요.",
+    preview: "select",
+  },
+  {
+    title: "홈 화면에서 들어오기",
+    body: "추가된 머니헌터 아이콘으로 다시 들어오면 미션이 확인돼요.",
+    preview: "home",
   },
 ];
 
@@ -1904,7 +1923,6 @@ function prepareRookieHomeShortcutMissionUrl() {
   const url = new URL(window.location.href);
   url.searchParams.set(rookieHomeShortcutParam, rookieHomeShortcutValue);
   window.history.replaceState(null, "", url);
-  setMessage("이 상태에서 토스 더보기의 홈 화면에 추가하기를 누른 뒤, 홈 아이콘으로 다시 들어와 주세요.", 7800);
 }
 
 function clearRookieHomeShortcutMissionUrl() {
@@ -1919,6 +1937,46 @@ function clearRookieHomeShortcutMissionUrl() {
 function rookieEventMissionCompleted(player, missionKey) {
   const days = player?.rookieEvent?.days || [];
   return days.some((day) => (day.missions || []).some((mission) => mission.key === missionKey && mission.completed));
+}
+
+function openHomeShortcutGuide() {
+  prepareRookieHomeShortcutMissionUrl();
+  state.homeShortcutGuideIndex = 0;
+  $("homeShortcutGuideModal").classList.remove("hidden");
+  renderHomeShortcutGuide();
+}
+
+function closeHomeShortcutGuide() {
+  $("homeShortcutGuideModal").classList.add("hidden");
+}
+
+function renderHomeShortcutGuide() {
+  const index = Math.max(0, Math.min(homeShortcutGuideSteps.length - 1, state.homeShortcutGuideIndex));
+  const step = homeShortcutGuideSteps[index];
+  state.homeShortcutGuideIndex = index;
+  $("homeShortcutGuideCount").textContent = `${index + 1} / ${homeShortcutGuideSteps.length}`;
+  $("homeShortcutGuideTitle").textContent = step.title;
+  $("homeShortcutGuideBody").textContent = step.body;
+  $("homeShortcutGuidePreview").dataset.step = step.preview;
+  $("homeShortcutGuideBack").disabled = index === 0;
+  $("homeShortcutGuideNext").textContent = index >= homeShortcutGuideSteps.length - 1 ? "확인" : "다음";
+}
+
+function nextHomeShortcutGuideStep() {
+  if (state.homeShortcutGuideIndex >= homeShortcutGuideSteps.length - 1) {
+    closeHomeShortcutGuide();
+    return;
+  }
+  state.homeShortcutGuideIndex += 1;
+  renderHomeShortcutGuide();
+}
+
+function previousHomeShortcutGuideStep() {
+  if (state.homeShortcutGuideIndex <= 0) {
+    return;
+  }
+  state.homeShortcutGuideIndex -= 1;
+  renderHomeShortcutGuide();
 }
 
 async function completeRookieHomeShortcutMissionIfNeeded() {
@@ -1964,23 +2022,30 @@ function renderRookieEventSelectedDay(day) {
   $("rookieEventSelectedDayState").textContent = rookieEventDayStateText(day);
   const missions = Array.isArray(day.missions) ? day.missions : [];
   $("rookieEventMissionList").replaceChildren(rookieEventDailyRewardElement(day), ...missions.map((mission) => {
+    const isHomeShortcutMission = mission.key === "home_shortcut_return";
     const row = document.createElement("div");
     row.className = "rookie-event-mission";
     row.classList.toggle("is-completed", mission.completed);
     const label = document.createElement("strong");
-    label.textContent = mission.label;
+    label.textContent = isHomeShortcutMission
+      ? "머니헌터 홈 화면에 추가하고\n홈 화면에서 들어오기"
+      : mission.label;
+    label.classList.toggle("is-multiline", isHomeShortcutMission);
     const progress = document.createElement("span");
     progress.textContent = mission.completed ? "완료" : mission.progressText;
     const bar = document.createElement("i");
     bar.style.setProperty("--progress", `${Math.max(0, Math.min(100, mission.progressPercent || 0))}%`);
-    row.append(label, progress);
-    if (mission.key === "home_shortcut_return" && day.current && !day.locked && !mission.completed) {
+    row.append(label);
+    if (!isHomeShortcutMission || mission.completed) {
+      row.append(progress);
+    }
+    if (isHomeShortcutMission && day.current && !day.locked && !mission.completed) {
       row.classList.add("has-action");
       const action = document.createElement("button");
       action.className = "rookie-event-mission-action";
       action.type = "button";
-      action.textContent = rookieHomeShortcutReturnRequested() ? "준비됨" : "준비하기";
-      action.addEventListener("click", prepareRookieHomeShortcutMissionUrl);
+      action.textContent = "방법 보기";
+      action.addEventListener("click", openHomeShortcutGuide);
       row.append(action);
     }
     row.append(bar);
@@ -4112,6 +4177,14 @@ $("rookieEventFinalClaimButton").addEventListener("click", (event) => {
 $("rookieEventModal").addEventListener("click", (event) => {
   if (event.target.id === "rookieEventModal") {
     closeRookieEventModal();
+  }
+});
+$("closeHomeShortcutGuide").addEventListener("click", closeHomeShortcutGuide);
+$("homeShortcutGuideBack").addEventListener("click", previousHomeShortcutGuideStep);
+$("homeShortcutGuideNext").addEventListener("click", nextHomeShortcutGuideStep);
+$("homeShortcutGuideModal").addEventListener("click", (event) => {
+  if (event.target.id === "homeShortcutGuideModal") {
+    closeHomeShortcutGuide();
   }
 });
 

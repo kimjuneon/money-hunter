@@ -1852,6 +1852,7 @@ img {
 .levelup-modal,
 .reward-confirm-modal,
 .pet-easter-modal,
+.home-shortcut-guide-modal,
 .rookie-event-modal,
 .login-modal {
   position: fixed;
@@ -1863,6 +1864,104 @@ img {
   margin: 0 auto;
   padding: 18px;
   background: rgba(17, 24, 39, 0.64);
+}
+
+.home-shortcut-guide-modal {
+  z-index: 96;
+}
+
+.home-shortcut-guide-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: 22px 18px 18px;
+  border: 2px solid rgba(250, 204, 21, 0.72);
+  border-radius: 12px;
+  background: #f8fafc;
+  color: var(--ink);
+  box-shadow: 0 20px 54px rgba(15, 23, 42, 0.38);
+}
+
+.home-shortcut-guide-card h2 {
+  margin: 12px 0 6px;
+  color: #172033;
+  font-size: 20px;
+  line-height: 1.24;
+}
+
+.home-shortcut-guide-card p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.home-shortcut-guide-preview {
+  display: grid;
+  min-height: 122px;
+  margin: 16px 0 2px;
+  place-items: center;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);
+}
+
+.home-shortcut-guide-preview::before {
+  content: "...";
+  display: grid;
+  width: 54px;
+  min-height: 54px;
+  place-items: center;
+  border-radius: 50%;
+  background: #172033;
+  color: #facc15;
+  font-size: 18px;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.home-shortcut-guide-preview::after {
+  content: "토스 더보기 메뉴";
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.home-shortcut-guide-preview[data-step="select"]::before {
+  content: "휴대폰 홈 화면에 추가";
+  width: auto;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+}
+
+.home-shortcut-guide-preview[data-step="select"]::after {
+  content: "메뉴에서 이 항목을 선택";
+}
+
+.home-shortcut-guide-preview[data-step="home"]::before {
+  content: "머니헌터";
+  width: 72px;
+  min-height: 72px;
+  border: 2px solid rgba(250, 204, 21, 0.52);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #0f172a 0%, #1e3a8a 100%);
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.home-shortcut-guide-preview[data-step="home"]::after {
+  content: "홈 화면 아이콘으로 접속";
+}
+
+.home-shortcut-guide-card .tutorial-actions button:disabled {
+  opacity: 0.45;
 }
 
 .pet-easter-modal {
@@ -2128,6 +2227,10 @@ img {
   font-size: 13px;
   font-weight: 950;
   line-height: 1.25;
+}
+
+.rookie-event-mission strong.is-multiline {
+  white-space: pre-line;
 }
 
 .rookie-event-mission span {
