@@ -1,6 +1,7 @@
 package com.money_hunter.infrastructure.persistence;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -126,6 +127,28 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	List<Player> findAutoHuntEndedNotificationTargets(
 			@Param("now") Instant now,
 			@Param("retryBefore") Instant retryBefore);
+
+	@Query("""
+			select p
+			from Player p
+			where p.rookieEventStartedAt is not null
+				and p.rookieEventStartedAt >= :startedAfter
+				and p.rookieEventMissionNotificationAgreedAt is not null
+				and p.rookieEventRewardClaimedAt is null
+				and p.rookieEventCompletedDays < :maxEventDays
+				and p.job is not null
+				and p.suspendedAt is null
+				and (
+					p.rookieEventMissionMessageSentDate is null
+					or p.rookieEventMissionMessageSentDate < :today
+				)
+			order by p.rookieEventStartedAt asc, p.id asc
+			""")
+	List<Player> findRookieEventMissionNotificationTargets(
+			@Param("today") LocalDate today,
+			@Param("startedAfter") Instant startedAfter,
+			@Param("maxEventDays") int maxEventDays,
+			org.springframework.data.domain.Pageable pageable);
 
 	@Modifying
 	@Query(value = """

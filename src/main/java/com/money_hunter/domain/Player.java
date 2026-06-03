@@ -157,6 +157,13 @@ public class Player {
 	@Column(nullable = false)
 	private boolean rookieEventDailyHomeShortcutReturned = false;
 
+	private Instant rookieEventMissionNotificationAgreedAt;
+
+	private LocalDate rookieEventMissionMessageSentDate;
+
+	@Column(nullable = false)
+	private int rookieEventMissionMessageSentDay = 0;
+
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
@@ -423,6 +430,23 @@ public class Player {
 		touch();
 	}
 
+	public boolean rookieEventMissionMessageSentToday(LocalDate today, int day) {
+		return today != null
+				&& today.equals(rookieEventMissionMessageSentDate)
+				&& rookieEventMissionMessageSentDay == day;
+	}
+
+	public void markRookieEventMissionMessageSent(LocalDate today, int day) {
+		this.rookieEventMissionMessageSentDate = today;
+		this.rookieEventMissionMessageSentDay = Math.max(1, day);
+		touch();
+	}
+
+	public void markRookieEventMissionNotificationAgreed(Instant agreedAt) {
+		this.rookieEventMissionNotificationAgreedAt = agreedAt;
+		touch();
+	}
+
 	public void resetRookieEventForTest(Instant now, LocalDate today) {
 		this.rookieEventStartedAt = now;
 		this.rookieEventCompletedAt = null;
@@ -430,6 +454,8 @@ public class Player {
 		this.rookieEventCompletedDays = 0;
 		this.rookieEventRewardedDays = 0;
 		this.rookieEventLastCompletedDate = null;
+		this.rookieEventMissionMessageSentDate = null;
+		this.rookieEventMissionMessageSentDay = 0;
 		resetRookieEventDailyProgress(today);
 		touch();
 	}
@@ -729,6 +755,10 @@ public class Player {
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;
+		this.rookieEventDailyHomeShortcutReturned = false;
+		this.rookieEventMissionNotificationAgreedAt = null;
+		this.rookieEventMissionMessageSentDate = null;
+		this.rookieEventMissionMessageSentDay = 0;
 		this.lastSettledAt = now;
 		this.lastAccessedAt = now;
 		this.skills.forEach(PlayerSkill::resetLevel);

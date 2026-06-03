@@ -70,6 +70,10 @@ money-hunter:
     auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:gold-hunter-money_hunter_auto_hunt_ended}
     auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:gold-hunter-money_hunter_auto_hunt_ended}
     landing-url: ${TOSS_AUTO_HUNT_ENDED_LANDING_URL:intoss://gold-hunter}
+    rookie-event-mission-arrived-enabled: ${TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_ENABLED:false}
+    rookie-event-mission-arrived-template-set-code: ${TOSS_ROOKIE_EVENT_MISSION_ARRIVED_TEMPLATE_SET_CODE:gold-hunter-GOLD_HUNTER_ROOKIE_MISSION_ARRIVED_V1}
+    rookie-event-mission-agreement-template-code: ${TOSS_ROOKIE_EVENT_MISSION_AGREEMENT_TEMPLATE_CODE:}
+    rookie-event-mission-batch-size: ${TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_BATCH_SIZE:100}
   security:
     cors:
       allowed-origin-patterns:

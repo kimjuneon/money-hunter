@@ -25,6 +25,7 @@ public record AppConfigResponse(
 		Map<String, String> iapProductIds,
 		String shareRewardModuleId,
 		String shareRewardMessage,
-		String autoHuntEndedNotificationAgreementTemplateCode
+		String autoHuntEndedNotificationAgreementTemplateCode,
+		String rookieEventMissionNotificationAgreementTemplateCode
 ) {
 }

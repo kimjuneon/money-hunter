@@ -80,6 +80,7 @@ const state = {
   realShareRewardEnabled: false,
   realSmartMessageEnabled: false,
   notificationAgreementTemplateCode: "",
+  rookieEventMissionNotificationAgreementTemplateCode: "",
   notificationAgreementInFlight: false,
   adMode: "test",
   adGroupIds: {},
@@ -258,6 +259,7 @@ const bgmMutedStorageKey = "moneyHunterBgmMuted";
 const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationAgreementStatus";
+const rookieEventMissionNotificationAgreementStatusStorageKey = "moneyHunter.rookieEventMissionNotificationAgreementStatus";
 const gameProfileWebviewUrl = "servicetoss://game-center/profile";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
@@ -1013,8 +1015,8 @@ function shouldUseRealSmartMessage() {
   return !isOneStoreTarget() && !state.mockMonetizationEnabled && state.realSmartMessageEnabled;
 }
 
-function notificationAgreementStatus() {
-  return storedValue(notificationAgreementStatusStorageKey) || "";
+function notificationAgreementStatus(storageKey = notificationAgreementStatusStorageKey) {
+  return storedValue(storageKey) || "";
 }
 
 function shouldPromptAutoHuntNotificationAgreement(previousPlayer, nextPlayer) {
@@ -1028,7 +1030,7 @@ function shouldRequestAutoHuntNotificationAgreement() {
   if (!shouldUseRealSmartMessage() || !state.notificationAgreementTemplateCode || state.notificationAgreementInFlight) {
     return false;
   }
-  const status = notificationAgreementStatus();
+  const status = notificationAgreementStatus(notificationAgreementStatusStorageKey);
   return status !== "agreed" && status !== "rejected";
 }
 
@@ -1036,11 +1038,18 @@ async function requestAutoHuntNotificationAgreementIfNeeded() {
   if (!shouldRequestAutoHuntNotificationAgreement()) {
     return;
   }
+  await requestNotificationAgreement(state.notificationAgreementTemplateCode, notificationAgreementStatusStorageKey);
+}
+
+async function requestNotificationAgreement(templateCode, storageKey) {
+  if (!shouldUseRealSmartMessage() || !templateCode || state.notificationAgreementInFlight) {
+    return false;
+  }
   state.notificationAgreementInFlight = true;
   try {
     const sdk = await loadTossSdk();
     if (typeof sdk.requestNotificationAgreement !== "function") {
-      return;
+      return false;
     }
     await new Promise((resolve, reject) => {
       let cleanup = null;
@@ -1054,13 +1063,13 @@ async function requestAutoHuntNotificationAgreementIfNeeded() {
         callback(value);
       };
       cleanup = sdk.requestNotificationAgreement({
-        options: { templateCode: state.notificationAgreementTemplateCode },
+        options: { templateCode },
         onEvent: (event) => {
           if (event?.type === "newAgreement" || event?.type === "alreadyAgreed") {
-            storeValue(notificationAgreementStatusStorageKey, "agreed");
+            storeValue(storageKey, "agreed");
           }
           if (event?.type === "agreementRejected") {
-            storeValue(notificationAgreementStatusStorageKey, "rejected");
+            storeValue(storageKey, "rejected");
           }
           settle(resolve);
         },
@@ -1069,8 +1078,10 @@ async function requestAutoHuntNotificationAgreementIfNeeded() {
         },
       });
     });
+    return notificationAgreementStatus(storageKey) === "agreed";
   } catch {
     // 알림 동의는 편의 기능이라 실패해도 자동사냥 흐름을 막지 않아요.
+    return false;
   } finally {
     state.notificationAgreementInFlight = false;
   }
@@ -1129,6 +1140,7 @@ async function loadAppConfig() {
     state.realShareRewardEnabled = Boolean(config.realShareRewardEnabled);
     state.realSmartMessageEnabled = Boolean(config.realSmartMessageEnabled);
     state.notificationAgreementTemplateCode = config.autoHuntEndedNotificationAgreementTemplateCode || "";
+    state.rookieEventMissionNotificationAgreementTemplateCode = config.rookieEventMissionNotificationAgreementTemplateCode || "";
     state.adMode = config.adMode || "test";
     state.adGroupIds = config.adGroupIds || {};
     state.iapProductIds = config.iapProductIds || {};
@@ -1147,6 +1159,7 @@ async function loadAppConfig() {
     state.realShareRewardEnabled = false;
     state.realSmartMessageEnabled = false;
     state.notificationAgreementTemplateCode = "";
+    state.rookieEventMissionNotificationAgreementTemplateCode = "";
     state.adMode = "test";
     state.adGroupIds = {};
     state.iapProductIds = {};
@@ -1824,6 +1837,7 @@ async function openRookieEventModal() {
   state.rookieEventSelectedDay = event.currentDay || 1;
   $("rookieEventModal").classList.remove("hidden");
   renderRookieEventModal(event);
+  window.setTimeout(() => requestRookieEventMissionNotificationAgreementIfNeeded(), 450);
 }
 
 function closeRookieEventModal() {
@@ -1860,6 +1874,40 @@ function renderRookieEventModal(event) {
   finalClaimButton.disabled = !finalClaimable;
   renderRookieEventDayTabs(days);
   renderRookieEventSelectedDay(selectedDay);
+}
+
+function shouldRequestRookieEventMissionNotificationAgreement(event) {
+  const status = notificationAgreementStatus(rookieEventMissionNotificationAgreementStatusStorageKey);
+  return shouldUseRealSmartMessage()
+    && Boolean(state.rookieEventMissionNotificationAgreementTemplateCode)
+    && !state.notificationAgreementInFlight
+    && status !== "agreed"
+    && status !== "rejected"
+    && Boolean(event?.started)
+    && Boolean(event?.active)
+    && !event.expired
+    && !event.completed
+    && !event.rewardClaimed;
+}
+
+async function requestRookieEventMissionNotificationAgreementIfNeeded() {
+  if (!shouldRequestRookieEventMissionNotificationAgreement(state.player?.rookieEvent)) {
+    return;
+  }
+  try {
+    const agreed = await requestNotificationAgreement(
+      state.rookieEventMissionNotificationAgreementTemplateCode,
+      rookieEventMissionNotificationAgreementStatusStorageKey,
+    );
+    if (agreed) {
+      const player = await requestWithLoginRetry(() => api("/api/player/rookie-event/mission-notifications/agreement", { method: "POST" }));
+      setServerPlayer(player, { resetDisplayGold: true });
+    }
+    setMessage(agreed ? "미션 알림 동의가 완료됐어요." : "미션 알림 동의를 완료하지 않았어요.");
+  } catch (error) {
+    removeStoredValue(rookieEventMissionNotificationAgreementStatusStorageKey);
+    setMessage(error.message || "미션 알림 동의 기록에 실패했어요.");
+  }
 }
 
 function rookieEventSummaryText(event) {

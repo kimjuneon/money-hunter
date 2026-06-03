@@ -45,6 +45,7 @@ import com.money_hunter.application.dto.response.RookieEventResponse;
 import com.money_hunter.application.dto.response.SkillResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -756,6 +757,19 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse markRookieEventMissionNotificationAgreed(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		prepareRookieEvent(player);
+		if (player.getRookieEventStartedAt() == null) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이벤트를 먼저 시작해 주세요.");
+		}
+		player.markRookieEventMissionNotificationAgreed(clock.instant());
+		log.info("신규 이벤트 미션 알림 동의 기록: userKey={}", mask(userKey));
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse claimRookieEventDailyReward(String userKey, int day) {
 		Player player = getOrCreatePlayer(userKey);
 		prepareRookieEvent(player);
@@ -921,6 +935,40 @@ public class PlayerService {
 			log.info("자동사냥 종료 알림 스케줄러 처리: targetCount={}", players.size());
 		}
 		return players.size();
+	}
+
+	@Transactional
+	public int publishRookieEventMissionNotifications() {
+		String templateSetCode = smartMessageProperties.normalizedRookieEventMissionArrivedTemplateSetCode();
+		if (!appProperties.realSmartMessageEnabled()
+				|| !smartMessageProperties.rookieEventMissionArrivedEnabled()
+				|| templateSetCode.isBlank()) {
+			return 0;
+		}
+		Instant now = clock.instant();
+		LocalDate today = LocalDate.now(clock);
+		Instant startedAfter = today.minusDays(ROOKIE_EVENT_PLAYER_DAYS).atStartOfDay(clock.getZone()).toInstant();
+		List<Player> players = playerRepository.findRookieEventMissionNotificationTargets(
+				today,
+				startedAfter,
+				ROOKIE_EVENT_DAYS,
+				PageRequest.of(0, smartMessageProperties.safeRookieEventMissionBatchSize()));
+		int sentCount = 0;
+		for (Player player : players) {
+			prepareRookieEvent(player);
+			if (!canSendRookieEventMissionNotification(player, today, now)) {
+				continue;
+			}
+			int day = currentRookieEventDay(player);
+			if (sendRookieEventMissionSmartMessage(player, now, day, templateSetCode)) {
+				player.markRookieEventMissionMessageSent(today, day);
+				sentCount += 1;
+			}
+		}
+		if (sentCount > 0) {
+			log.info("신규 이벤트 미션 스마트메시지 스케줄러 처리: sentCount={}", sentCount);
+		}
+		return sentCount;
 	}
 
 	private RewardClaim createRewardClaim(Player player, String idempotencyKey) {
@@ -1776,6 +1824,46 @@ public class PlayerService {
 					mask(player.getUserKey()),
 					templateSetCode,
 					now.plus(AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY),
+					exception.getMessage(),
+					exception);
+			return false;
+		}
+	}
+
+	private boolean canSendRookieEventMissionNotification(Player player, LocalDate today, Instant now) {
+		if (player.getRookieEventStartedAt() == null
+				|| player.isRookieEventRewardClaimed()
+				|| player.getRookieEventCompletedDays() >= ROOKIE_EVENT_DAYS
+				|| rookieEventExpired(player, now)
+				|| player.completedRookieEventDayToday(today)) {
+			return false;
+		}
+		return !player.rookieEventMissionMessageSentToday(today, currentRookieEventDay(player));
+	}
+
+	private boolean sendRookieEventMissionSmartMessage(Player player, Instant now, int day, String templateSetCode) {
+		try {
+			TossSmartMessageClient.SmartMessageSendResult result = tossSmartMessageClient.sendMessage(
+					player.getUserKey(),
+					templateSetCode,
+					smartMessageProperties.rookieEventMissionArrivedContext(day));
+			log.info(
+					"신규 이벤트 미션 스마트메시지 발송 요청 완료: userKey={}, day={}, templateSetCode={}, msgCount={}, sentPushCount={}, sentInboxCount={}, failureSummary={}",
+					mask(player.getUserKey()),
+					day,
+					templateSetCode,
+					result.msgCount(),
+					result.sentPushCount(),
+					result.sentInboxCount(),
+					result.failureSummary());
+			return true;
+		} catch (RuntimeException exception) {
+			log.warn(
+					"신규 이벤트 미션 스마트메시지 발송 실패: userKey={}, day={}, templateSetCode={}, retryAfter={}, message={}",
+					mask(player.getUserKey()),
+					day,
+					templateSetCode,
+					now.plusSeconds(600),
 					exception.getMessage(),
 					exception);
 			return false;

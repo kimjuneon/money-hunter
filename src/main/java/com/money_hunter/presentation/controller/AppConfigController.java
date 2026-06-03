@@ -57,7 +57,8 @@ public class AppConfigController {
 				iapProperties.clientProductIds(),
 				shareRewardProperties.normalizedModuleId(),
 				shareRewardProperties.normalizedMessage(),
-				smartMessageProperties.normalizedAutoHuntEndedAgreementTemplateCode()
+				smartMessageProperties.normalizedAutoHuntEndedAgreementTemplateCode(),
+				smartMessageProperties.normalizedRookieEventMissionAgreementTemplateCode()
 		);
 	}
 }

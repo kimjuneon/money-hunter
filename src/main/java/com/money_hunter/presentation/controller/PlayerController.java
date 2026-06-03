@@ -117,6 +117,11 @@ public class PlayerController {
 		return playerService.completeRookieEventHomeShortcutMission(userKey(principal));
 	}
 
+	@PostMapping("/rookie-event/mission-notifications/agreement")
+	public PlayerStateResponse markRookieEventMissionNotificationAgreed(Principal principal) {
+		return playerService.markRookieEventMissionNotificationAgreed(userKey(principal));
+	}
+
 	@PostMapping("/game-profile")
 	public PlayerStateResponse updateGameProfile(
 			Principal principal,

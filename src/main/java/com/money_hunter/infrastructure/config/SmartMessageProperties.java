@@ -8,7 +8,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record SmartMessageProperties(
 		String autoHuntEndedTemplateSetCode,
 		String autoHuntEndedAgreementTemplateCode,
-		String landingUrl
+		String landingUrl,
+		boolean rookieEventMissionArrivedEnabled,
+		String rookieEventMissionArrivedTemplateSetCode,
+		String rookieEventMissionAgreementTemplateCode,
+		int rookieEventMissionBatchSize
 ) {
 	public String normalizedAutoHuntEndedTemplateSetCode() {
 		return value(autoHuntEndedTemplateSetCode);
@@ -24,6 +28,22 @@ public record SmartMessageProperties(
 				"message", "자동사냥이 종료됐어요.",
 				"landingUrl", value(landingUrl)
 		);
+	}
+
+	public String normalizedRookieEventMissionArrivedTemplateSetCode() {
+		return value(rookieEventMissionArrivedTemplateSetCode);
+	}
+
+	public String normalizedRookieEventMissionAgreementTemplateCode() {
+		return value(rookieEventMissionAgreementTemplateCode);
+	}
+
+	public int safeRookieEventMissionBatchSize() {
+		return Math.max(1, Math.min(500, rookieEventMissionBatchSize));
+	}
+
+	public Map<String, String> rookieEventMissionArrivedContext(int day) {
+		return Map.of("day", String.valueOf(Math.max(1, day)));
 	}
 
 	private String value(String raw) {
