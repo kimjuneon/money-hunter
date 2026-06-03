@@ -2039,7 +2039,7 @@ function renderRookieEventSelectedDay(day) {
     if (!isHomeShortcutMission || mission.completed) {
       row.append(progress);
     }
-    if (isHomeShortcutMission && day.current && !day.locked && !mission.completed) {
+    if (isHomeShortcutMission && !mission.completed) {
       row.classList.add("has-action");
       const action = document.createElement("button");
       action.className = "rookie-event-mission-action";
