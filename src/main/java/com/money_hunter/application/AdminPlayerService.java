@@ -235,6 +235,20 @@ public class AdminPlayerService {
 	}
 
 	@Transactional
+	public AdminPlayerResponse advanceRookieEventDayForTest(String userKey) {
+		Player player = player(userKey);
+		requireOnboarded(player);
+		Instant now = clock.instant();
+		player.advanceRookieEventDayForTest(now, LocalDate.now(clock));
+		log.warn(
+				"관리자 이벤트 테스트 하루 넘기기: userKey={}, completedDays={}, rewardedDays={}",
+				mask(userKey),
+				player.getRookieEventCompletedDays(),
+				player.getRookieEventRewardedDays());
+		return AdminPlayerResponse.from(player);
+	}
+
+	@Transactional
 	public AdminPlayerResponse overrideRookieEventForTest(
 			String userKey,
 			int completedDays,

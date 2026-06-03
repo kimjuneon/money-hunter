@@ -1935,6 +1935,12 @@ function rookieEventMissionCompleted(player, missionKey) {
   return days.some((day) => (day.missions || []).some((mission) => mission.key === missionKey && mission.completed));
 }
 
+function rookieHomeShortcutMissionActive(player = state.player) {
+  const day = (player?.rookieEvent?.days || []).find((entry) => entry.day === 2);
+  const mission = (day?.missions || []).find((entry) => entry.key === "home_shortcut_return");
+  return Boolean(day?.current && !day.locked && mission && !mission.completed);
+}
+
 function markRookieHomeShortcutGuideViewed() {
   const marker = clientRequestId("home-shortcut");
   storeValue(rookieHomeShortcutGuideStorageKey, marker);
@@ -2012,6 +2018,7 @@ async function completeRookieHomeShortcutMissionIfNeeded() {
     return;
   }
   state.rookieHomeShortcutReturnHandled = true;
+  const wasActive = rookieHomeShortcutMissionActive(state.player);
   const wasCompleted = rookieEventMissionCompleted(state.player, "home_shortcut_return");
   try {
     const player = await api("/api/player/rookie-event/home-shortcut-return", { method: "POST" });
@@ -2021,10 +2028,8 @@ async function completeRookieHomeShortcutMissionIfNeeded() {
     if (completed) {
       clearRookieHomeShortcutGuideViewed();
     }
-    if (!wasCompleted && completed) {
+    if (wasActive && !wasCompleted && completed) {
       setMessage("홈 화면 재접속 미션을 확인했어요.");
-    } else {
-      setMessage("홈 화면 재접속 확인을 기록했어요. 2일차 미션일 때 완료돼요.");
     }
   } catch (error) {
     state.rookieHomeShortcutReturnHandled = false;

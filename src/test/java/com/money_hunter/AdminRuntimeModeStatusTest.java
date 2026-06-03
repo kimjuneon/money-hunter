@@ -102,6 +102,40 @@ class AdminRuntimeModeStatusTest {
 				.andExpect(jsonPath("$.rookieEvent.rewardClaimed").value(false));
 	}
 
+	@Test
+	void adminRookieEventAdvanceDayUnlocksNextMissionAndReducesRemainingDays() throws Exception {
+		String token = loginToken();
+		mockMvc.perform(post("/api/player/job")
+						.with(user("rookie-admin-advance"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/admin/test-tools/rookie-event/rookie-admin-advance/state")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"completedDays\":1,\"rewardedDays\":0,\"finalRewardClaimed\":false,\"reason\":\"advance day\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.completedDays").value(1))
+				.andExpect(jsonPath("$.rookieEvent.currentDay").value(2))
+				.andExpect(jsonPath("$.rookieEvent.lockedUntilTomorrow").value(true))
+				.andExpect(jsonPath("$.rookieEvent.daysRemaining").value(10))
+				.andExpect(jsonPath("$.rookieEvent.days[1].current").value(true))
+				.andExpect(jsonPath("$.rookieEvent.days[1].locked").value(true));
+
+		mockMvc.perform(post("/api/admin/test-tools/rookie-event/rookie-admin-advance/advance-day")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"reason\":\"advance day\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.completedDays").value(1))
+				.andExpect(jsonPath("$.rookieEvent.currentDay").value(2))
+				.andExpect(jsonPath("$.rookieEvent.lockedUntilTomorrow").value(false))
+				.andExpect(jsonPath("$.rookieEvent.daysRemaining").value(9))
+				.andExpect(jsonPath("$.rookieEvent.days[1].current").value(true))
+				.andExpect(jsonPath("$.rookieEvent.days[1].locked").value(false));
+	}
+
 	private String loginToken() throws Exception {
 		String response = mockMvc.perform(post("/api/admin/auth/login")
 						.contentType(APPLICATION_JSON)

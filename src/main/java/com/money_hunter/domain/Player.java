@@ -454,6 +454,23 @@ public class Player {
 		touch();
 	}
 
+	public void advanceRookieEventDayForTest(Instant now, LocalDate today) {
+		if (rookieEventStartedAt == null) {
+			resetRookieEventForTest(now, today);
+		}
+		this.rookieEventStartedAt = oneDayEarlier(rookieEventStartedAt);
+		this.rookieEventCompletedAt = oneDayEarlier(rookieEventCompletedAt);
+		this.rookieEventRewardClaimedAt = oneDayEarlier(rookieEventRewardClaimedAt);
+		if (today != null) {
+			LocalDate previousDay = today.minusDays(1);
+			this.rookieEventCurrentDate = previousDay;
+			if (today.equals(rookieEventLastCompletedDate)) {
+				this.rookieEventLastCompletedDate = previousDay;
+			}
+		}
+		touch();
+	}
+
 	public void spendSkillPoint() {
 		if (skillPoints < 1) {
 			throw new IllegalStateException("Not enough skill points.");
@@ -747,6 +764,10 @@ public class Player {
 		this.rookieEventDailySkillPointsSpent = 0;
 		this.rookieEventDailyHomeShortcutReturned = false;
 		touch();
+	}
+
+	private Instant oneDayEarlier(Instant instant) {
+		return instant == null ? null : instant.minusSeconds(86_400);
 	}
 
 	private void touch() {

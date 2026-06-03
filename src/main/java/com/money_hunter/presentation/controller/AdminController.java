@@ -361,6 +361,25 @@ public class AdminController {
 		return playerService.getState(player.userKey());
 	}
 
+	@PostMapping("/test-tools/rookie-event/{userKey}/advance-day")
+	public PlayerStateResponse advanceRookieEventDayForTest(
+			@PathVariable String userKey,
+			@Valid @RequestBody(required = false) AdminRookieEventTestRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminPlayerResponse player = adminPlayerService.advanceRookieEventDayForTest(userKey);
+		adminAuditService.record(
+				admin,
+				"ROOKIE_EVENT_TEST_ADVANCE_DAY",
+				player.userKey(),
+				null,
+				"eventDay+1",
+				optionalReason(requestBody == null ? null : requestBody.reason()),
+				request);
+		return playerService.getState(player.userKey());
+	}
+
 	@PostMapping("/test-tools/rookie-event/{userKey}/state")
 	public PlayerStateResponse overrideRookieEventForTest(
 			@PathVariable String userKey,

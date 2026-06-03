@@ -57,6 +57,7 @@ function bindEvents() {
   $("rookieEventTestLoadButton").addEventListener("click", () => loadRookieEventTestState({ notify: true }));
   $("rookieEventTestResetButton").addEventListener("click", (event) => runRookieEventTestAction("reset", event.currentTarget));
   $("rookieEventTestCompleteDayButton").addEventListener("click", (event) => runRookieEventTestAction("complete-next-day", event.currentTarget));
+  $("rookieEventTestAdvanceDayButton").addEventListener("click", (event) => runRookieEventTestAction("advance-day", event.currentTarget));
   $("rookieEventTestApplyButton").addEventListener("click", (event) => runRookieEventTestAction("state", event.currentTarget));
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
@@ -268,7 +269,9 @@ async function runRookieEventTestAction(action, button) {
     ? "state"
     : action === "reset"
       ? "reset"
-      : "complete-next-day";
+      : action === "advance-day"
+        ? "advance-day"
+        : "complete-next-day";
   setButtonBusy(button, true);
   try {
     const data = await request(`/api/admin/test-tools/rookie-event/${encodeURIComponent(userKey)}/${endpoint}`, {
@@ -281,6 +284,7 @@ async function runRookieEventTestAction(action, button) {
     const message = {
       reset: "이벤트 테스트 상태를 초기화했어요.",
       "complete-next-day": "다음 일차를 완료 상태로 만들었어요.",
+      "advance-day": "이벤트 테스트 시간을 하루 넘겼어요.",
       state: "이벤트 테스트 상태를 적용했어요.",
     }[action];
     result.textContent = message;
