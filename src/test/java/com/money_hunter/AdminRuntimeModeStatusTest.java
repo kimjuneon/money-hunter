@@ -103,6 +103,47 @@ class AdminRuntimeModeStatusTest {
 	}
 
 	@Test
+	void adminRookieEventSettingsToggleControlsNewEventStarts() throws Exception {
+		String token = loginToken();
+		String userKey = "rookie-event-settings-toggle";
+
+		mockMvc.perform(get("/api/admin/events/rookie-event")
+						.header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.enabled").value(true))
+				.andExpect(jsonPath("$.startWindowUnlimited").value(true));
+
+		mockMvc.perform(post("/api/player/job")
+						.with(user(userKey))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/admin/events/rookie-event")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"enabled\":false,\"reason\":\"toggle test\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.enabled").value(false));
+
+		mockMvc.perform(post("/api/player/rookie-event/start")
+						.with(user(userKey)))
+				.andExpect(status().isConflict());
+
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/admin/events/rookie-event")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"enabled\":true,\"reason\":\"toggle test restore\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.enabled").value(true));
+
+		mockMvc.perform(post("/api/player/rookie-event/start")
+						.with(user(userKey)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.started").value(true));
+	}
+
+	@Test
 	void adminRookieEventAdvanceDayUnlocksNextMissionAndReducesRemainingDays() throws Exception {
 		String token = loginToken();
 		mockMvc.perform(post("/api/player/job")

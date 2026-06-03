@@ -20,13 +20,25 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 
 	long countByCreatedAtAfter(Instant createdAt);
 
+	long countByCreatedAtGreaterThanEqual(Instant createdAt);
+
 	long countByCreatedAtBefore(Instant createdAt);
 
 	long countByCreatedAtBetween(Instant startedAt, Instant endedAt);
 
+	long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant startedAt, Instant endedAt);
+
 	long countByAutoHuntEndsAtAfter(Instant now);
 
 	long countByBoostEndsAtAfter(Instant now);
+
+	long countByRookieEventStartedAtIsNotNull();
+
+	long countByRookieEventCompletedDaysGreaterThanEqual(int completedDays);
+
+	long countByRookieEventRewardClaimedAtIsNotNull();
+
+	long countByJobIsNotNullAndRookieEventStartedAtIsNull();
 
 	@Query("select coalesce(sum(p.gold), 0) from Player p")
 	long totalGold();

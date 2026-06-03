@@ -89,7 +89,7 @@ public class AdminMonitoringService {
 				playerRepository.count(),
 				playerRepository.countByJobIsNotNull(),
 				playerRepository.countBySuspendedAtIsNotNull(),
-				playerRepository.countByCreatedAtAfter(today),
+				playerRepository.countByCreatedAtGreaterThanEqual(today),
 				playerRepository.countByAutoHuntEndsAtAfter(now),
 				playerRepository.countByBoostEndsAtAfter(now),
 				playerRepository.totalGold(),
@@ -271,7 +271,7 @@ public class AdminMonitoringService {
 			LocalDate day = firstDay.plusDays(offset);
 			Instant startedAt = day.atStartOfDay(SEOUL).toInstant();
 			Instant endedAt = day.plusDays(1).atStartOfDay(SEOUL).toInstant();
-			long newPlayers = playerRepository.countByCreatedAtBetween(startedAt, endedAt);
+			long newPlayers = playerRepository.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(startedAt, endedAt);
 			cumulative += newPlayers;
 			points.add(new AdminPlayerGrowthPoint(day.toString(), newPlayers, cumulative));
 		}

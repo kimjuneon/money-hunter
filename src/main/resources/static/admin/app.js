@@ -16,6 +16,7 @@ const state = {
   policies: [],
   growthDays: 30,
   loadingTimer: null,
+  rookieEventSettings: null,
   rookieEventTestState: null,
 };
 
@@ -167,6 +168,7 @@ function activateView(viewId) {
   });
   $("pageTitle").textContent = {
     dashboardView: "대시보드",
+    eventView: "이벤트 관리",
     anomalyView: "이상징후",
     playerView: "유저 관리",
     policyView: "정책값",
@@ -201,6 +203,8 @@ async function refreshCurrentView(options = {}) {
       await loadPlayers();
     } else if (state.view === "monitoringView") {
       await loadServerMetrics();
+    } else if (state.view === "eventView") {
+      await loadRookieEventSettings();
     } else if (state.view === "testToolsView") {
       await loadRookieEventTestState();
     } else {
@@ -217,6 +221,124 @@ async function refreshCurrentView(options = {}) {
       button.textContent = originalText;
       setButtonBusy(button, false);
     }
+  }
+}
+
+async function loadRookieEventSettings() {
+  const result = $("rookieEventSettingsResult");
+  result.textContent = "";
+  result.classList.remove("error-text");
+  try {
+    const data = await request("/api/admin/events/rookie-event");
+    state.rookieEventSettings = data;
+    renderRookieEventSettings(data);
+  } catch (error) {
+    state.rookieEventSettings = null;
+    $("rookieEventSettingsUpdatedAt").textContent = "";
+    $("rookieEventSettingsPanel").innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+    result.textContent = error.message;
+    result.classList.add("error-text");
+    throw error;
+  }
+}
+
+function renderRookieEventSettings(settings) {
+  const panel = $("rookieEventSettingsPanel");
+  if (!settings) {
+    $("rookieEventSettingsUpdatedAt").textContent = "";
+    panel.innerHTML = `<p class="empty">이벤트 설정을 불러오지 못했어요.</p>`;
+    return;
+  }
+  const enabled = Boolean(settings.enabled);
+  const statusLabel = enabled ? "활성화" : "비활성화";
+  $("rookieEventSettingsUpdatedAt").textContent = `최근 변경 ${formatDate(settings.updatedAt)}`;
+  panel.innerHTML = `
+    <div class="event-settings-layout">
+      <article class="event-status-card ${enabled ? "active" : "inactive"}">
+        <div>
+          <span class="event-status-chip">${escapeHtml(statusLabel)}</span>
+          <strong>7일 사냥 동행 이벤트</strong>
+          <p>
+            참여 시작 가능 기간은 무기한이에요. 이벤트를 끄면 아직 시작하지 않은 유저의 신규 참여만 막고,
+            이미 시작한 유저는 남은 기간 동안 계속 진행할 수 있어요.
+          </p>
+        </div>
+        <label class="event-toggle-card">
+          <input id="rookieEventEnabledInput" type="checkbox" ${enabled ? "checked" : ""} />
+          <span>
+            <strong>이벤트 공개</strong>
+            <small>${enabled ? "신규 참여 허용 중" : "신규 참여 차단 중"}</small>
+          </span>
+        </label>
+      </article>
+
+      <div class="event-stat-grid">
+        ${eventStat("시작 유저", settings.startedPlayers, "명")}
+        ${eventStat("최종 완료", settings.completedPlayers, "명")}
+        ${eventStat("펫 수령", settings.rewardClaimedPlayers, "명")}
+        ${eventStat("미시작 대상", settings.eligibleUnstartedPlayers, "명")}
+      </div>
+
+      <section class="event-rule-list">
+        ${eventRule("참여 시작 기한", settings.startWindowUnlimited ? "무기한" : "기간 제한", "관리자 활성화 상태로 신규 참여를 제어해요.")}
+        ${eventRule("미션 구성", `${formatNumber(settings.eventDays)}일 미션`, `유저별 진행 가능 기간 ${formatNumber(settings.playerProgressDays)}일`)}
+        ${eventRule("완료 보상", `이벤트 펫 ${formatNumber(settings.eventPetDurationDays)}일`, `일반 펫 ${formatNumber(settings.eventPetSkillLevel)}레벨 기준 성능`)}
+      </section>
+
+      <div class="event-save-row">
+        <label>
+          <span>변경 사유</span>
+          <input id="rookieEventSettingsReason" type="text" maxlength="500" placeholder="감사 로그에 남길 사유" />
+        </label>
+        <button id="rookieEventSettingsSaveButton" class="secondary" type="button">설정 저장</button>
+      </div>
+    </div>
+  `;
+  $("rookieEventSettingsSaveButton").addEventListener("click", (event) => saveRookieEventSettings(event.currentTarget));
+}
+
+function eventStat(label, value, unit) {
+  return `
+    <article class="event-stat-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${formatNumber(value)}${escapeHtml(unit)}</strong>
+    </article>
+  `;
+}
+
+function eventRule(label, value, detail) {
+  return `
+    <article class="event-rule-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `;
+}
+
+async function saveRookieEventSettings(button) {
+  const result = $("rookieEventSettingsResult");
+  result.textContent = "";
+  result.classList.remove("error-text");
+  const enabled = Boolean($("rookieEventEnabledInput")?.checked);
+  const reason = $("rookieEventSettingsReason")?.value?.trim() || "";
+  setButtonBusy(button, true);
+  try {
+    const data = await request("/api/admin/events/rookie-event", {
+      method: "PATCH",
+      body: { enabled, reason },
+    });
+    state.rookieEventSettings = data;
+    renderRookieEventSettings(data);
+    const message = enabled ? "이벤트를 활성화했어요." : "이벤트를 비활성화했어요.";
+    $("rookieEventSettingsResult").textContent = message;
+    showToast(message);
+  } catch (error) {
+    result.textContent = error.message;
+    result.classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
   }
 }
 
@@ -685,39 +807,66 @@ function renderLineChart(points) {
   }
   const width = 640;
   const height = 176;
-  const maxTotal = Math.max(1, ...points.map((point) => Number(point.totalPlayers || 0)));
+  const totals = points.map((point) => Number(point.totalPlayers || 0));
+  const rawMinTotal = Math.min(...totals);
+  const rawMaxTotal = Math.max(1, ...totals);
+  const rawRange = Math.max(1, rawMaxTotal - rawMinTotal);
+  const padding = Math.max(1, Math.ceil(rawRange * 0.12));
+  const minTotal = Math.max(0, rawMinTotal === rawMaxTotal
+    ? rawMinTotal - Math.max(1, Math.ceil(rawMaxTotal * 0.05))
+    : rawMinTotal - padding);
+  const maxTotal = Math.max(minTotal + 1, rawMaxTotal === rawMinTotal
+    ? rawMaxTotal + Math.max(1, Math.ceil(rawMaxTotal * 0.05))
+    : rawMaxTotal + padding);
+  const midTotal = Math.round((minTotal + maxTotal) / 2);
   const x = (index) => points.length === 1 ? width / 2 : width * index / (points.length - 1);
-  const y = (value) => height - height * Number(value || 0) / maxTotal;
+  const y = (value) => height - height * (Number(value || 0) - minTotal) / (maxTotal - minTotal);
   const linePoints = points.map((point, index) => `${x(index).toFixed(1)},${y(point.totalPlayers).toFixed(1)}`).join(" ");
   const areaPoints = `0,${height} ${linePoints} ${width},${height}`;
   const lastPoint = points[points.length - 1];
   const lastX = x(points.length - 1).toFixed(1);
   const lastY = y(lastPoint.totalPlayers).toFixed(1);
-  const lastLabelLeft = Math.min(98, Math.max(14, Number(lastX) / width * 100));
-  const lastLabelTop = Math.min(90, Math.max(12, Number(lastY) / height * 100));
-  const labelStep = Math.max(1, Math.ceil(points.length / 6));
+  const labelStep = Math.max(1, Math.ceil(points.length / 5));
   const labels = points
     .map((point, index) => ({ point, index }))
     .filter(({ index }) => index === 0 || index === points.length - 1 || index % labelStep === 0)
     .map(({ point, index }) => {
-      const position = points.length === 1 ? 50 : index / (points.length - 1) * 100;
       const edgeClass = index === 0 ? " first" : index === points.length - 1 ? " last" : "";
-      return `<span class="growth-x-label${edgeClass}" style="left: ${position.toFixed(2)}%">${escapeHtml(point.date.slice(5))}</span>`;
+      return `
+        <span class="growth-x-label${edgeClass}">
+          ${escapeHtml(String(point.date || "").slice(5))}
+          <small>+${formatNumber(point.newPlayers || 0)}</small>
+        </span>
+      `;
     }).join("");
   return `
     <div class="growth-chart" role="img" aria-label="전체 유저 선형 그래프">
+      <div class="growth-chart-top">
+        <div>
+          <span>표시 범위</span>
+          <strong>${formatNumber(minTotal)}명 - ${formatNumber(maxTotal)}명</strong>
+        </div>
+        <div class="growth-latest">
+          <span>최신 누적</span>
+          <strong>${formatNumber(lastPoint.totalPlayers)}명</strong>
+          <small>${escapeHtml(lastPoint.date || "-")} 기준</small>
+        </div>
+      </div>
       <div class="growth-chart-body">
-        <span class="chart-y-label chart-y-max">${formatNumber(maxTotal)}명</span>
-        <span class="chart-y-label chart-y-zero">0명</span>
+        <div class="chart-y-axis" aria-hidden="true">
+          <span>${formatNumber(maxTotal)}명</span>
+          <span>${formatNumber(midTotal)}명</span>
+          <span>${formatNumber(minTotal)}명</span>
+        </div>
         <div class="growth-plot">
           <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
             <line class="chart-grid" x1="0" y1="0" x2="${width}" y2="0"></line>
+            <line class="chart-grid" x1="0" y1="${height / 2}" x2="${width}" y2="${height / 2}"></line>
             <line class="chart-grid" x1="0" y1="${height}" x2="${width}" y2="${height}"></line>
             <polygon class="growth-area" points="${areaPoints}"></polygon>
             <polyline class="growth-line" points="${linePoints}"></polyline>
             <circle class="growth-dot" cx="${lastX}" cy="${lastY}" r="5"></circle>
           </svg>
-          <span class="growth-value-label" style="left: ${lastLabelLeft.toFixed(2)}%; top: ${lastLabelTop.toFixed(2)}%">${formatNumber(lastPoint.totalPlayers)}명</span>
         </div>
       </div>
       <div class="growth-x-labels">${labels}</div>

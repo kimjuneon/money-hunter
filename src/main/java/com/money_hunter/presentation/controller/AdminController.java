@@ -8,9 +8,12 @@ import com.money_hunter.application.AdminAuditService;
 import com.money_hunter.application.AdminMonitoringService;
 import com.money_hunter.application.AdminPlayerService;
 import com.money_hunter.application.PlayerService;
+import com.money_hunter.application.RookieEventSettingsService;
+import com.money_hunter.application.RookieEventSettingsService.EventSettingsChangeResult;
 import com.money_hunter.application.RuntimeEconomyService;
 import com.money_hunter.application.RuntimeEconomyService.PolicyChangeResult;
 import com.money_hunter.application.RuntimeEconomyService.PolicyDefinition;
+import com.money_hunter.application.dto.response.AdminRookieEventSettingsResponse;
 import com.money_hunter.application.dto.response.AdminPlayerPageResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResponse;
@@ -24,6 +27,7 @@ import com.money_hunter.presentation.dto.request.AdminPlayerPetActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerResourceAdjustRequest;
 import com.money_hunter.presentation.dto.request.AdminPolicyUpdateRequest;
 import com.money_hunter.presentation.dto.request.AdminRevenueCalibrationRequest;
+import com.money_hunter.presentation.dto.request.AdminRookieEventSettingsRequest;
 import com.money_hunter.application.dto.response.AdminAuditLogResponse;
 import com.money_hunter.application.dto.response.AdminAuditPageResponse;
 import com.money_hunter.application.dto.response.AdminPolicyResponse;
@@ -57,6 +61,7 @@ public class AdminController {
 	private final AdminPlayerService adminPlayerService;
 	private final AdminAnomalyCaseService anomalyCaseService;
 	private final PlayerService playerService;
+	private final RookieEventSettingsService rookieEventSettingsService;
 
 	public AdminController(
 			AdminAccessGuard adminAccessGuard,
@@ -65,7 +70,8 @@ public class AdminController {
 			AdminAuditService adminAuditService,
 			AdminPlayerService adminPlayerService,
 			AdminAnomalyCaseService anomalyCaseService,
-			PlayerService playerService
+			PlayerService playerService,
+			RookieEventSettingsService rookieEventSettingsService
 	) {
 		this.adminAccessGuard = adminAccessGuard;
 		this.monitoringService = monitoringService;
@@ -74,6 +80,7 @@ public class AdminController {
 		this.adminPlayerService = adminPlayerService;
 		this.anomalyCaseService = anomalyCaseService;
 		this.playerService = playerService;
+		this.rookieEventSettingsService = rookieEventSettingsService;
 	}
 
 	@GetMapping("/overview")
@@ -404,6 +411,30 @@ public class AdminController {
 				optionalReason(requestBody.reason()),
 				request);
 		return playerService.getState(player.userKey());
+	}
+
+	@GetMapping("/events/rookie-event")
+	public AdminRookieEventSettingsResponse rookieEventSettings(HttpServletRequest request) {
+		adminAccessGuard.require(request);
+		return rookieEventSettingsService.response();
+	}
+
+	@PatchMapping("/events/rookie-event")
+	public AdminRookieEventSettingsResponse updateRookieEventSettings(
+			@Valid @RequestBody AdminRookieEventSettingsRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		EventSettingsChangeResult result = rookieEventSettingsService.setRookieEventEnabled(requestBody.enabled());
+		adminAuditService.record(
+				admin,
+				"ROOKIE_EVENT_STATUS",
+				"rookie-event",
+				String.valueOf(result.beforeEnabled()),
+				String.valueOf(result.afterEnabled()),
+				optionalReason(requestBody.reason()),
+				request);
+		return rookieEventSettingsService.response();
 	}
 
 	@GetMapping("/policies")

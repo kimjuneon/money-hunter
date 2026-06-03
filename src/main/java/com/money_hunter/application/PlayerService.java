@@ -76,13 +76,9 @@ public class PlayerService {
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final Duration AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY = Duration.ofMinutes(5);
 	private static final Duration DORMANT_SP_REWARD_REPEAT_INTERVAL = Duration.ofDays(2);
-	private static final Instant ROOKIE_EVENT_START_AVAILABLE_FROM = Instant.parse("2026-06-02T15:00:00Z");
-	private static final Duration ROOKIE_EVENT_START_WINDOW = Duration.ofDays(30);
 	private static final long ROOKIE_EVENT_PLAYER_DAYS = 10;
 	private static final Duration ROOKIE_EVENT_COMPLETED_VISIBLE_DURATION = Duration.ofDays(7);
 	private static final Duration ROOKIE_EVENT_REWARD_DURATION = Duration.ofDays(30);
-	private static final Instant ROOKIE_EVENT_START_AVAILABLE_UNTIL =
-			ROOKIE_EVENT_START_AVAILABLE_FROM.plus(ROOKIE_EVENT_START_WINDOW);
 	private static final int ROOKIE_EVENT_DAYS = 7;
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
 	private static final int DORMANT_SP_REWARD_AMOUNT = 1;
@@ -229,6 +225,7 @@ public class PlayerService {
 	private final IapProperties iapProperties;
 	private final PromotionProperties promotionProperties;
 	private final SmartMessageProperties smartMessageProperties;
+	private final RookieEventSettingsService rookieEventSettingsService;
 	private final TossIapClient tossIapClient;
 	private final TossPromotionClient tossPromotionClient;
 	private final TossSmartMessageClient tossSmartMessageClient;
@@ -246,6 +243,7 @@ public class PlayerService {
 			IapProperties iapProperties,
 			PromotionProperties promotionProperties,
 			SmartMessageProperties smartMessageProperties,
+			RookieEventSettingsService rookieEventSettingsService,
 			TossIapClient tossIapClient,
 			TossPromotionClient tossPromotionClient,
 			TossSmartMessageClient tossSmartMessageClient
@@ -261,6 +259,7 @@ public class PlayerService {
 		this.iapProperties = iapProperties;
 		this.promotionProperties = promotionProperties;
 		this.smartMessageProperties = smartMessageProperties;
+		this.rookieEventSettingsService = rookieEventSettingsService;
 		this.tossIapClient = tossIapClient;
 		this.tossPromotionClient = tossPromotionClient;
 		this.tossSmartMessageClient = tossSmartMessageClient;
@@ -1781,8 +1780,7 @@ public class PlayerService {
 	}
 
 	private boolean rookieEventStartAvailable(Instant now) {
-		return !now.isBefore(ROOKIE_EVENT_START_AVAILABLE_FROM)
-				&& now.isBefore(ROOKIE_EVENT_START_AVAILABLE_UNTIL);
+		return rookieEventSettingsService.rookieEventEnabled();
 	}
 
 	private int daysRemaining(Instant now, Instant endsAt) {
