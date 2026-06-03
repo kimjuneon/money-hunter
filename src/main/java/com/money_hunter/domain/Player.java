@@ -381,7 +381,7 @@ public class Player {
 		touch();
 	}
 
-	public void addRookieEventSettlement() {
+	public void addRookieEventTossPointClaim() {
 		this.rookieEventDailySettlements += 1;
 		touch();
 	}

@@ -134,7 +134,7 @@ class RealRewardAdSessionTest {
 				.andExpect(jsonPath("$.rookieEvent.days[0].title", is("사냥 준비")))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardLabel", is("SP 1개")))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimable", is(false)))
-				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].label", is("토스 포인트 수령하기")))
+				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].label", is("토스포인트 받기")))
 				.andExpect(jsonPath("$.rookieEvent.days[1].rewardLabel", is("자동전투 1시간")))
 				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].key", is("home_shortcut_return")))
 				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].label", is("머니헌터 홈 화면에 추가하고 다시 접속하기")))
@@ -199,7 +199,7 @@ class RealRewardAdSessionTest {
 		transactionTemplate.executeWithoutResult(status -> {
 			var player = playerRepository.findByUserKey("rookie-event-reward-user").orElseThrow();
 			player.addRookieEventCombatProgress(Duration.ofHours(1).toMillis(), 0, 20, 0);
-			player.addRookieEventSettlement();
+			player.addRookieEventTossPointClaim();
 		});
 
 		mockMvc.perform(get("/api/player")

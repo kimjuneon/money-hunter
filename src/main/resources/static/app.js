@@ -23,6 +23,8 @@ function showStartupError(error) {
 const distributionTargetOverride = new URLSearchParams(window.location.search).get("target");
 const pendingIapProductStorageKey = "moneyHunter.pendingIapProducts";
 const hiddenPetSkinsStorageKey = "moneyHunter.hideEasterEggSkins";
+const rookieHomeShortcutGuideStorageKey = "moneyHunter.rookieHomeShortcutGuide";
+const rookieHomeShortcutGuideSessionKey = "moneyHunter.rookieHomeShortcutGuideSession";
 const rookieHomeShortcutParam = "rookieHome";
 const rookieHomeShortcutValue = "1";
 
@@ -1581,7 +1583,7 @@ function renderShopPanel(player) {
     const shopCard = $(`pet${index + 1 === 1 ? "One" : "Two"}Shop`);
     const status = $(pet.statusId);
     $(pet.shopImageId).src = skin.image;
-    $(pet.shopNameId).textContent = `${skin.name} (영구)`;
+    $(pet.shopNameId).textContent = skin.name;
     $(pet.shopCopyId).textContent = skin.copy;
     shopCard.classList.toggle("locked", !unlocked);
     shopCard.classList.toggle("skin-change-available", unlocked);
@@ -1661,14 +1663,14 @@ function renderPetSkinShop(player) {
       const copy = document.createElement("div");
       copy.className = "pet-skin-copy";
       const title = document.createElement("strong");
-      title.textContent = ownedSkin ? `${skin.name} (영구)` : skin.name;
+      title.textContent = skin.name;
       const description = document.createElement("p");
       description.textContent = skin.copy;
       const status = document.createElement("small");
       status.textContent = ownedSkin
         ? selectedSkinKey === skinKey
           ? `${slot}번 펫 착용 중`
-          : "보유 중 · 영구"
+          : "보유 중"
         : `${priceGold.toLocaleString("ko-KR")}G로 해금`;
       copy.append(title, description, status);
       card.appendChild(copy);
@@ -1919,12 +1921,6 @@ function rookieHomeShortcutReturnRequested() {
   return new URLSearchParams(window.location.search).get(rookieHomeShortcutParam) === rookieHomeShortcutValue;
 }
 
-function prepareRookieHomeShortcutMissionUrl() {
-  const url = new URL(window.location.href);
-  url.searchParams.set(rookieHomeShortcutParam, rookieHomeShortcutValue);
-  window.history.replaceState(null, "", url);
-}
-
 function clearRookieHomeShortcutMissionUrl() {
   const url = new URL(window.location.href);
   if (!url.searchParams.has(rookieHomeShortcutParam)) {
@@ -1939,8 +1935,39 @@ function rookieEventMissionCompleted(player, missionKey) {
   return days.some((day) => (day.missions || []).some((mission) => mission.key === missionKey && mission.completed));
 }
 
+function markRookieHomeShortcutGuideViewed() {
+  const marker = clientRequestId("home-shortcut");
+  storeValue(rookieHomeShortcutGuideStorageKey, marker);
+  try {
+    window.sessionStorage.setItem(rookieHomeShortcutGuideSessionKey, marker);
+  } catch {
+    // Session storage can be unavailable in embedded test environments.
+  }
+}
+
+function rookieHomeShortcutGuideViewedInPreviousSession() {
+  const marker = storedValue(rookieHomeShortcutGuideStorageKey);
+  if (!marker) {
+    return false;
+  }
+  try {
+    return window.sessionStorage.getItem(rookieHomeShortcutGuideSessionKey) !== marker;
+  } catch {
+    return true;
+  }
+}
+
+function clearRookieHomeShortcutGuideViewed() {
+  removeStoredValue(rookieHomeShortcutGuideStorageKey);
+  try {
+    window.sessionStorage.removeItem(rookieHomeShortcutGuideSessionKey);
+  } catch {
+    // Session storage can be unavailable in embedded test environments.
+  }
+}
+
 function openHomeShortcutGuide() {
-  prepareRookieHomeShortcutMissionUrl();
+  markRookieHomeShortcutGuideViewed();
   state.homeShortcutGuideIndex = 0;
   $("homeShortcutGuideModal").classList.remove("hidden");
   renderHomeShortcutGuide();
@@ -1980,7 +2007,8 @@ function previousHomeShortcutGuideStep() {
 }
 
 async function completeRookieHomeShortcutMissionIfNeeded() {
-  if (state.rookieHomeShortcutReturnHandled || !rookieHomeShortcutReturnRequested()) {
+  const shouldComplete = rookieHomeShortcutReturnRequested() || rookieHomeShortcutGuideViewedInPreviousSession();
+  if (state.rookieHomeShortcutReturnHandled || !shouldComplete) {
     return;
   }
   state.rookieHomeShortcutReturnHandled = true;
@@ -1989,7 +2017,11 @@ async function completeRookieHomeShortcutMissionIfNeeded() {
     const player = await api("/api/player/rookie-event/home-shortcut-return", { method: "POST" });
     applyServerPlayer(player);
     clearRookieHomeShortcutMissionUrl();
-    if (!wasCompleted && rookieEventMissionCompleted(player, "home_shortcut_return")) {
+    const completed = rookieEventMissionCompleted(player, "home_shortcut_return");
+    if (completed) {
+      clearRookieHomeShortcutGuideViewed();
+    }
+    if (!wasCompleted && completed) {
       setMessage("홈 화면 재접속 미션을 확인했어요.");
     } else {
       setMessage("홈 화면 재접속 확인을 기록했어요. 2일차 미션일 때 완료돼요.");
@@ -2354,7 +2386,7 @@ function renderSkills(player) {
     const iconElement = document.querySelector(`[data-effect-icon="${skill.type}"]`);
     const labelElement = document.querySelector(`[data-skill-label="${skill.type}"]`);
     if (labelElement && meta.petIndex) {
-      labelElement.textContent = `${petSkinForSlot(meta.petIndex, player).name} (영구) 공격`;
+      labelElement.textContent = `${petSkinForSlot(meta.petIndex, player).name} 공격`;
       const portrait = document
         .querySelector(`[data-skill-row="${skill.type}"]`)
         ?.querySelector(".skill-portrait");

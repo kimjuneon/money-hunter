@@ -137,7 +137,7 @@ public class PlayerService {
 			new RookieEventDayPlan(1, "사냥 준비", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_1h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS, "사냥 1시간 진행하기"),
 					new RookieMissionPlan("monsters_20", RookieMissionType.MONSTERS, 20, "몬스터 20마리 처치하기"),
-					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "토스 포인트 수령하기")
+					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
 			)),
 			new RookieEventDayPlan(2, "채굴 감각", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_2h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 2, "사냥 2시간 진행하기"),
@@ -152,7 +152,7 @@ public class PlayerService {
 			new RookieEventDayPlan(4, "빠른 전투", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("boost_monsters_20", RookieMissionType.BOOST_MONSTERS, 20, "공속버프 상태로 몬스터 20마리 처치하기"),
-					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "토스 포인트 수령하기")
+					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
 			)),
 			new RookieEventDayPlan(5, "보상 축적", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
@@ -167,7 +167,7 @@ public class PlayerService {
 			new RookieEventDayPlan(7, "동행 완성", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
 					new RookieMissionPlan("monsters_100", RookieMissionType.MONSTERS, 100, "몬스터 100마리 처치하기"),
-					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "토스 포인트 수령하기")
+					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
 			))
 	);
 
@@ -176,7 +176,7 @@ public class PlayerService {
 		MONSTERS,
 		BOOST_MONSTERS,
 		GOLD,
-		SETTLEMENTS,
+		TOSS_POINT_CLAIMS,
 		SKILL_POINTS_SPENT,
 		LEVEL,
 		HOME_SHORTCUT_RETURN
@@ -643,6 +643,7 @@ public class PlayerService {
 				.orElseGet(() -> createRewardClaim(player, idempotencyKey));
 		grantTossPointPromotionIfEnabled(player, claim);
 		adEventRepository.save(new AdEvent(player, AdEventType.REWARD_CLAIM, claim.getPointAmount(), clock.instant()));
+		recordRookieEventTossPointClaim(player);
 		log.info(
 				"토스포인트 보상 수령 신청: userKey={}, claimId={}, pointAmount={}, goldAmount={}, status={}",
 				mask(userKey),
@@ -1378,7 +1379,14 @@ public class PlayerService {
 			return;
 		}
 		player.addRookieEventCombatProgress(huntMillis, gold, monsters, boostMonsters);
-		player.addRookieEventSettlement();
+		completeRookieEventDayIfReady(player);
+	}
+
+	private void recordRookieEventTossPointClaim(Player player) {
+		if (!canProgressRookieEvent(player)) {
+			return;
+		}
+		player.addRookieEventTossPointClaim();
 		completeRookieEventDayIfReady(player);
 	}
 
@@ -1598,7 +1606,7 @@ public class PlayerService {
 			case MONSTERS -> player.getRookieEventDailyMonsters();
 			case BOOST_MONSTERS -> player.getRookieEventDailyBoostMonsters();
 			case GOLD -> player.getRookieEventDailyGold();
-			case SETTLEMENTS -> player.getRookieEventDailySettlements();
+			case TOSS_POINT_CLAIMS -> player.getRookieEventDailySettlements();
 			case SKILL_POINTS_SPENT -> player.getRookieEventDailySkillPointsSpent();
 			case LEVEL -> player.getLevel();
 			case HOME_SHORTCUT_RETURN -> player.isRookieEventDailyHomeShortcutReturned() ? 1 : 0;
@@ -1612,6 +1620,7 @@ public class PlayerService {
 			case GOLD -> String.format("%,dG / %,dG", capped, mission.target());
 			case LEVEL -> capped + "레벨 / " + mission.target() + "레벨";
 			case HOME_SHORTCUT_RETURN -> capped >= mission.target() ? "확인 완료" : "홈 화면에서 다시 접속";
+			case TOSS_POINT_CLAIMS -> capped >= mission.target() ? "수령 완료" : "보상 수령 탭에서 받기";
 			default -> capped + " / " + mission.target();
 		};
 	}
