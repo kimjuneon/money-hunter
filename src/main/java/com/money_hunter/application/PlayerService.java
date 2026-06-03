@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -75,10 +76,11 @@ public class PlayerService {
 	private static final Duration AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY = Duration.ofMinutes(5);
 	private static final Instant ROOKIE_EVENT_START_AVAILABLE_FROM = Instant.parse("2026-06-02T15:00:00Z");
 	private static final Duration ROOKIE_EVENT_START_WINDOW = Duration.ofDays(30);
-	private static final Duration ROOKIE_EVENT_PLAYER_DURATION = Duration.ofDays(10);
+	private static final long ROOKIE_EVENT_PLAYER_DAYS = 10;
+	private static final Duration ROOKIE_EVENT_COMPLETED_VISIBLE_DURATION = Duration.ofDays(7);
+	private static final Duration ROOKIE_EVENT_REWARD_DURATION = Duration.ofDays(30);
 	private static final Instant ROOKIE_EVENT_START_AVAILABLE_UNTIL =
 			ROOKIE_EVENT_START_AVAILABLE_FROM.plus(ROOKIE_EVENT_START_WINDOW);
-	private static final long DAY_SECONDS = 86_400L;
 	private static final int ROOKIE_EVENT_DAYS = 7;
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
 	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
@@ -135,7 +137,7 @@ public class PlayerService {
 			new RookieEventDayPlan(1, "사냥 준비", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_1h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS, "사냥 1시간 진행하기"),
 					new RookieMissionPlan("monsters_20", RookieMissionType.MONSTERS, 20, "몬스터 20마리 처치하기"),
-					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
+					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "토스 포인트 수령하기")
 			)),
 			new RookieEventDayPlan(2, "채굴 감각", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_2h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 2, "사냥 2시간 진행하기"),
@@ -150,7 +152,7 @@ public class PlayerService {
 			new RookieEventDayPlan(4, "빠른 전투", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("boost_monsters_20", RookieMissionType.BOOST_MONSTERS, 20, "공속버프 상태로 몬스터 20마리 처치하기"),
-					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
+					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "토스 포인트 수령하기")
 			)),
 			new RookieEventDayPlan(5, "보상 축적", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
@@ -165,7 +167,7 @@ public class PlayerService {
 			new RookieEventDayPlan(7, "동행 완성", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
 					new RookieMissionPlan("monsters_100", RookieMissionType.MONSTERS, 100, "몬스터 100마리 처치하기"),
-					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "사냥 보상 1회 정산하기")
+					new RookieMissionPlan("settle_1", RookieMissionType.SETTLEMENTS, 1, "토스 포인트 수령하기")
 			))
 	);
 
@@ -724,6 +726,21 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse startRookieEvent(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		Instant now = clock.instant();
+		if (player.getRookieEventStartedAt() == null) {
+			if (!rookieEventStartAvailable(now)) {
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "이벤트 시작 가능 기간이 아니에요.");
+			}
+			player.startRookieEvent(now, LocalDate.now(clock));
+		}
+		prepareRookieEvent(player);
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse claimRookieEventDailyReward(String userKey, int day) {
 		Player player = getOrCreatePlayer(userKey);
 		prepareRookieEvent(player);
@@ -737,6 +754,9 @@ public class PlayerService {
 		Player player = getOrCreatePlayer(userKey);
 		prepareRookieEvent(player);
 		completeRookieEventDayIfReady(player);
+		if (player.getRookieEventStartedAt() == null) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이벤트를 먼저 시작해 주세요.");
+		}
 		if (player.isRookieEventRewardClaimed()) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 이벤트 완료 보상을 받았어요.");
 		}
@@ -1324,10 +1344,7 @@ public class PlayerService {
 		Instant now = clock.instant();
 		LocalDate today = LocalDate.now(clock);
 		if (player.getRookieEventStartedAt() == null) {
-			if (!rookieEventStartAvailable(now)) {
-				return;
-			}
-			player.startRookieEvent(now, today);
+			return;
 		}
 		if (!player.isRookieEventRewardClaimed()
 				&& !rookieEventExpired(player, now)
@@ -1395,6 +1412,9 @@ public class PlayerService {
 	private void claimRookieEventDailyReward(Player player, int day) {
 		int completedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventCompletedDays()));
 		int rewardedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventRewardedDays()));
+		if (player.getRookieEventStartedAt() == null) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이벤트를 먼저 시작해 주세요.");
+		}
 		if (day < 1 || day > ROOKIE_EVENT_DAYS) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 이벤트 일차예요.");
 		}
@@ -1425,7 +1445,11 @@ public class PlayerService {
 	}
 
 	private RookieEventResponse rookieEventResponse(Player player) {
-		if (!player.hasChosenJob() || player.getRookieEventStartedAt() == null) {
+		Instant now = clock.instant();
+		boolean startable = player.hasChosenJob()
+				&& player.getRookieEventStartedAt() == null
+				&& rookieEventStartAvailable(now);
+		if (!player.hasChosenJob() || !rookieEventVisible(player, now)) {
 			return new RookieEventResponse(
 					false,
 					false,
@@ -1433,8 +1457,13 @@ public class PlayerService {
 					false,
 					false,
 					false,
+					false,
+					false,
+					false,
 					null,
 					null,
+					null,
+					0,
 					0,
 					0,
 					1,
@@ -1443,10 +1472,34 @@ public class PlayerService {
 					ROOKIE_EVENT_PET_SKILL_LEVEL,
 					List.of());
 		}
-		Instant now = clock.instant();
+		if (player.getRookieEventStartedAt() == null) {
+			return new RookieEventResponse(
+					true,
+					false,
+					startable,
+					false,
+					false,
+					false,
+					false,
+					false,
+					false,
+					null,
+					null,
+					null,
+					(int) ROOKIE_EVENT_PLAYER_DAYS,
+					0,
+					0,
+					1,
+					"별빛토",
+					"일반 펫 15레벨 기준 성능 · 펫 보유 수 제한 미포함",
+					ROOKIE_EVENT_PET_SKILL_LEVEL,
+					List.of());
+		}
 		Instant endsAt = rookieEventEndsAt(player);
+		Instant rewardExpiresAt = rookieEventRewardExpiresAt(player);
 		int completedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventCompletedDays()));
 		boolean rewardClaimed = player.isRookieEventRewardClaimed();
+		boolean rewardActive = rookieEventRewardActive(player, now);
 		boolean expired = rookieEventExpired(player, now);
 		boolean completed = rewardClaimed || completedDays >= ROOKIE_EVENT_DAYS;
 		boolean lockedUntilTomorrow = !completed
@@ -1458,14 +1511,19 @@ public class PlayerService {
 				.toList();
 		return new RookieEventResponse(
 				true,
+				true,
+				false,
 				!completed && !expired,
 				expired,
 				completed,
 				rewardClaimed,
+				rewardActive,
 				lockedUntilTomorrow,
 				player.getRookieEventStartedAt(),
 				endsAt,
+				rewardExpiresAt,
 				daysRemaining(now, endsAt),
+				daysRemaining(now, rewardExpiresAt),
 				completedDays,
 				currentDay,
 				"별빛토",
@@ -1576,14 +1634,48 @@ public class PlayerService {
 	private boolean rookieEventExpired(Player player, Instant now) {
 		Instant endsAt = rookieEventEndsAt(player);
 		return endsAt != null
-				&& now.isAfter(endsAt)
+				&& !now.isBefore(endsAt)
 				&& !player.isRookieEventRewardClaimed()
 				&& player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS;
 	}
 
+	private boolean rookieEventVisible(Player player, Instant now) {
+		if (!player.hasChosenJob()) {
+			return false;
+		}
+		if (player.getRookieEventStartedAt() == null) {
+			return rookieEventStartAvailable(now);
+		}
+		Instant claimedAt = player.getRookieEventRewardClaimedAt();
+		if (claimedAt != null) {
+			return now.isBefore(claimedAt.plus(ROOKIE_EVENT_COMPLETED_VISIBLE_DURATION));
+		}
+		if (player.getRookieEventCompletedDays() >= ROOKIE_EVENT_DAYS) {
+			return true;
+		}
+		Instant endsAt = rookieEventEndsAt(player);
+		return endsAt == null || now.isBefore(endsAt.plus(ROOKIE_EVENT_COMPLETED_VISIBLE_DURATION));
+	}
+
 	private Instant rookieEventEndsAt(Player player) {
 		Instant startedAt = player.getRookieEventStartedAt();
-		return startedAt == null ? null : startedAt.plus(ROOKIE_EVENT_PLAYER_DURATION);
+		if (startedAt == null) {
+			return null;
+		}
+		return LocalDate.ofInstant(startedAt, clock.getZone())
+				.plusDays(ROOKIE_EVENT_PLAYER_DAYS)
+				.atStartOfDay(clock.getZone())
+				.toInstant();
+	}
+
+	private Instant rookieEventRewardExpiresAt(Player player) {
+		Instant claimedAt = player.getRookieEventRewardClaimedAt();
+		return claimedAt == null ? null : claimedAt.plus(ROOKIE_EVENT_REWARD_DURATION);
+	}
+
+	private boolean rookieEventRewardActive(Player player, Instant now) {
+		Instant rewardExpiresAt = rookieEventRewardExpiresAt(player);
+		return rewardExpiresAt != null && now.isBefore(rewardExpiresAt);
 	}
 
 	private boolean rookieEventStartAvailable(Instant now) {
@@ -1595,8 +1687,9 @@ public class PlayerService {
 		if (endsAt == null || !endsAt.isAfter(now)) {
 			return 0;
 		}
-		long seconds = Duration.between(now, endsAt).getSeconds();
-		return (int) ((seconds + DAY_SECONDS - 1) / DAY_SECONDS);
+		LocalDate today = LocalDate.ofInstant(now, clock.getZone());
+		LocalDate endDate = LocalDate.ofInstant(endsAt, clock.getZone());
+		return (int) Math.max(0, ChronoUnit.DAYS.between(today, endDate));
 	}
 
 	private void publishAutoHuntEndNotificationIfDue(Player player, Instant now, long settledGold) {
@@ -1773,7 +1866,7 @@ public class PlayerService {
 	}
 
 	private double rookieEventPetPayoutRate(Player player) {
-		if (!player.isRookieEventRewardClaimed()) {
+		if (!rookieEventRewardActive(player, clock.instant())) {
 			return 0;
 		}
 		return PET_UNLOCK_PAYOUT_RATE
@@ -1781,7 +1874,7 @@ public class PlayerService {
 	}
 
 	private int rookieEventPetDamage(Player player) {
-		if (!player.isRookieEventRewardClaimed()) {
+		if (!rookieEventRewardActive(player, clock.instant())) {
 			return 0;
 		}
 		return 4 + scaledSkillValue(ROOKIE_EVENT_PET_SKILL_LEVEL, MAX_PET_SKILL_DAMAGE_BONUS);

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260603-03" />
+    <link rel="stylesheet" href="/styles.css?v=20260603-04" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -179,6 +179,16 @@
             <small data-skill-tier="PET_AQUA_ATTACK">두 번째 동료 펫을 구매하면 강화할 수 있어요</small>
           </div>
           <button class="upgrade-skill" type="button" data-skill="PET_AQUA_ATTACK">잠금</button>
+        </article>
+
+        <article id="rookieEventSkillRow" class="upgrade-row skill-row pet-skill-row rookie-event-skill-row hidden">
+          <div class="skill-portrait pet-event-icon"></div>
+          <div class="upgrade-copy">
+            <strong>별빛토 이벤트 동행 <span id="rookieEventSkillRemaining">기간제</span></strong>
+            <p id="rookieEventSkillEffect">일반 펫 15레벨 기준 성능</p>
+            <small id="rookieEventSkillTier">스킨 변경 불가 · 기간 종료 시 보너스 종료</small>
+          </div>
+          <button class="upgrade-skill rookie-event-skill-button" type="button" disabled>기간제</button>
         </article>
 
           </section>
@@ -532,6 +542,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260603-03"></script>
+    <script src="/app.js?v=20260603-04"></script>
   </body>
 </html>

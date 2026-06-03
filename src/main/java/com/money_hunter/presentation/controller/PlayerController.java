@@ -107,6 +107,11 @@ public class PlayerController {
 		return playerService.completeFeatureTutorial(userKey(principal));
 	}
 
+	@PostMapping("/rookie-event/start")
+	public PlayerStateResponse startRookieEvent(Principal principal) {
+		return playerService.startRookieEvent(userKey(principal));
+	}
+
 	@PostMapping("/game-profile")
 	public PlayerStateResponse updateGameProfile(
 			Principal principal,

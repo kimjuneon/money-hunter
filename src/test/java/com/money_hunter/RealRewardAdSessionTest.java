@@ -106,13 +106,25 @@ class RealRewardAdSessionTest {
 	}
 
 	@Test
-	void firstJobSelectionStartsRookieEventPlan() throws Exception {
+	void rookieEventStartsOnlyWhenUserOpensEvent() throws Exception {
 		mockMvc.perform(post("/api/player/job")
 						.with(user("rookie-event-user"))
 						.contentType(APPLICATION_JSON)
 						.content("{\"job\":\"WARRIOR\"}"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.rookieEvent.visible", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.started", is(false)))
+				.andExpect(jsonPath("$.rookieEvent.startable", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.active", is(false)))
+				.andExpect(jsonPath("$.rookieEvent.daysRemaining", is(10)))
+				.andExpect(jsonPath("$.rookieEvent.days.length()", is(0)));
+
+		mockMvc.perform(post("/api/player/rookie-event/start")
+						.with(user("rookie-event-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.visible", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.started", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.startable", is(false)))
 				.andExpect(jsonPath("$.rookieEvent.active", is(true)))
 				.andExpect(jsonPath("$.rookieEvent.daysRemaining", is(10)))
 				.andExpect(jsonPath("$.rookieEvent.completedDays", is(0)))
@@ -122,6 +134,7 @@ class RealRewardAdSessionTest {
 				.andExpect(jsonPath("$.rookieEvent.days[0].title", is("사냥 준비")))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardLabel", is("SP 1개")))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimable", is(false)))
+				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].label", is("토스 포인트 수령하기")))
 				.andExpect(jsonPath("$.rookieEvent.days[1].rewardLabel", is("자동전투 1시간")))
 				.andExpect(jsonPath("$.rookieEvent.days[2].rewardLabel", is("공속버프 1시간")))
 				.andExpect(jsonPath("$.rookieEvent.days[5].missions[2].label", is("10레벨 달성하기")));
@@ -133,6 +146,9 @@ class RealRewardAdSessionTest {
 						.with(user("rookie-event-reward-user"))
 						.contentType(APPLICATION_JSON)
 						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/rookie-event/start")
+						.with(user("rookie-event-reward-user")))
 				.andExpect(status().isOk());
 
 		transactionTemplate.executeWithoutResult(status -> {
@@ -188,7 +204,9 @@ class RealRewardAdSessionTest {
 						.with(user("rookie-event-final-user")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.rookieEvent.completed", is(true)))
-				.andExpect(jsonPath("$.rookieEvent.rewardClaimed", is(true)));
+				.andExpect(jsonPath("$.rookieEvent.rewardClaimed", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.rewardActive", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.rewardDaysRemaining", is(30)));
 	}
 
 	@Test

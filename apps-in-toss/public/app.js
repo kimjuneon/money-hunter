@@ -1558,7 +1558,7 @@ function renderShopPanel(player) {
     const shopCard = $(`pet${index + 1 === 1 ? "One" : "Two"}Shop`);
     const status = $(pet.statusId);
     $(pet.shopImageId).src = skin.image;
-    $(pet.shopNameId).textContent = skin.name;
+    $(pet.shopNameId).textContent = `${skin.name} (영구)`;
     $(pet.shopCopyId).textContent = skin.copy;
     shopCard.classList.toggle("locked", !unlocked);
     shopCard.classList.toggle("skin-change-available", unlocked);
@@ -1638,14 +1638,14 @@ function renderPetSkinShop(player) {
       const copy = document.createElement("div");
       copy.className = "pet-skin-copy";
       const title = document.createElement("strong");
-      title.textContent = skin.name;
+      title.textContent = ownedSkin ? `${skin.name} (영구)` : skin.name;
       const description = document.createElement("p");
       description.textContent = skin.copy;
       const status = document.createElement("small");
       status.textContent = ownedSkin
         ? selectedSkinKey === skinKey
           ? `${slot}번 펫 착용 중`
-          : "보유 중"
+          : "보유 중 · 영구"
         : `${priceGold.toLocaleString("ko-KR")}G로 해금`;
       copy.append(title, description, status);
       card.appendChild(copy);
@@ -1745,7 +1745,7 @@ function renderPets(player) {
     }
   });
   const eventPet = $("petRookieEvent");
-  const showEventPet = Boolean(player?.rookieEvent?.rewardClaimed);
+  const showEventPet = rookieEventRewardActive(player);
   eventPet.classList.toggle("hidden", !showEventPet);
   if (showEventPet) {
     eventPet.src = rookieEventAssets.pet;
@@ -1762,15 +1762,38 @@ function renderRookieEvent(player) {
     closeRookieEventModal();
     return;
   }
-  $("rookieEventButtonProgress").textContent = `${event.completedDays || 0}/7`;
+  $("rookieEventButtonProgress").textContent = event.started ? `${event.completedDays || 0}/7` : "시작";
   if (!$("rookieEventModal").classList.contains("hidden")) {
     renderRookieEventModal(event);
   }
 }
 
-function openRookieEventModal() {
-  const event = state.player?.rookieEvent;
+async function openRookieEventModal() {
+  let event = state.player?.rookieEvent;
   if (!event?.visible) {
+    return;
+  }
+  if (!event.started && event.startable) {
+    const button = $("rookieEventButton");
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    try {
+      setMessage("이벤트를 시작하는 중이에요.");
+      const player = await requestWithLoginRetry(() => api("/api/player/rookie-event/start", { method: "POST" }));
+      setServerPlayer(player, { resetDisplayGold: true });
+      render();
+      event = state.player?.rookieEvent;
+      setMessage("7일 사냥 동행 이벤트가 시작됐어요.");
+    } catch (error) {
+      setMessage(error.message || "이벤트 시작에 실패했어요.");
+      return;
+    } finally {
+      button.disabled = false;
+      button.setAttribute("aria-busy", "false");
+    }
+  }
+  if (!event?.started) {
+    setMessage("이벤트를 시작할 수 없어요.");
     return;
   }
   state.rookieEventSelectedDay = event.currentDay || 1;
@@ -1795,14 +1818,16 @@ function renderRookieEventModal(event) {
   }
   state.rookieEventSelectedDay = selectedDay.day;
   $("rookieEventSummary").textContent = rookieEventSummaryText(event);
-  $("rookieEventDaysLeft").textContent = event.rewardClaimed
-    ? "보상 획득 완료"
+  $("rookieEventDaysLeft").textContent = event.rewardActive
+    ? `이벤트 펫 ${rookieEventRewardRemainingText(event)}`
+    : event.rewardClaimed
+      ? "이벤트 펫 기간 종료"
     : event.expired
       ? "이벤트 종료"
       : `진행 기간 ${event.daysRemaining || 0}일 남음`;
   $("rookieEventProgress").textContent = `${event.completedDays || 0} / 7일 완료`;
   $("rookieEventRewardName").textContent = event.rewardName || "별빛토";
-  $("rookieEventRewardCopy").textContent = event.rewardDescription || "이벤트 전용 펫 · 일반 펫 15레벨 성능";
+  renderRookieEventRewardCopy(event.rewardDescription || "일반 펫 15레벨 기준 성능 · 펫 보유 수 제한 미포함");
   $("rookieEventRewardStatus").textContent = rookieEventRewardStatusText(event);
   const finalClaimButton = $("rookieEventFinalClaimButton");
   const finalClaimable = rookieEventFinalRewardClaimable(event);
@@ -1813,8 +1838,11 @@ function renderRookieEventModal(event) {
 }
 
 function rookieEventSummaryText(event) {
+  if (event.rewardActive) {
+    return `별빛토가 전투에 함께하고 있어요. ${rookieEventRewardRemainingText(event)}`;
+  }
   if (event.rewardClaimed) {
-    return "별빛토가 전투에 함께하고 있어요.";
+    return "이벤트 펫 동행 기간이 종료됐어요.";
   }
   if (event.expired) {
     return "이벤트 기간이 종료됐어요.";
@@ -1826,8 +1854,11 @@ function rookieEventSummaryText(event) {
 }
 
 function rookieEventRewardStatusText(event) {
+  if (event.rewardActive) {
+    return `전투 보너스 적용 중 · ${rookieEventRewardRemainingText(event)}`;
+  }
   if (event.rewardClaimed) {
-    return "전투 보너스 적용 중";
+    return "이벤트 펫 기간 종료";
   }
   if (event.expired) {
     return "이벤트 종료";
@@ -1840,6 +1871,25 @@ function rookieEventRewardStatusText(event) {
 
 function rookieEventFinalRewardClaimable(event) {
   return Boolean(event?.completed && !event.rewardClaimed);
+}
+
+function renderRookieEventRewardCopy(description) {
+  const target = $("rookieEventRewardCopy");
+  const [main, sub] = String(description).split(" · ");
+  target.replaceChildren(document.createTextNode(main || "일반 펫 15레벨 기준 성능"));
+  if (sub) {
+    target.appendChild(document.createElement("br"));
+    target.appendChild(document.createTextNode(sub));
+  }
+}
+
+function rookieEventRewardRemainingText(event = state.player?.rookieEvent) {
+  const days = Number(event?.rewardDaysRemaining || 0);
+  return days > 0 ? `${days}일 남음` : "오늘 종료";
+}
+
+function rookieEventRewardActive(player = state.player) {
+  return Boolean(player?.rookieEvent?.rewardActive);
 }
 
 function renderRookieEventDayTabs(days) {
@@ -2179,7 +2229,7 @@ function renderSkills(player) {
     const iconElement = document.querySelector(`[data-effect-icon="${skill.type}"]`);
     const labelElement = document.querySelector(`[data-skill-label="${skill.type}"]`);
     if (labelElement && meta.petIndex) {
-      labelElement.textContent = `${petSkinForSlot(meta.petIndex, player).name} 공격`;
+      labelElement.textContent = `${petSkinForSlot(meta.petIndex, player).name} (영구) 공격`;
       const portrait = document
         .querySelector(`[data-skill-row="${skill.type}"]`)
         ?.querySelector(".skill-portrait");
@@ -2215,8 +2265,12 @@ function renderSkills(player) {
       iconElement.dataset.tier = previewTier;
     }
   });
+  renderRookieEventSkillRow(player);
 
   document.querySelectorAll(".upgrade-skill").forEach((button) => {
+    if (!button.dataset.skill) {
+      return;
+    }
     const skill = skillsByType.get(button.dataset.skill);
     const meta = skillMeta[button.dataset.skill];
     const maxLevel = meta?.max || skillMaxLevel;
@@ -2229,6 +2283,21 @@ function renderSkills(player) {
         ? "<span>MAX</span><small>완료</small>"
         : "<span>강화</span><small>SP 1</small>";
   });
+}
+
+function renderRookieEventSkillRow(player = state.player) {
+  const row = $("rookieEventSkillRow");
+  const event = player?.rookieEvent;
+  const active = Boolean(event?.rewardActive);
+  row.classList.toggle("hidden", !active);
+  if (!active) {
+    return;
+  }
+  const level = Number(event.eventPetSkillLevel || 15);
+  const damage = 4 + scaledSkillValue(level, 40);
+  $("rookieEventSkillRemaining").textContent = rookieEventRewardRemainingText(event);
+  $("rookieEventSkillEffect").textContent = `공격 피해량 +${damage} · 보상 효율 보너스 적용`;
+  $("rookieEventSkillTier").textContent = "일반 펫 15레벨 기준 성능 · 스킨 변경 불가";
 }
 
 function formatPercentValue(value) {
@@ -2346,6 +2415,9 @@ function localPetDamage(player) {
   }
   if (pets >= 2) {
     damage += scaledSkillValue(skillLevel("PET_AQUA_ATTACK"), 40);
+  }
+  if (rookieEventRewardActive(player)) {
+    damage += 4 + scaledSkillValue(player?.rookieEvent?.eventPetSkillLevel || 15, 40);
   }
   return damage;
 }
@@ -3684,6 +3756,16 @@ function spawnPetAttacks() {
       window.setTimeout(() => attack.remove(), 960);
     }, delayMs);
   });
+  if (rookieEventRewardActive()) {
+    window.setTimeout(() => {
+      const attack = document.createElement("img");
+      attack.className = "pet-attack pet-event-attack";
+      attack.src = rookieEventAssets.trail;
+      attack.alt = "";
+      $("petAttackLayer").appendChild(attack);
+      window.setTimeout(() => attack.remove(), 980);
+    }, 520);
+  }
 }
 
 function showLevelUpModal(level, gainedSkillPoints = 1) {

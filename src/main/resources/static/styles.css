@@ -327,6 +327,11 @@ img {
   box-shadow: 0 4px 8px rgba(15, 23, 42, 0.24);
 }
 
+.rookie-event-button:disabled {
+  opacity: 0.72;
+  filter: grayscale(0.2);
+}
+
 .hunter-wrap {
   position: absolute;
   bottom: 52px;
@@ -473,6 +478,7 @@ img {
   bottom: 0;
   width: 58px;
   height: 58px;
+  z-index: 2;
   animation: petFloat 1.6s ease-in-out infinite;
 }
 
@@ -485,10 +491,11 @@ img {
 }
 
 .pet-event {
-  left: 80px;
-  bottom: 4px;
-  width: 64px;
-  height: 64px;
+  left: -28px;
+  bottom: -13px;
+  width: 58px;
+  height: 58px;
+  z-index: 1;
   animation: petFloat 1.9s ease-in-out infinite;
 }
 
@@ -756,6 +763,16 @@ img {
   top: 172px;
   --pet-attack-fly-x: 198px;
   animation-duration: 0.9s;
+}
+
+.pet-event-attack {
+  left: 132px;
+  top: 204px;
+  width: 118px;
+  height: 72px;
+  --pet-attack-fly-x: 226px;
+  --pet-attack-fly-y: -66px;
+  animation-duration: 0.88s;
 }
 
 .skill-effect {
@@ -1616,7 +1633,8 @@ img {
 }
 
 .skill-portrait.pet-flare-icon,
-.skill-portrait.pet-aqua-icon {
+.skill-portrait.pet-aqua-icon,
+.skill-portrait.pet-event-icon {
   background-position: center;
   background-repeat: no-repeat;
   background-size: 110%;
@@ -1630,6 +1648,11 @@ img {
 .skill-portrait.pet-aqua-icon {
   background-image: url("/assets/pet-aquabun.svg");
   background-color: #eff6ff;
+}
+
+.skill-portrait.pet-event-icon {
+  background-image: url("/assets/events/rookie-event-pet.png?v=20260602-01");
+  background-color: #fffbeb;
 }
 
 .effect-portrait {
@@ -1700,6 +1723,26 @@ img {
 .pet-skill-row {
   border-color: #c4b5fd;
   background: linear-gradient(90deg, #f8fafc, #f5f3ff);
+}
+
+.rookie-event-skill-row {
+  border-color: rgba(234, 179, 8, 0.42);
+  background: linear-gradient(90deg, #fffbeb, #ffffff);
+}
+
+.rookie-event-skill-row .upgrade-copy strong span {
+  display: inline-block;
+  margin-left: 4px;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 1000;
+}
+
+.rookie-event-skill-button:disabled {
+  border-color: #facc15;
+  background: #fef3c7;
+  color: #92400e;
+  opacity: 1;
 }
 
 .feature-tutorial {
