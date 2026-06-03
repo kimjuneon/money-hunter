@@ -11,7 +11,7 @@ public class RookieEventMissionNotificationScheduler {
 		this.playerService = playerService;
 	}
 
-	@Scheduled(fixedDelayString = "${money-hunter.notifications.rookie-event-mission-check-ms:600000}")
+	@Scheduled(fixedDelayString = "${money-hunter.notifications.rookie-event-mission-check-ms:3600000}")
 	public void publishRookieEventMissionNotifications() {
 		playerService.publishRookieEventMissionNotifications();
 	}

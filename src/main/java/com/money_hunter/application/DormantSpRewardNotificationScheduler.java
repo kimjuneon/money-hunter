@@ -11,7 +11,7 @@ public class DormantSpRewardNotificationScheduler {
 		this.playerService = playerService;
 	}
 
-	@Scheduled(fixedDelayString = "${money-hunter.notifications.dormant-sp-reward-check-ms:600000}")
+	@Scheduled(fixedDelayString = "${money-hunter.notifications.dormant-sp-reward-check-ms:3600000}")
 	public void publishDormantSpRewardNotifications() {
 		playerService.publishDormantSpRewardNotifications();
 	}
