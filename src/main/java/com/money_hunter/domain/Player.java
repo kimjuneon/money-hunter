@@ -154,6 +154,9 @@ public class Player {
 	@Column(nullable = false)
 	private int rookieEventDailySkillPointsSpent = 0;
 
+	@Column(nullable = false)
+	private boolean rookieEventDailyHomeShortcutReturned = false;
+
     @Column(nullable = false)
 	private Instant lastSettledAt;
 
@@ -386,6 +389,13 @@ public class Player {
 	public void addRookieEventSkillPointSpent() {
 		this.rookieEventDailySkillPointsSpent += 1;
 		touch();
+	}
+
+	public void markRookieEventHomeShortcutReturned() {
+		if (!rookieEventDailyHomeShortcutReturned) {
+			this.rookieEventDailyHomeShortcutReturned = true;
+			touch();
+		}
 	}
 
 	public void completeRookieEventDay(LocalDate today, Instant now, int maxEventDays) {
@@ -735,6 +745,7 @@ public class Player {
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;
+		this.rookieEventDailyHomeShortcutReturned = false;
 		touch();
 	}
 

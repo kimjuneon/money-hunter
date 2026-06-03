@@ -136,8 +136,53 @@ class RealRewardAdSessionTest {
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimable", is(false)))
 				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].label", is("토스 포인트 수령하기")))
 				.andExpect(jsonPath("$.rookieEvent.days[1].rewardLabel", is("자동전투 1시간")))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].key", is("home_shortcut_return")))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].label", is("머니헌터 홈 화면에 추가하고 다시 접속하기")))
 				.andExpect(jsonPath("$.rookieEvent.days[2].rewardLabel", is("공속버프 1시간")))
 				.andExpect(jsonPath("$.rookieEvent.days[5].missions[2].label", is("10레벨 달성하기")));
+	}
+
+	@Test
+	void rookieEventHomeShortcutReturnCompletesSecondDayMission() throws Exception {
+		mockMvc.perform(post("/api/player/job")
+						.with(user("rookie-event-home-user"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/rookie-event/start")
+						.with(user("rookie-event-home-user")))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey("rookie-event-home-user").orElseThrow();
+			player.overrideRookieEventForTest(
+					Instant.now().minus(Duration.ofDays(1)),
+					LocalDate.now().minusDays(1),
+					1,
+					1,
+					false,
+					7);
+		});
+
+		mockMvc.perform(get("/api/player")
+						.with(user("rookie-event-home-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.currentDay", is(2)))
+				.andExpect(jsonPath("$.rookieEvent.days[1].current", is(true)));
+
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey("rookie-event-home-user").orElseThrow();
+			player.addRookieEventCombatProgress(Duration.ofHours(2).toMillis(), 0, 35, 0);
+		});
+
+		mockMvc.perform(post("/api/player/rookie-event/home-shortcut-return")
+						.with(user("rookie-event-home-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.completedDays", is(2)))
+				.andExpect(jsonPath("$.rookieEvent.days[1].completed", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].key", is("home_shortcut_return")))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].completed", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].progressText", is("확인 완료")));
 	}
 
 	@Test

@@ -112,6 +112,11 @@ public class PlayerController {
 		return playerService.startRookieEvent(userKey(principal));
 	}
 
+	@PostMapping("/rookie-event/home-shortcut-return")
+	public PlayerStateResponse completeRookieEventHomeShortcutMission(Principal principal) {
+		return playerService.completeRookieEventHomeShortcutMission(userKey(principal));
+	}
+
 	@PostMapping("/game-profile")
 	public PlayerStateResponse updateGameProfile(
 			Principal principal,

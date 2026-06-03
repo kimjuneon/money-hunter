@@ -23,6 +23,8 @@ function showStartupError(error) {
 const distributionTargetOverride = new URLSearchParams(window.location.search).get("target");
 const pendingIapProductStorageKey = "moneyHunter.pendingIapProducts";
 const hiddenPetSkinsStorageKey = "moneyHunter.hideEasterEggSkins";
+const rookieHomeShortcutParam = "rookieHome";
+const rookieHomeShortcutValue = "1";
 
 const state = {
   player: null,
@@ -112,6 +114,7 @@ const state = {
   petEasterEggSkinsHidden: storedValue(hiddenPetSkinsStorageKey) === "true",
   petSkinModalSlot: 1,
   rookieEventSelectedDay: 1,
+  rookieHomeShortcutReturnHandled: false,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
 
@@ -824,6 +827,7 @@ async function api(path, options = {}) {
 
 async function refresh() {
   applyServerPlayer(await api("/api/player"));
+  await completeRookieHomeShortcutMissionIfNeeded();
   hideLoginGate();
   if (state.player.job) {
     state.selectedJob = state.player.job;
@@ -1892,6 +1896,52 @@ function rookieEventRewardActive(player = state.player) {
   return Boolean(player?.rookieEvent?.rewardActive);
 }
 
+function rookieHomeShortcutReturnRequested() {
+  return new URLSearchParams(window.location.search).get(rookieHomeShortcutParam) === rookieHomeShortcutValue;
+}
+
+function prepareRookieHomeShortcutMissionUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.set(rookieHomeShortcutParam, rookieHomeShortcutValue);
+  window.history.replaceState(null, "", url);
+  setMessage("이 상태에서 토스 더보기의 홈 화면에 추가하기를 누른 뒤, 홈 아이콘으로 다시 들어와 주세요.", 7800);
+}
+
+function clearRookieHomeShortcutMissionUrl() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(rookieHomeShortcutParam)) {
+    return;
+  }
+  url.searchParams.delete(rookieHomeShortcutParam);
+  window.history.replaceState(null, "", url);
+}
+
+function rookieEventMissionCompleted(player, missionKey) {
+  const days = player?.rookieEvent?.days || [];
+  return days.some((day) => (day.missions || []).some((mission) => mission.key === missionKey && mission.completed));
+}
+
+async function completeRookieHomeShortcutMissionIfNeeded() {
+  if (state.rookieHomeShortcutReturnHandled || !rookieHomeShortcutReturnRequested()) {
+    return;
+  }
+  state.rookieHomeShortcutReturnHandled = true;
+  const wasCompleted = rookieEventMissionCompleted(state.player, "home_shortcut_return");
+  try {
+    const player = await api("/api/player/rookie-event/home-shortcut-return", { method: "POST" });
+    applyServerPlayer(player);
+    clearRookieHomeShortcutMissionUrl();
+    if (!wasCompleted && rookieEventMissionCompleted(player, "home_shortcut_return")) {
+      setMessage("홈 화면 재접속 미션을 확인했어요.");
+    } else {
+      setMessage("홈 화면 재접속 확인을 기록했어요. 2일차 미션일 때 완료돼요.");
+    }
+  } catch (error) {
+    state.rookieHomeShortcutReturnHandled = false;
+    throw error;
+  }
+}
+
 function renderRookieEventDayTabs(days) {
   const tabs = $("rookieEventDayTabs");
   tabs.replaceChildren(...days.map((day) => {
@@ -1923,7 +1973,17 @@ function renderRookieEventSelectedDay(day) {
     progress.textContent = mission.completed ? "완료" : mission.progressText;
     const bar = document.createElement("i");
     bar.style.setProperty("--progress", `${Math.max(0, Math.min(100, mission.progressPercent || 0))}%`);
-    row.append(label, progress, bar);
+    row.append(label, progress);
+    if (mission.key === "home_shortcut_return" && day.current && !day.locked && !mission.completed) {
+      row.classList.add("has-action");
+      const action = document.createElement("button");
+      action.className = "rookie-event-mission-action";
+      action.type = "button";
+      action.textContent = rookieHomeShortcutReturnRequested() ? "준비됨" : "준비하기";
+      action.addEventListener("click", prepareRookieHomeShortcutMissionUrl);
+      row.append(action);
+    }
+    row.append(bar);
     return row;
   }));
 }

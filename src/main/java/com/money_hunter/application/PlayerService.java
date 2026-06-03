@@ -142,7 +142,7 @@ public class PlayerService {
 			new RookieEventDayPlan(2, "채굴 감각", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_2h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 2, "사냥 2시간 진행하기"),
 					new RookieMissionPlan("monsters_35", RookieMissionType.MONSTERS, 35, "몬스터 35마리 처치하기"),
-					new RookieMissionPlan("gold_5000", RookieMissionType.GOLD, 5_000, "골드 5,000G 모으기")
+					new RookieMissionPlan("home_shortcut_return", RookieMissionType.HOME_SHORTCUT_RETURN, 1, "머니헌터 홈 화면에 추가하고 다시 접속하기")
 			)),
 			new RookieEventDayPlan(3, "성장 루틴", boostReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
@@ -178,7 +178,8 @@ public class PlayerService {
 		GOLD,
 		SETTLEMENTS,
 		SKILL_POINTS_SPENT,
-		LEVEL
+		LEVEL,
+		HOME_SHORTCUT_RETURN
 	}
 
 	private enum RookieEventDailyRewardType {
@@ -737,6 +738,19 @@ public class PlayerService {
 			player.startRookieEvent(now, LocalDate.now(clock));
 		}
 		prepareRookieEvent(player);
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeRookieEventHomeShortcutMission(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		prepareRookieEvent(player);
+		if (canProgressRookieEvent(player) && currentRookieEventDay(player) == 2) {
+			player.markRookieEventHomeShortcutReturned();
+			completeRookieEventDayIfReady(player);
+			log.info("신규 이벤트 홈 화면 재접속 미션 확인: userKey={}", mask(userKey));
+		}
 		return toState(player);
 	}
 
@@ -1587,6 +1601,7 @@ public class PlayerService {
 			case SETTLEMENTS -> player.getRookieEventDailySettlements();
 			case SKILL_POINTS_SPENT -> player.getRookieEventDailySkillPointsSpent();
 			case LEVEL -> player.getLevel();
+			case HOME_SHORTCUT_RETURN -> player.isRookieEventDailyHomeShortcutReturned() ? 1 : 0;
 		};
 	}
 
@@ -1596,6 +1611,7 @@ public class PlayerService {
 			case HUNT_MILLIS -> formatDuration(capped) + " / " + formatDuration(mission.target());
 			case GOLD -> String.format("%,dG / %,dG", capped, mission.target());
 			case LEVEL -> capped + "레벨 / " + mission.target() + "레벨";
+			case HOME_SHORTCUT_RETURN -> capped >= mission.target() ? "확인 완료" : "홈 화면에서 다시 접속";
 			default -> capped + " / " + mission.target();
 		};
 	}
