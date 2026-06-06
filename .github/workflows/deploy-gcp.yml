@@ -25,6 +25,7 @@ env:
   REGION: ${{ vars.GCP_REGION || 'asia-northeast3' }}
   ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY || 'money-hunter' }}
   REVIEW_SERVICE: ${{ vars.GCP_REVIEW_SERVICE || 'money-hunter-review' }}
+  REVIEW_MEMORY: ${{ vars.GCP_REVIEW_MEMORY || '1Gi' }}
   PROD_SERVICE: ${{ vars.GCP_PROD_SERVICE || 'money-hunter-prod' }}
   CLOUD_SQL_INSTANCE: ${{ vars.GCP_CLOUD_SQL_INSTANCE }}
   DB_USER: ${{ vars.GCP_DB_USER || 'money_hunter_app' }}
@@ -236,6 +237,7 @@ jobs:
             --allow-unauthenticated \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --add-cloudsql-instances "$CLOUD_SQL_INSTANCE" \
+            --memory "$REVIEW_MEMORY" \
             --set-env-vars "$REVIEW_ENV_VARS" \
             --set-secrets "$REVIEW_SECRETS"
           gcloud run services describe "$REVIEW_SERVICE" \
