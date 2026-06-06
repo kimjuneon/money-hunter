@@ -253,7 +253,7 @@ class RealRewardAdSessionTest {
 			var player = playerRepository.findByUserKey("rookie-event-sp-help-user").orElseThrow();
 			player.overrideRookieEventForTest(
 					Instant.now().minus(Duration.ofDays(2)),
-					LocalDate.now().minusDays(1),
+					LocalDate.now().minusDays(3),
 					2,
 					2,
 					false,

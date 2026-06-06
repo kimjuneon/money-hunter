@@ -1892,9 +1892,12 @@ function openAdventureInfoModal() {
   $("adventureInfoList").innerHTML = dungeonTiers.map((tier, index) => {
     const boss = bossRaidTiers[index] || bossRaidTiers[bossRaidTiers.length - 1];
     const unlocked = power >= tier.minCombatPower;
+    const powerLabel = tier.powerLabel
+      .replace("500만~2,000만", "500만<br>~2,000만")
+      .replace("2,000만~6,000만", "2,000만<br>~6,000만");
     return `
       <div class="adventure-info-row ${unlocked ? "is-unlocked" : ""}">
-        <strong>${tier.powerLabel}</strong>
+        <strong>${powerLabel}</strong>
         <div>
           <b>${tier.name} · ${boss.bossName}</b>
           <span>던전: ${tier.rewardPreview}</span>

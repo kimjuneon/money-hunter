@@ -734,35 +734,35 @@ img {
 }
 
 .projectile.skill-projectile.sword {
-  left: 110px;
+  left: 98px;
   top: 102px;
   width: 136px;
   height: 136px;
-  --fly-x: 187px;
+  --fly-x: 199px;
 }
 
 .projectile.skill-projectile.arrow {
-  left: 114px;
+  left: 102px;
   top: 103px;
   width: 130px;
   height: 130px;
-  --fly-x: 179px;
+  --fly-x: 191px;
 }
 
 .projectile.skill-projectile.magic {
-  left: 112px;
+  left: 100px;
   top: 103px;
   width: 132px;
   height: 132px;
-  --fly-x: 189px;
+  --fly-x: 201px;
 }
 
 .projectile.skill-projectile.shuriken {
-  left: 113px;
+  left: 101px;
   top: 105px;
   width: 130px;
   height: 130px;
-  --fly-x: 196px;
+  --fly-x: 208px;
 }
 
 .skill-effect-layer {
@@ -1025,38 +1025,29 @@ img {
 }
 
 .action-metric:first-of-type span::before {
-  content: "⚔";
+  content: "";
   position: absolute;
   top: 50%;
-  right: calc(100% + 4px);
+  right: calc(100% + 1px);
   margin-right: 0;
-  color: #f8fafc;
-  font-size: 1.2em;
+  width: 1.42em;
+  height: 1.42em;
+  background: url("/assets/action-sword.png") center / 156% auto no-repeat;
   transform: translateY(calc(-50% - 1px));
   filter:
-    drop-shadow(0 1px 1px rgba(15, 23, 42, 0.72))
+    drop-shadow(0 1px 1px rgba(15, 23, 42, 0.66))
     drop-shadow(0 0 6px rgba(250, 204, 21, 0.56));
 }
 
 .action-metric:nth-of-type(2) span::before {
-  content: "C";
-  width: 0.82em;
-  height: 0.82em;
-  margin-right: 3px;
-  border: 1px solid rgba(255, 226, 101, 0.82);
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 25%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
-    radial-gradient(circle at 50% 52%, #ffe27a 0 45%, #f5bd2f 46% 68%, #d99616 69% 100%);
-  color: #9a5b00;
-  font-size: 0.82em;
-  font-weight: 900;
-  line-height: 1;
-  box-shadow:
-    inset 1px 1px rgba(255, 255, 255, 0.38),
-    inset -1px -2px rgba(146, 64, 14, 0.34),
-    0 0 5px rgba(250, 204, 21, 0.3);
-  text-shadow: 0 1px rgba(255, 245, 157, 0.7);
+  content: "";
+  width: 1.08em;
+  height: 1.08em;
+  margin-right: 1px;
+  background: url("/assets/action-coin.png") center / 150% auto no-repeat;
+  filter:
+    drop-shadow(0 1px 1px rgba(146, 64, 14, 0.42))
+    drop-shadow(0 0 5px rgba(250, 204, 21, 0.26));
 }
 
 .action-row button span::before {
@@ -1083,13 +1074,15 @@ img {
 
 .action-row button span {
   color: #1e3a8a;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 560;
   text-shadow: none;
 }
 
 .action-row button b {
   color: #2563eb;
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 520;
   text-shadow: none;
 }
 
