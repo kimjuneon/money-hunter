@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 
 import com.jayway.jsonpath.JsonPath;
 import com.money_hunter.application.AdminMonitoringService;
@@ -360,7 +361,7 @@ class ReviewProfileApiExposureTest {
 	}
 
 	@Test
-	void skillUpgradeContinuesPastTwentyUntilThirty() throws Exception {
+	void skillUpgradeCostsTwoSkillPointsFromLevelTwenty() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());
 		mockMvc.perform(post("/api/player/job")
@@ -370,20 +371,41 @@ class ReviewProfileApiExposureTest {
 
 		transactionTemplate.executeWithoutResult(status -> {
 			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
-			player.getOrCreateSkill(SkillType.STRENGTH).setLevel(20);
-			player.addSkillPoints(1);
+			player.getOrCreateSkill(SkillType.STRENGTH).setLevel(19);
+			player.setSkillPoints(3);
+		});
+
+		String levelTwenty = mockMvc.perform(post("/api/player/skills/upgrade")
+						.contentType(APPLICATION_JSON)
+						.content("{\"type\":\"STRENGTH\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.skillPoints", is(2)))
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertEquals(20, readSkillInt(levelTwenty, SkillType.STRENGTH, "level"));
+		assertEquals(2, readSkillInt(levelTwenty, SkillType.STRENGTH, "upgradeCost"));
+
+		String levelTwentyOne = mockMvc.perform(post("/api/player/skills/upgrade")
+						.contentType(APPLICATION_JSON)
+						.content("{\"type\":\"STRENGTH\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.skillPoints", is(0)))
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		assertEquals(21, readSkillInt(levelTwentyOne, SkillType.STRENGTH, "level"));
+		assertEquals(2, readSkillInt(levelTwentyOne, SkillType.STRENGTH, "upgradeCost"));
+
+		transactionTemplate.executeWithoutResult(status -> {
+			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+			player.setSkillPoints(1);
 		});
 
 		mockMvc.perform(post("/api/player/skills/upgrade")
 						.contentType(APPLICATION_JSON)
 						.content("{\"type\":\"STRENGTH\"}"))
-				.andExpect(status().isOk());
-
-		int upgradedLevel = transactionTemplate.execute(status -> {
-			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
-			return player.getOrCreateSkill(SkillType.STRENGTH).getLevel();
-		});
-		assertEquals(21, upgradedLevel);
+				.andExpect(status().isConflict());
 	}
 
 	@Test
@@ -649,6 +671,11 @@ class ReviewProfileApiExposureTest {
 	private long readLong(String json, String path) {
 		Number number = JsonPath.read(json, path);
 		return number.longValue();
+	}
+
+	private int readSkillInt(String json, SkillType type, String field) {
+		List<Number> values = JsonPath.read(json, "$.skills[?(@.type == '" + type.name() + "')]." + field);
+		return values.get(0).intValue();
 	}
 
 	private long settleFiveMinutesAndReadGold(boolean upgraded) throws Exception {

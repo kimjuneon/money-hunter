@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public record TossLoginRequest(
 		@NotBlank String authorizationCode,
-		String referrer
+		String referrer,
+		String entryPath
 ) {
 }

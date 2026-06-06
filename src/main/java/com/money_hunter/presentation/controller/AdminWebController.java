@@ -9,4 +9,9 @@ public class AdminWebController {
 	public String admin() {
 		return "forward:/admin/index.html";
 	}
+
+	@GetMapping({"/benefit", "/benefit/"})
+	public String benefit() {
+		return "forward:/index.html";
+	}
 }

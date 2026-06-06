@@ -33,7 +33,7 @@ money-hunter:
     real-banner-ads-enabled: false
     real-payments-enabled: false
     real-iap-order-verification-enabled: true
-    real-toss-point-rewards-enabled: false
+    real-toss-point-rewards-enabled: ${TOSS_POINT_REWARDS_ENABLED:false}
     real-smart-message-enabled: false
     real-share-reward-enabled: false
     dungeon-coupon-enabled: true
@@ -55,34 +55,36 @@ money-hunter:
     auto-hunt-reward-ad-group-id: ${TOSS_AD_GROUP_AUTO_HUNT_ID:}
     skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:}
     reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:}
-    dungeon-additional-reward-ad-group-id: ${TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID:ait.v2.live.c2d728e22ae1480b}
+    dungeon-additional-reward-ad-group-id: ${TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID:}
     job-change-interstitial-ad-group-id: ${TOSS_AD_GROUP_JOB_CHANGE_ID:}
     banner-ad-group-id: ${TOSS_AD_GROUP_BANNER_ID:}
   iap:
-    flare-pet-product-id: ${TOSS_IAP_FLARE_PET_PRODUCT_ID:ait.0000036679.fce5f961.7495b5547b.0055752729}
-    aqua-pet-product-id: ${TOSS_IAP_AQUA_PET_PRODUCT_ID:ait.0000036679.979b9313.997baa9d6e.0055860556}
-    skill-point-pack-product-id: ${TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID:ait.0000036679.5d254d7f.73c4076553.0056169217}
+    flare-pet-product-id: ${TOSS_IAP_FLARE_PET_PRODUCT_ID:}
+    aqua-pet-product-id: ${TOSS_IAP_AQUA_PET_PRODUCT_ID:}
+    skill-point-pack-product-id: ${TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID:}
   share-reward:
-    module-id: ${TOSS_SHARE_REWARD_MODULE_ID:2060c79f-606b-4839-9a86-32294fa74d86}
+    module-id: ${TOSS_SHARE_REWARD_MODULE_ID:}
     message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 1개를 받아요}
   promotion:
     reward-claim-code: ${TOSS_PROMOTION_REWARD_CLAIM_CODE:}
+    benefit-tab-new-user-code: ${TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_CODE:}
+    benefit-tab-new-user-amount: ${TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_AMOUNT:30}
   smart-message:
-    auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:gold-hunter-money_hunter_auto_hunt_ended}
-    auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:gold-hunter-money_hunter_auto_hunt_ended}
+    auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:}
+    auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:}
     landing-url: ${TOSS_AUTO_HUNT_ENDED_LANDING_URL:intoss://gold-hunter}
     rookie-event-mission-arrived-enabled: ${TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_ENABLED:false}
-    rookie-event-mission-arrived-template-set-code: ${TOSS_ROOKIE_EVENT_MISSION_ARRIVED_TEMPLATE_SET_CODE:gold-hunter-GOLD_HUNTER_ROOKIE_MISSION_ARRIVED_V1}
+    rookie-event-mission-arrived-template-set-code: ${TOSS_ROOKIE_EVENT_MISSION_ARRIVED_TEMPLATE_SET_CODE:}
     rookie-event-mission-agreement-template-code: ${TOSS_ROOKIE_EVENT_MISSION_AGREEMENT_TEMPLATE_CODE:}
     rookie-event-mission-batch-size: ${TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_BATCH_SIZE:100}
     dormant-sp-reward-enabled: ${TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_ENABLED:false}
-    dormant-sp-reward-template-set-code: ${TOSS_DORMANT_SP_REWARD_TEMPLATE_SET_CODE:gold-hunter-GOLD_HUNTER_DORMANT_SP_GRANTED_V1}
+    dormant-sp-reward-template-set-code: ${TOSS_DORMANT_SP_REWARD_TEMPLATE_SET_CODE:}
     dormant-sp-reward-batch-size: ${TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_BATCH_SIZE:100}
     dungeon-explore-available-enabled: ${TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_ENABLED:false}
-    dungeon-explore-available-template-set-code: ${TOSS_DUNGEON_EXPLORE_AVAILABLE_TEMPLATE_SET_CODE:gold-hunter-DUNGEON_EXPLORE_AVAILABLE}
+    dungeon-explore-available-template-set-code: ${TOSS_DUNGEON_EXPLORE_AVAILABLE_TEMPLATE_SET_CODE:}
     dungeon-explore-available-batch-size: ${TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_BATCH_SIZE:100}
     battle-ready-daily-enabled: ${TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_ENABLED:false}
-    battle-ready-daily-template-set-code: ${TOSS_BATTLE_READY_DAILY_TEMPLATE_SET_CODE:gold-hunter-BATTLE_READY_DAILY}
+    battle-ready-daily-template-set-code: ${TOSS_BATTLE_READY_DAILY_TEMPLATE_SET_CODE:}
     battle-ready-daily-batch-size: ${TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_BATCH_SIZE:100}
   security:
     cors:
@@ -145,6 +147,10 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/money_hunter_local}
     username: ${SPRING_DATASOURCE_USERNAME:money_hunter}
     password: ${SPRING_DATASOURCE_PASSWORD:money_hunter}
+money-hunter:
+  promotion:
+    reward-claim-code: ${TOSS_PROMOTION_REWARD_CLAIM_CODE:LOCAL_REWARD_CLAIM_TEST}
+    benefit-tab-new-user-code: ${TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_CODE:LOCAL_BENEFIT_TAB_NEW_USER_TEST}
 
 ---
 spring:
@@ -192,6 +198,9 @@ money-hunter:
     real-payments-enabled: ${REVIEW_PAYMENTS_ENABLED:false}
     real-iap-order-verification-enabled: ${REVIEW_IAP_ORDER_VERIFICATION_ENABLED:false}
     dungeon-coupon-enabled: ${REVIEW_DUNGEON_COUPON_ENABLED:true}
+  promotion:
+    reward-claim-code: ${TOSS_PROMOTION_REWARD_CLAIM_CODE:REVIEW_REWARD_CLAIM_TEST}
+    benefit-tab-new-user-code: ${TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_CODE:REVIEW_BENEFIT_TAB_NEW_USER_TEST}
   security:
     cors:
       allowed-origin-patterns:

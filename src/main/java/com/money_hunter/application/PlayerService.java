@@ -86,6 +86,9 @@ public class PlayerService {
 	private static final Duration ROOKIE_EVENT_REWARD_DURATION = Duration.ofDays(30);
 	private static final int ROOKIE_EVENT_DAYS = 7;
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
+	private static final int SKILL_UPGRADE_COST_INCREASE_LEVEL = 20;
+	private static final int BASE_SKILL_UPGRADE_COST = 1;
+	private static final int HIGH_LEVEL_SKILL_UPGRADE_COST = 2;
 	private static final int DORMANT_SP_REWARD_AMOUNT = 1;
 	private static final List<Integer> DORMANT_SP_REWARD_INACTIVE_DAYS = List.of(3, 5, 7, 9);
 	private static final int BATTLE_READY_DAILY_NOTIFICATION_DAYS = 5;
@@ -148,12 +151,12 @@ public class PlayerService {
 			new RookieEventDayPlan(1, "사냥 준비", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_1h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS, "사냥 1시간 진행하기"),
 					new RookieMissionPlan("monsters_20", RookieMissionType.MONSTERS, 20, "몬스터 20마리 처치하기"),
-					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
+					new RookieMissionPlan("home_shortcut_return", RookieMissionType.HOME_SHORTCUT_RETURN, 1, "머니헌터 홈 화면에 추가하고 다시 접속하기")
 			)),
 			new RookieEventDayPlan(2, "채굴 감각", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_2h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 2, "사냥 2시간 진행하기"),
 					new RookieMissionPlan("monsters_35", RookieMissionType.MONSTERS, 35, "몬스터 35마리 처치하기"),
-					new RookieMissionPlan("home_shortcut_return", RookieMissionType.HOME_SHORTCUT_RETURN, 1, "머니헌터 홈 화면에 추가하고 다시 접속하기")
+					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
 			)),
 			new RookieEventDayPlan(3, "성장 루틴", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
@@ -481,7 +484,7 @@ public class PlayerService {
 		if (skill.isMaxLevel()) {
 			throw new IllegalStateException("Skill is already at max level.");
 		}
-		player.spendSkillPoint();
+		player.spendSkillPoints(skillUpgradeCost(skill.getLevel()));
 		recordRookieEventSkillPointSpent(player);
 		skill.levelUp();
 		log.info("스킬 강화: userKey={}, type={}, level={}, remainingSp={}", mask(userKey), type, skill.getLevel(), player.getSkillPoints());
@@ -793,6 +796,7 @@ public class PlayerService {
 		RewardClaim claim = rewardClaimRepository.findByPlayerAndIdempotencyKey(player, idempotencyKey)
 				.orElseGet(() -> createRewardClaim(player, idempotencyKey));
 		grantTossPointPromotionIfEnabled(player, claim);
+		grantBenefitTabNewUserPromotionIfEligible(player);
 		adEventRepository.save(new AdEvent(player, AdEventType.REWARD_CLAIM, claim.getPointAmount(), clock.instant()));
 		recordRookieEventTossPointClaim(player);
 		log.info(
@@ -852,7 +856,66 @@ public class PlayerService {
 					mask(player.getUserKey()),
 					claim.getId(),
 					exception.getMessage());
+			}
 		}
+
+	private void grantBenefitTabNewUserPromotionIfEligible(Player player) {
+		if (!appProperties.realTossPointRewardsEnabled()
+				|| !player.isBenefitTabNewUserPromotionEligible()) {
+			return;
+		}
+		String promotionCode = promotionProperties.normalizedBenefitTabNewUserCode();
+		int amount = promotionProperties.normalizedBenefitTabNewUserAmount();
+		if (promotionCode.isBlank() || amount <= 0) {
+			return;
+		}
+		Instant now = clock.instant();
+		String executionKey = player.getBenefitTabNewUserPromotionExecutionKey();
+		if (!player.hasBenefitTabNewUserPromotionExecutionKey()) {
+			try {
+				executionKey = tossPromotionClient.issueExecutionKey(player.getUserKey());
+				tossPromotionClient.executePromotion(player.getUserKey(), promotionCode, executionKey, amount);
+				player.markBenefitTabNewUserPromotionExecutionKey(executionKey, now);
+				log.info(
+						"혜택 탭 신규 유저 토스포인트 프로모션 지급 요청: userKey={}, amount={}, promotionCode={}, executionKey={}",
+						mask(player.getUserKey()),
+						amount,
+						mask(promotionCode),
+						mask(executionKey));
+			} catch (RuntimeException exception) {
+				log.warn(
+						"혜택 탭 신규 유저 토스포인트 프로모션 지급 요청 실패: userKey={}, amount={}, message={}",
+						mask(player.getUserKey()),
+						amount,
+						exception.getMessage());
+				return;
+			}
+		}
+		String result;
+		try {
+			result = tossPromotionClient.getExecutionResult(player.getUserKey(), promotionCode, executionKey);
+			player.markBenefitTabNewUserPromotionResult(result, clock.instant());
+		} catch (RuntimeException exception) {
+			log.warn(
+					"혜택 탭 신규 유저 토스포인트 프로모션 지급 결과 조회 실패: userKey={}, amount={}, message={}",
+					mask(player.getUserKey()),
+					amount,
+				exception.getMessage());
+			return;
+		}
+		if (player.isBenefitTabNewUserPromotionEligible() && "FAILED".equalsIgnoreCase(result)) {
+			log.warn(
+					"혜택 탭 신규 유저 토스포인트 프로모션 지급 실패: userKey={}, amount={}, result={}",
+					mask(player.getUserKey()),
+					amount,
+					result);
+			return;
+		}
+		log.info(
+				"혜택 탭 신규 유저 토스포인트 프로모션 지급 결과: userKey={}, amount={}, result={}",
+				mask(player.getUserKey()),
+				amount,
+				result);
 	}
 
 	@Transactional
@@ -898,7 +961,7 @@ public class PlayerService {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		prepareRookieEvent(player);
-		if (canProgressRookieEvent(player) && currentRookieEventDay(player) == 2) {
+		if (canProgressRookieEvent(player) && currentRookieEventHasMission(player, RookieMissionType.HOME_SHORTCUT_RETURN)) {
 			player.markRookieEventHomeShortcutReturned();
 			completeRookieEventDayIfReady(player);
 			log.info("신규 이벤트 홈 화면 재접속 미션 확인: userKey={}", mask(userKey));
@@ -1072,20 +1135,14 @@ public class PlayerService {
 		if (missingGold > 0) {
 			player.addGold(missingGold);
 		}
-		String idempotencyKey = "review-test-" + UUID.randomUUID();
-		RewardClaim claim = createRewardClaim(player, idempotencyKey);
-		log.info(
-				"테스트 토스포인트 보상 수령 신청: userKey={}, claimId={}, pointAmount={}, goldAmount={}",
-				mask(userKey),
-				claim.getId(),
-				claim.getPointAmount(),
-				rewardGoldAmount(claim.getPointAmount()));
-		return new RewardClaimResponse(
-				claim.getId(),
-				claim.getPointAmount(),
-				claim.getStatus(),
-				claim.getIdempotencyKey(),
-				toState(player));
+		return claimRewardAfterAd(userKey, "review-test-" + UUID.randomUUID());
+	}
+
+	@Transactional
+	public PlayerStateResponse markBenefitTabNewUserEntryForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		player.markBenefitTabNewUserEntry(clock.instant());
+		return toState(player);
 	}
 
 	@Transactional
@@ -1638,7 +1695,7 @@ public class PlayerService {
 		completeRookieEventDayIfReady(player);
 		List<SkillResponse> skills = Arrays.stream(SkillType.values())
 				.map(player::getOrCreateSkill)
-				.map(skill -> new SkillResponse(skill.getType(), skill.getLevel(), effectTier(skill)))
+				.map(skill -> new SkillResponse(skill.getType(), skill.getLevel(), effectTier(skill), skillUpgradeCost(skill.getLevel())))
 				.toList();
 		long threshold = economy.rewardGoldThreshold();
 		return new PlayerStateResponse(
@@ -1854,6 +1911,11 @@ public class PlayerService {
 				&& player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS
 				&& !rookieEventExpired(player, now)
 				&& !player.completedRookieEventDayToday(today);
+	}
+
+	private boolean currentRookieEventHasMission(Player player, RookieMissionType type) {
+		return rookieEventPlan(currentRookieEventDay(player)).missions().stream()
+				.anyMatch(mission -> mission.type() == type);
 	}
 
 	private void claimRookieEventDailyReward(Player player, int day) {
@@ -2734,10 +2796,16 @@ public class PlayerService {
 		if (level >= PlayerSkill.MAX_LEVEL) {
 			throw new IllegalStateException("Skill is already at max level.");
 		}
-		player.spendSkillPoint();
+		player.spendSkillPoints(skillUpgradeCost(level));
 		recordRookieEventSkillPointSpent(player);
 		setSharedStatLevel(player, level + 1);
 		return toState(player);
+	}
+
+	private int skillUpgradeCost(int currentLevel) {
+		return currentLevel >= SKILL_UPGRADE_COST_INCREASE_LEVEL
+				? HIGH_LEVEL_SKILL_UPGRADE_COST
+				: BASE_SKILL_UPGRADE_COST;
 	}
 
 	private boolean isStatSkill(SkillType type) {

@@ -28,7 +28,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Import({TestcontainersConfiguration.class, AutoHuntSmartMessageRetryTest.FakeSmartMessageConfig.class})
 @ActiveProfiles("review")
-@TestPropertySource(properties = "money-hunter.app.real-smart-message-enabled=true")
+@TestPropertySource(properties = {
+		"money-hunter.app.real-smart-message-enabled=true",
+		"money-hunter.smart-message.auto-hunt-ended-template-set-code=gold-hunter-money_hunter_auto_hunt_ended"
+})
 @AutoConfigureMockMvc
 @SpringBootTest
 class AutoHuntSmartMessageRetryTest {

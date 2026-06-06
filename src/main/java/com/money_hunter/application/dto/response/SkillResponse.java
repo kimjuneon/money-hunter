@@ -5,6 +5,7 @@ import com.money_hunter.domain.SkillType;
 public record SkillResponse(
 		SkillType type,
 		int level,
-		int effectTier
+		int effectTier,
+		int upgradeCost
 ) {
 }

@@ -1,0 +1,114 @@
+version: 1
+description: >
+  Toss production asset registry. Values are stored in GitHub Secrets; this file
+  tracks secret names, app wiring, and when each asset is required.
+
+ads:
+  auto_hunt:
+    secret: TOSS_AD_GROUP_AUTO_HUNT_ID
+    app_config_key: autoHunt
+    type: rewarded
+    required_when: TOSS_REWARD_ADS_ENABLED=true
+    status: live
+  skill_point:
+    secret: TOSS_AD_GROUP_SKILL_POINT_ID
+    app_config_key: skillPoint
+    type: rewarded
+    required_when: TOSS_REWARD_ADS_ENABLED=true
+    status: live
+  reward_claim:
+    secret: TOSS_AD_GROUP_REWARD_CLAIM_ID
+    app_config_key: rewardClaim
+    type: rewarded
+    required_when: TOSS_REWARD_ADS_ENABLED=true
+    status: live
+  dungeon_additional:
+    secret: TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID
+    app_config_key: dungeonAdditional
+    type: rewarded
+    required_when: TOSS_REWARD_ADS_ENABLED=true
+    status: live
+  job_change:
+    secret: TOSS_AD_GROUP_JOB_CHANGE_ID
+    app_config_key: jobChange
+    type: interstitial
+    required_when: TOSS_REWARD_ADS_ENABLED=true
+    status: live
+  banner:
+    secret: TOSS_AD_GROUP_BANNER_ID
+    app_config_key: banner
+    type: banner
+    required_when: TOSS_BANNER_ADS_ENABLED=true
+    status: live
+  boost:
+    secret: TOSS_AD_GROUP_BOOST_ID
+    type: unknown
+    required_when: never
+    status: unused
+
+iap_products:
+  flare_pet:
+    secret: TOSS_IAP_FLARE_PET_PRODUCT_ID
+    app_config_key: flarePet
+    required_when: TOSS_PAYMENTS_ENABLED=true
+    status: live
+  aqua_pet:
+    secret: TOSS_IAP_AQUA_PET_PRODUCT_ID
+    app_config_key: aquaPet
+    required_when: TOSS_PAYMENTS_ENABLED=true
+    status: live
+  skill_point_pack:
+    secret: TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID
+    app_config_key: skillPointPack
+    required_when: TOSS_PAYMENTS_ENABLED=true
+    status: live
+
+share_rewards:
+  friend_share:
+    secret: TOSS_SHARE_REWARD_MODULE_ID
+    required_when: TOSS_SHARE_REWARD_ENABLED=true
+    status: live
+
+promotions:
+  reward_claim:
+    secret: TOSS_PROMOTION_REWARD_CLAIM_CODE
+    required_when: TOSS_POINT_REWARDS_ENABLED=true
+    status: live
+  benefit_tab_new_user:
+    secret: TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_CODE
+    amount_env: TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_AMOUNT
+    required_when: promotion_approved_and_ready_to_activate
+    status: waiting_approval
+
+smart_messages:
+  auto_hunt_ended:
+    template_set_secret: TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE
+    agreement_template_secret: TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE
+    landing_url_env: TOSS_AUTO_HUNT_ENDED_LANDING_URL
+    required_when: TOSS_SMART_MESSAGE_ENABLED=true
+    status: live
+  rookie_event_mission_arrived:
+    enabled_env: TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_ENABLED
+    template_set_secret: TOSS_ROOKIE_EVENT_MISSION_ARRIVED_TEMPLATE_SET_CODE
+    agreement_template_secret: TOSS_ROOKIE_EVENT_MISSION_AGREEMENT_TEMPLATE_CODE
+    batch_size_env: TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_BATCH_SIZE
+    required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_ENABLED=true
+    status: waiting_approval
+  dormant_sp_reward:
+    enabled_env: TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_ENABLED
+    template_set_secret: TOSS_DORMANT_SP_REWARD_TEMPLATE_SET_CODE
+    batch_size_env: TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_BATCH_SIZE
+    required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_ENABLED=true
+    status: waiting_approval
+  dungeon_explore_available:
+    enabled_env: TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_ENABLED
+    template_set_secret: TOSS_DUNGEON_EXPLORE_AVAILABLE_TEMPLATE_SET_CODE
+    batch_size_env: TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_BATCH_SIZE
+    required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_ENABLED=true
+    status: waiting_approval
+  battle_ready_daily:
+    enabled_env: TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_ENABLED
+    template_set_secret: TOSS_BATTLE_READY_DAILY_TEMPLATE_SET_CODE
+    batch_size_env: TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_BATCH_SIZE
+    required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_ENABLED=true
+    status: waiting_approval

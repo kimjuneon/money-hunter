@@ -1,12 +1,15 @@
 package com.money_hunter.presentation.controller;
 
 import java.security.Principal;
+import java.util.List;
 
 import com.money_hunter.application.PlayerService;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.RewardClaimResponse;
+import com.money_hunter.infrastructure.toss.LocalRecordingTossPromotionClient;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import org.springframework.context.annotation.Profile;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,10 +23,16 @@ import jakarta.validation.Valid;
 public class ReviewTestController {
 	private final PlayerService playerService;
 	private final UserKeyResolver userKeyResolver;
+	private final LocalRecordingTossPromotionClient tossPromotionClient;
 
-	public ReviewTestController(PlayerService playerService, UserKeyResolver userKeyResolver) {
+	public ReviewTestController(
+			PlayerService playerService,
+			UserKeyResolver userKeyResolver,
+			LocalRecordingTossPromotionClient tossPromotionClient
+	) {
 		this.playerService = playerService;
 		this.userKeyResolver = userKeyResolver;
+		this.tossPromotionClient = tossPromotionClient;
 	}
 
 	@PostMapping("/fill-reward-gauge")
@@ -74,6 +83,23 @@ public class ReviewTestController {
 	@PostMapping("/claim-reward")
 	public RewardClaimResponse claimRewardForTest(Principal principal) {
 		return playerService.claimRewardForTest(userKey(principal));
+	}
+
+	@PostMapping("/benefit-tab-entry")
+	public PlayerStateResponse markBenefitTabNewUserEntryForTest(Principal principal) {
+		return playerService.markBenefitTabNewUserEntryForTest(userKey(principal));
+	}
+
+	@GetMapping("/promotion-executions")
+	public List<LocalRecordingTossPromotionClient.RecordedPromotion> promotionExecutionsForTest(Principal principal) {
+		return tossPromotionClient.executionsFor(userKey(principal));
+	}
+
+	@PostMapping("/promotion-executions/clear")
+	public List<LocalRecordingTossPromotionClient.RecordedPromotion> clearPromotionExecutionsForTest(Principal principal) {
+		String userKey = userKey(principal);
+		tossPromotionClient.clearFor(userKey);
+		return tossPromotionClient.executionsFor(userKey);
 	}
 
 	@PostMapping("/job")

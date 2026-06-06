@@ -25,8 +25,10 @@ const pendingIapProductStorageKey = "moneyHunter.pendingIapProducts";
 const hiddenPetSkinsStorageKey = "moneyHunter.hideEasterEggSkins";
 const rookieHomeShortcutGuideStorageKey = "moneyHunter.rookieHomeShortcutGuide";
 const rookieHomeShortcutGuideSessionKey = "moneyHunter.rookieHomeShortcutGuideSession";
+const benefitTabEntryStorageKey = "moneyHunter.benefitTabEntry";
 const rookieHomeShortcutParam = "rookieHome";
 const rookieHomeShortcutValue = "1";
+const benefitTabEntryPath = "/benefit";
 
 const state = {
   player: null,
@@ -462,6 +464,48 @@ function removeStoredValue(key) {
   } catch {
     // Local storage can be unavailable in embedded test environments.
   }
+}
+
+function normalizedEntryPath(path = window.location.pathname) {
+  let normalized = String(path || "").trim();
+  if (!normalized) {
+    return "/";
+  }
+  const queryIndex = normalized.indexOf("?");
+  if (queryIndex >= 0) {
+    normalized = normalized.slice(0, queryIndex);
+  }
+  const hashIndex = normalized.indexOf("#");
+  if (hashIndex >= 0) {
+    normalized = normalized.slice(0, hashIndex);
+  }
+  if (!normalized.startsWith("/")) {
+    normalized = `/${normalized}`;
+  }
+  while (normalized.length > 1 && normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
+}
+
+function isBenefitTabEntryPath(path = window.location.pathname) {
+  return normalizedEntryPath(path) === benefitTabEntryPath;
+}
+
+function markBenefitTabEntryIfNeeded() {
+  if (isBenefitTabEntryPath()) {
+    storeValue(benefitTabEntryStorageKey, "1");
+  }
+}
+
+function benefitTabEntryPathForLogin() {
+  return storedValue(benefitTabEntryStorageKey) === "1" || isBenefitTabEntryPath()
+    ? benefitTabEntryPath
+    : "";
+}
+
+function clearBenefitTabEntryMarker() {
+  removeStoredValue(benefitTabEntryStorageKey);
 }
 
 function localDateKey(date = new Date()) {
@@ -1298,8 +1342,9 @@ async function startTossLogin(options = {}) {
     const session = await api("/api/auth/toss/login", {
       method: "POST",
       skipAuth: true,
-      body: JSON.stringify({ authorizationCode, referrer }),
+      body: JSON.stringify({ authorizationCode, referrer, entryPath: benefitTabEntryPathForLogin() }),
     });
+    clearBenefitTabEntryMarker();
     setAuthToken(session.accessToken);
     if (refreshAfterLogin) {
       await refresh();
@@ -2496,9 +2541,10 @@ function rookieEventMissionCompleted(player, missionKey) {
 }
 
 function rookieHomeShortcutMissionActive(player = state.player) {
-  const day = (player?.rookieEvent?.days || []).find((entry) => entry.day === 2);
-  const mission = (day?.missions || []).find((entry) => entry.key === "home_shortcut_return");
-  return Boolean(day?.current && !day.locked && mission && !mission.completed);
+  return (player?.rookieEvent?.days || []).some((day) => {
+    const mission = (day?.missions || []).find((entry) => entry.key === "home_shortcut_return");
+    return Boolean(day?.current && !day.locked && mission && !mission.completed);
+  });
 }
 
 function markRookieHomeShortcutGuideViewed() {
@@ -2992,13 +3038,18 @@ function renderSkills(player) {
     const maxLevel = meta?.max || skillMaxLevel;
     const locked = isPetSkillLocked(button.dataset.skill, player);
     const isMaxed = !skill || skill.level >= maxLevel;
-    button.disabled = locked || player.skillPoints < 1 || isMaxed;
+    const upgradeCost = skillUpgradeCost(skill);
+    button.disabled = locked || player.skillPoints < upgradeCost || isMaxed;
     button.innerHTML = locked
       ? "<span>잠금</span><small>펫 필요</small>"
       : isMaxed
         ? "<span>MAX</span><small>완료</small>"
-        : "<span>강화</span><small>SP 1</small>";
+        : `<span>강화</span><small>SP ${upgradeCost}</small>`;
   });
+}
+
+function skillUpgradeCost(skill) {
+  return Math.max(1, Number(skill?.upgradeCost || 1));
 }
 
 function renderRookieEventSkillRow(player = state.player) {
@@ -4459,6 +4510,39 @@ async function runDevAction(request, message) {
   }
 }
 
+function promotionExecutionSummary(executions = []) {
+  if (!executions.length) {
+    return "아직 기록된 mock 프로모션이 없어요.";
+  }
+  return executions
+    .map((execution, index) => {
+      const code = execution.promotionCode || "-";
+      const amount = Number(execution.amount || 0).toLocaleString("ko-KR");
+      const result = execution.result || "UNKNOWN";
+      return `${index + 1}. ${code} / ${amount}P / ${result}`;
+    })
+    .join("\n");
+}
+
+async function showPromotionExecutionsForTest() {
+  if ($("devPanel").classList.contains?.("is-busy")) {
+    return;
+  }
+  try {
+    setDevBusy(true);
+    setDevStatus("프로모션 기록 확인 중...");
+    const executions = await api("/api/player/test/promotion-executions");
+    const message = promotionExecutionSummary(executions);
+    setMessage(message);
+    setDevStatus(message);
+  } catch (error) {
+    setMessage(error.message);
+    setDevStatus(error.message);
+  } finally {
+    setDevBusy(false);
+  }
+}
+
 function shouldSyncCombat(now = Date.now()) {
   return !state.combatSyncInFlight && (!state.lastCombatSyncAt || now - state.lastCombatSyncAt >= combatSyncIntervalMs);
 }
@@ -5051,6 +5135,17 @@ function initializeDevPanel() {
     "테스트 리워드 수령 기록을 만들었어요."
   ));
 
+  $("devBenefitTabEntry").addEventListener("click", () => runDevAction(
+    async () => {
+      await ensureJobForTest();
+      await api("/api/player/test/promotion-executions/clear", { method: "POST" });
+      return api("/api/player/test/benefit-tab-entry", { method: "POST" });
+    },
+    "혜택 탭 신규 유저로 표시했어요. 게이지를 채우고 토스포인트 수령 버튼을 눌러보세요."
+  ));
+
+  $("devPromotionLog").addEventListener("click", () => showPromotionExecutionsForTest());
+
   $("devToggleBanner").addEventListener("click", () => {
     state.showDummyBanner = !state.showDummyBanner;
     storeValue(dummyBannerStorageKey, String(state.showDummyBanner));
@@ -5070,6 +5165,7 @@ function initializeDevPanel() {
       state.featureTutorialStarted = false;
       state.featureTutorialActive = false;
       $("featureTutorial").classList.add("hidden");
+      await api("/api/player/test/promotion-executions/clear", { method: "POST" });
       return api("/api/player/test/reset", { method: "POST" });
     },
     "테스트 상태를 초기화했어요. 직업을 다시 선택하세요."
@@ -5077,6 +5173,7 @@ function initializeDevPanel() {
 }
 
 initializeDevPanel();
+markBenefitTabEntryIfNeeded();
 applyRuntimeSafeAreaFallback();
 syncBgmState();
 document.addEventListener("pointerdown", () => startBgm(), { once: true, passive: true });

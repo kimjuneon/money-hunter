@@ -106,6 +106,15 @@ public class Player {
 	@Column(nullable = false)
 	private boolean adminFavorite = false;
 
+	private Instant benefitTabNewUserEnteredAt;
+
+	@Column(length = 220)
+	private String benefitTabNewUserPromotionExecutionKey;
+
+	private Instant benefitTabNewUserPromotionResultCheckedAt;
+
+	private Instant benefitTabNewUserPromotionGrantedAt;
+
 	@Column(nullable = false, length = 600)
 	private String ownedPetSkinKeys = "FIRE_FOX,ICE";
 
@@ -420,6 +429,36 @@ public class Player {
 		}
 	}
 
+	public void markBenefitTabNewUserEntry(Instant now) {
+		if (benefitTabNewUserEnteredAt == null) {
+			this.benefitTabNewUserEnteredAt = now;
+			touch();
+		}
+	}
+
+	public boolean isBenefitTabNewUserPromotionEligible() {
+		return benefitTabNewUserEnteredAt != null && benefitTabNewUserPromotionGrantedAt == null;
+	}
+
+	public boolean hasBenefitTabNewUserPromotionExecutionKey() {
+		return benefitTabNewUserPromotionExecutionKey != null && !benefitTabNewUserPromotionExecutionKey.isBlank();
+	}
+
+	public void markBenefitTabNewUserPromotionExecutionKey(String executionKey, Instant now) {
+		this.benefitTabNewUserPromotionExecutionKey = executionKey;
+		this.benefitTabNewUserPromotionResultCheckedAt = now;
+		touch();
+	}
+
+	public void markBenefitTabNewUserPromotionResult(String result, Instant now) {
+		String normalized = result == null ? "" : result.trim().toUpperCase();
+		this.benefitTabNewUserPromotionResultCheckedAt = now;
+		if ("SUCCESS".equals(normalized)) {
+			this.benefitTabNewUserPromotionGrantedAt = now;
+		}
+		touch();
+	}
+
 	public void completeRookieEventDay(LocalDate today, Instant now, int maxEventDays) {
 		if (today == null || completedRookieEventDayToday(today) || rookieEventCompletedDays >= maxEventDays) {
 			return;
@@ -671,10 +710,17 @@ public class Player {
 	}
 
 	public void spendSkillPoint() {
-		if (skillPoints < 1) {
+		spendSkillPoints(1);
+	}
+
+	public void spendSkillPoints(int amount) {
+		if (amount < 1) {
+			throw new IllegalArgumentException("Skill point amount must be positive.");
+		}
+		if (skillPoints < amount) {
 			throw new IllegalStateException("Not enough skill points.");
 		}
-		this.skillPoints -= 1;
+		this.skillPoints -= amount;
 		touch();
 	}
 
@@ -918,6 +964,10 @@ public class Player {
 		this.gameProfileNickname = null;
 		this.gameProfileUpdatedAt = null;
 		this.adminFavorite = false;
+		this.benefitTabNewUserEnteredAt = null;
+		this.benefitTabNewUserPromotionExecutionKey = null;
+		this.benefitTabNewUserPromotionResultCheckedAt = null;
+		this.benefitTabNewUserPromotionGrantedAt = null;
 		this.ownedPetSkinKeys = "FIRE_FOX,ICE";
 		this.petOneSkinKey = "FIRE_FOX";
 		this.petTwoSkinKey = "ICE";

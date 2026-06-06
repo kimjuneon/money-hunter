@@ -14,7 +14,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 
 import com.jayway.jsonpath.JsonPath;
 import com.money_hunter.domain.PlayerSkill;
@@ -157,16 +156,16 @@ class RealRewardAdSessionTest {
 				.andExpect(jsonPath("$.rookieEvent.days[0].title", is("사냥 준비")))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardLabel", is("SP 1개")))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimable", is(false)))
-				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].label", is("토스포인트 받기")))
+				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].key", is("home_shortcut_return")))
+				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].label", is("머니헌터 홈 화면에 추가하고 다시 접속하기")))
 				.andExpect(jsonPath("$.rookieEvent.days[1].rewardLabel", is("자동전투 1시간")))
-				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].key", is("home_shortcut_return")))
-				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].label", is("머니헌터 홈 화면에 추가하고 다시 접속하기")))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].label", is("토스포인트 받기")))
 					.andExpect(jsonPath("$.rookieEvent.days[2].rewardLabel", is("자동전투 1시간")))
 				.andExpect(jsonPath("$.rookieEvent.days[5].missions[2].label", is("10레벨 달성하기")));
 	}
 
 	@Test
-	void rookieEventHomeShortcutReturnCompletesSecondDayMission() throws Exception {
+	void rookieEventHomeShortcutReturnCompletesFirstDayMission() throws Exception {
 		mockMvc.perform(post("/api/player/job")
 						.with(user("rookie-event-home-user"))
 						.contentType(APPLICATION_JSON)
@@ -176,36 +175,25 @@ class RealRewardAdSessionTest {
 						.with(user("rookie-event-home-user")))
 				.andExpect(status().isOk());
 
-		transactionTemplate.executeWithoutResult(status -> {
-			var player = playerRepository.findByUserKey("rookie-event-home-user").orElseThrow();
-			player.overrideRookieEventForTest(
-					Instant.now().minus(Duration.ofDays(1)),
-					LocalDate.now(ZoneId.of("UTC")).minusDays(1),
-					1,
-					1,
-					false,
-					7);
-		});
-
 		mockMvc.perform(get("/api/player")
 						.with(user("rookie-event-home-user")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.rookieEvent.currentDay", is(2)))
-				.andExpect(jsonPath("$.rookieEvent.days[1].current", is(true)));
+				.andExpect(jsonPath("$.rookieEvent.currentDay", is(1)))
+				.andExpect(jsonPath("$.rookieEvent.days[0].current", is(true)));
 
 		transactionTemplate.executeWithoutResult(status -> {
 			var player = playerRepository.findByUserKey("rookie-event-home-user").orElseThrow();
-			player.addRookieEventCombatProgress(Duration.ofHours(2).toMillis(), 0, 35);
+			player.addRookieEventCombatProgress(Duration.ofHours(1).toMillis(), 0, 20);
 		});
 
 		mockMvc.perform(post("/api/player/rookie-event/home-shortcut-return")
 						.with(user("rookie-event-home-user")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.rookieEvent.completedDays", is(2)))
-				.andExpect(jsonPath("$.rookieEvent.days[1].completed", is(true)))
-				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].key", is("home_shortcut_return")))
-				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].completed", is(true)))
-				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].progressText", is("확인 완료")));
+				.andExpect(jsonPath("$.rookieEvent.completedDays", is(1)))
+				.andExpect(jsonPath("$.rookieEvent.days[0].completed", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].key", is("home_shortcut_return")))
+				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].completed", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].progressText", is("확인 완료")));
 	}
 
 	@Test
@@ -222,8 +210,11 @@ class RealRewardAdSessionTest {
 		transactionTemplate.executeWithoutResult(status -> {
 			var player = playerRepository.findByUserKey("rookie-event-reward-user").orElseThrow();
 			player.addRookieEventCombatProgress(Duration.ofHours(1).toMillis(), 0, 20);
-			player.addRookieEventTossPointClaim();
 		});
+
+		mockMvc.perform(post("/api/player/rookie-event/home-shortcut-return")
+						.with(user("rookie-event-reward-user")))
+				.andExpect(status().isOk());
 
 		mockMvc.perform(get("/api/player")
 						.with(user("rookie-event-reward-user")))

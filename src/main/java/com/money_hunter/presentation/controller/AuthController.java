@@ -21,7 +21,7 @@ public class AuthController {
 
 	@PostMapping("/toss/login")
 	public LoginSessionResponse login(@Valid @RequestBody TossLoginRequest request) {
-		IssuedLoginSession session = tossLoginService.login(request.authorizationCode(), request.referrer());
+		IssuedLoginSession session = tossLoginService.login(request.authorizationCode(), request.referrer(), request.entryPath());
 		return new LoginSessionResponse(session.token(), "Bearer", session.userKey(), session.expiresAt());
 	}
 }
