@@ -43,17 +43,20 @@ public class GameEconomyPolicy {
 	@Column(name = "auto_hunt_ad_seconds")
 	private Long autoHuntAdSeconds;
 
-	@Column(name = "boost_ad_seconds")
-	private Long boostAdSeconds;
-
 	@Column(name = "auto_hunt_ad_cooldown_seconds")
 	private Long autoHuntAdCooldownSeconds;
 
-	@Column(name = "boost_ad_cooldown_seconds")
-	private Long boostAdCooldownSeconds;
-
 	@Column(name = "max_ad_seconds")
 	private Long maxAdSeconds;
+
+	@Column(name = "dungeon_free_daily_limit")
+	private Integer dungeonFreeDailyLimit;
+
+	@Column(name = "dungeon_additional_daily_limit")
+	private Integer dungeonAdditionalDailyLimit;
+
+	@Column(name = "dungeon_reentry_cooldown_seconds")
+	private Long dungeonReentryCooldownSeconds;
 
 	@Column(name = "skill_point_ad_cooldown_seconds")
 	private Long skillPointAdCooldownSeconds;
@@ -132,20 +135,24 @@ public class GameEconomyPolicy {
 		return autoHuntAdSeconds;
 	}
 
-	public Long getBoostAdSeconds() {
-		return boostAdSeconds;
-	}
-
 	public Long getAutoHuntAdCooldownSeconds() {
 		return autoHuntAdCooldownSeconds;
 	}
 
-	public Long getBoostAdCooldownSeconds() {
-		return boostAdCooldownSeconds;
-	}
-
 	public Long getMaxAdSeconds() {
 		return maxAdSeconds;
+	}
+
+	public Integer getDungeonFreeDailyLimit() {
+		return dungeonFreeDailyLimit;
+	}
+
+	public Integer getDungeonAdditionalDailyLimit() {
+		return dungeonAdditionalDailyLimit;
+	}
+
+	public Long getDungeonReentryCooldownSeconds() {
+		return dungeonReentryCooldownSeconds;
 	}
 
 	public Long getSkillPointAdCooldownSeconds() {
@@ -197,12 +204,13 @@ public class GameEconomyPolicy {
 			case "skillPointPackAmount" -> this.skillPointPackAmount = value.intValue();
 			case "friendInviteRewardSkillPoints" -> this.friendInviteRewardSkillPoints = value.intValue();
 			case "friendInviteLimit" -> this.friendInviteLimit = value.intValue();
-			case "maxCharacterSlots" -> this.maxCharacterSlots = value.intValue();
-			case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = value.longValue();
-			case "boostAdSeconds" -> this.boostAdSeconds = value.longValue();
-			case "autoHuntAdCooldownSeconds" -> this.autoHuntAdCooldownSeconds = value.longValue();
-			case "boostAdCooldownSeconds" -> this.boostAdCooldownSeconds = value.longValue();
-			case "maxAdSeconds" -> this.maxAdSeconds = value.longValue();
+				case "maxCharacterSlots" -> this.maxCharacterSlots = value.intValue();
+				case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = value.longValue();
+				case "autoHuntAdCooldownSeconds" -> this.autoHuntAdCooldownSeconds = value.longValue();
+				case "maxAdSeconds" -> this.maxAdSeconds = value.longValue();
+			case "dungeonFreeDailyLimit" -> this.dungeonFreeDailyLimit = value.intValue();
+			case "dungeonAdditionalDailyLimit" -> this.dungeonAdditionalDailyLimit = value.intValue();
+			case "dungeonReentryCooldownSeconds" -> this.dungeonReentryCooldownSeconds = value.longValue();
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = value.longValue();
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = value.longValue();
 			case "rewardPointAmount" -> this.rewardPointAmount = value.intValue();
@@ -226,12 +234,13 @@ public class GameEconomyPolicy {
 			case "skillPointPackAmount" -> this.skillPointPackAmount = null;
 			case "friendInviteRewardSkillPoints" -> this.friendInviteRewardSkillPoints = null;
 			case "friendInviteLimit" -> this.friendInviteLimit = null;
-			case "maxCharacterSlots" -> this.maxCharacterSlots = null;
-			case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = null;
-			case "boostAdSeconds" -> this.boostAdSeconds = null;
-			case "autoHuntAdCooldownSeconds" -> this.autoHuntAdCooldownSeconds = null;
-			case "boostAdCooldownSeconds" -> this.boostAdCooldownSeconds = null;
-			case "maxAdSeconds" -> this.maxAdSeconds = null;
+				case "maxCharacterSlots" -> this.maxCharacterSlots = null;
+				case "autoHuntAdSeconds" -> this.autoHuntAdSeconds = null;
+				case "autoHuntAdCooldownSeconds" -> this.autoHuntAdCooldownSeconds = null;
+				case "maxAdSeconds" -> this.maxAdSeconds = null;
+			case "dungeonFreeDailyLimit" -> this.dungeonFreeDailyLimit = null;
+			case "dungeonAdditionalDailyLimit" -> this.dungeonAdditionalDailyLimit = null;
+			case "dungeonReentryCooldownSeconds" -> this.dungeonReentryCooldownSeconds = null;
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = null;
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = null;
 			case "rewardPointAmount" -> this.rewardPointAmount = null;

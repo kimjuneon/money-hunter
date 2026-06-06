@@ -1,5 +1,6 @@
 package com.money_hunter.domain;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -52,8 +53,6 @@ public class Player {
 	@Column(nullable = false)
 	private int friendInviteRewardCount = 0;
 
-	private LocalDate friendInviteRewardDate;
-
     @Column(nullable = false)
 	private int level = 1;
 
@@ -83,11 +82,7 @@ public class Player {
 
 	private Long autoHuntEndSettledGold;
 
-	private Instant boostEndsAt;
-
 	private Instant lastAutoHuntAdClaimedAt;
-
-	private Instant lastBoostAdClaimedAt;
 
 	private Instant lastSkillPointAdClaimedAt;
 
@@ -143,9 +138,6 @@ public class Player {
 	private int rookieEventDailyMonsters = 0;
 
 	@Column(nullable = false)
-	private int rookieEventDailyBoostMonsters = 0;
-
-	@Column(nullable = false)
 	private long rookieEventDailyGold = 0;
 
 	@Column(nullable = false)
@@ -171,7 +163,36 @@ public class Player {
 
 	private Instant dormantSpRewardLastSentAt;
 
-    @Column(nullable = false)
+	private LocalDate dungeonExploreAvailableNotificationDate;
+
+	private Integer dungeonExploreAvailableNotificationRunCount;
+
+	private Instant dungeonExploreAvailableNotificationSentAt;
+
+	private Instant battleReadyDailyStreakAccessedAt;
+
+	@Column(nullable = false)
+	private int battleReadyDailySentStage = 0;
+
+	private Instant battleReadyDailyLastSentAt;
+
+	@Column(nullable = false)
+	private int dungeonCouponCount = 0;
+
+	@Column(nullable = false)
+	private long dungeonCouponHuntMillis = 0;
+
+	private LocalDate dungeonRunCountDate;
+
+	@Column(nullable = false)
+	private int dungeonRunCount = 0;
+
+	private Instant dungeonNextAvailableAt;
+
+	@Column(nullable = false)
+	private int bossRaidTicketCount = 0;
+
+	@Column(nullable = false)
 	private Instant lastSettledAt;
 
 	@Column(nullable = false)
@@ -328,12 +349,11 @@ public class Player {
 		touch();
 	}
 
-	public void claimFriendInviteReward(int inviteLimit, int rewardSkillPoints, LocalDate today) {
-		claimFriendInviteReward(inviteLimit, rewardSkillPoints, 1, today);
+	public void claimFriendInviteReward(int inviteLimit, int rewardSkillPoints) {
+		claimFriendInviteReward(inviteLimit, rewardSkillPoints, 1);
 	}
 
-	public int claimFriendInviteReward(int inviteLimit, int rewardSkillPoints, int completedInvites, LocalDate today) {
-		resetFriendInviteRewardIfNewDay(today);
+	public int claimFriendInviteReward(int inviteLimit, int rewardSkillPoints, int completedInvites) {
 		if (friendInviteRewardCount >= inviteLimit) {
 			throw new IllegalStateException("친구 초대 보상을 모두 받았어요.");
 		}
@@ -348,17 +368,6 @@ public class Player {
 		this.skillPoints += rewardSkillPoints * claimCount;
 		touch();
 		return claimCount;
-	}
-
-	public void resetFriendInviteRewardIfNewDay(LocalDate today) {
-		if (today == null) {
-			return;
-		}
-		if (!today.equals(friendInviteRewardDate)) {
-			this.friendInviteRewardDate = today;
-			this.friendInviteRewardCount = 0;
-			touch();
-		}
 	}
 
 	public void startRookieEvent(Instant now, LocalDate today) {
@@ -387,11 +396,10 @@ public class Player {
 		return today != null && today.equals(rookieEventLastCompletedDate);
 	}
 
-	public void addRookieEventCombatProgress(long huntMillis, long gold, int monsters, int boostMonsters) {
+	public void addRookieEventCombatProgress(long huntMillis, long gold, int monsters) {
 		this.rookieEventDailyHuntMillis += Math.max(0, huntMillis);
 		this.rookieEventDailyGold += Math.max(0, gold);
 		this.rookieEventDailyMonsters += Math.max(0, monsters);
-		this.rookieEventDailyBoostMonsters += Math.max(0, boostMonsters);
 		touch();
 	}
 
@@ -465,6 +473,150 @@ public class Player {
 		this.dormantSpRewardStreakAccessedAt = streakAccessedAt;
 		this.dormantSpRewardSentStage = Math.max(0, sentStage);
 		this.dormantSpRewardLastSentAt = sentAt;
+		touch();
+	}
+
+	public boolean dungeonExploreAvailableNotificationSentForCurrentRun(LocalDate today) {
+		return today != null
+				&& today.equals(dungeonExploreAvailableNotificationDate)
+				&& dungeonExploreAvailableNotificationRunCount != null
+				&& dungeonExploreAvailableNotificationRunCount == Math.max(0, dungeonRunCount);
+	}
+
+	public void markDungeonExploreAvailableNotificationSent(LocalDate today, Instant sentAt) {
+		this.dungeonExploreAvailableNotificationDate = today;
+		this.dungeonExploreAvailableNotificationRunCount = Math.max(0, dungeonRunCount);
+		this.dungeonExploreAvailableNotificationSentAt = sentAt;
+		touch();
+	}
+
+	public int battleReadyDailySentStageForCurrentStreak() {
+		if (battleReadyDailyStreakAccessedAt == null || !battleReadyDailyStreakAccessedAt.equals(lastAccessedAt)) {
+			return 0;
+		}
+		return Math.max(0, battleReadyDailySentStage);
+	}
+
+	public void markBattleReadyDailySent(Instant streakAccessedAt, int sentStage, Instant sentAt) {
+		this.battleReadyDailyStreakAccessedAt = streakAccessedAt;
+		this.battleReadyDailySentStage = Math.max(0, sentStage);
+		this.battleReadyDailyLastSentAt = sentAt;
+		touch();
+	}
+
+	public int addDungeonCouponHuntMillis(long huntMillis, long requiredMillis) {
+		if (huntMillis < 1 || requiredMillis < 1) {
+			return 0;
+		}
+		long totalMillis = Math.max(0, this.dungeonCouponHuntMillis) + huntMillis;
+		int earnedCoupons = (int) Math.min(Integer.MAX_VALUE, totalMillis / requiredMillis);
+		this.dungeonCouponHuntMillis = totalMillis % requiredMillis;
+		if (earnedCoupons > 0) {
+			this.dungeonCouponCount = Math.max(0, this.dungeonCouponCount) + earnedCoupons;
+		}
+		touch();
+		return earnedCoupons;
+	}
+
+	public void addDungeonEntryHuntProgress(long huntMillis, long requiredMillis) {
+		if (huntMillis < 1 || requiredMillis < 1) {
+			return;
+		}
+		this.dungeonCouponHuntMillis = Math.min(
+				requiredMillis,
+				Math.max(0, this.dungeonCouponHuntMillis) + huntMillis);
+		touch();
+	}
+
+	public long dungeonEntryHuntProgressMillis(long requiredMillis) {
+		if (requiredMillis < 1) {
+			return 0;
+		}
+		return Math.min(requiredMillis, Math.max(0, this.dungeonCouponHuntMillis));
+	}
+
+	public boolean dungeonEntryHuntRequirementCompleted(long requiredMillis) {
+		return dungeonEntryHuntProgressMillis(requiredMillis) >= requiredMillis;
+	}
+
+	public void addDungeonCoupons(int amount) {
+		if (amount < 1) {
+			throw new IllegalArgumentException("Dungeon coupon amount must be positive.");
+		}
+		this.dungeonCouponCount = Math.max(0, this.dungeonCouponCount) + amount;
+		touch();
+	}
+
+	public void spendDungeonCoupon() {
+		if (dungeonCouponCount < 1) {
+			throw new IllegalStateException("사용할 던전 쿠폰이 없어요.");
+		}
+		this.dungeonCouponCount -= 1;
+		touch();
+	}
+
+	public void resetDungeonRunCountIfNewDay(LocalDate today) {
+		if (today == null) {
+			return;
+		}
+		if (!today.equals(dungeonRunCountDate)) {
+			this.dungeonRunCountDate = today;
+			this.dungeonRunCount = 0;
+			this.dungeonCouponHuntMillis = 0;
+			this.dungeonNextAvailableAt = null;
+			this.dungeonExploreAvailableNotificationDate = null;
+			this.dungeonExploreAvailableNotificationRunCount = null;
+			this.dungeonExploreAvailableNotificationSentAt = null;
+			touch();
+		}
+	}
+
+	public void enterDungeon(Instant now, LocalDate today, int dailyLimit, Duration cooldown) {
+		if (now == null || today == null || dailyLimit < 1 || cooldown == null || cooldown.isNegative()) {
+			throw new IllegalArgumentException("Dungeon entry options are invalid.");
+		}
+		resetDungeonRunCountIfNewDay(today);
+		if (dungeonRunCount >= dailyLimit) {
+			throw new IllegalStateException("오늘 던전 입장 횟수를 모두 사용했어요.");
+		}
+		if (dungeonNextAvailableAt != null && dungeonNextAvailableAt.isAfter(now)) {
+			throw new IllegalStateException("던전 재입장 시간이 아직 남았어요.");
+		}
+		this.dungeonRunCountDate = today;
+		this.dungeonRunCount += 1;
+		this.dungeonNextAvailableAt = dungeonRunCount >= dailyLimit ? null : now.plus(cooldown);
+		touch();
+	}
+
+	public void addBossRaidTickets(int amount) {
+		if (amount < 1) {
+			throw new IllegalArgumentException("Boss raid ticket amount must be positive.");
+		}
+		this.bossRaidTicketCount = Math.max(0, this.bossRaidTicketCount) + amount;
+		touch();
+	}
+
+	public void spendBossRaidTicket() {
+		if (bossRaidTicketCount < 1) {
+			throw new IllegalStateException("보스 입장권이 없어요.");
+		}
+		this.bossRaidTicketCount -= 1;
+		touch();
+	}
+
+	public void resetDungeonReentryCooldownForTest() {
+		this.dungeonNextAvailableAt = null;
+		touch();
+	}
+
+	public void resetDungeonDailyLimitForTest(LocalDate today) {
+		this.dungeonRunCountDate = today;
+		this.dungeonRunCount = 0;
+		this.dungeonCouponHuntMillis = 0;
+		this.dungeonNextAvailableAt = null;
+		this.dungeonExploreAvailableNotificationDate = null;
+		this.dungeonExploreAvailableNotificationRunCount = null;
+		this.dungeonExploreAvailableNotificationSentAt = null;
 		touch();
 	}
 
@@ -552,6 +704,25 @@ public class Player {
 		touch();
 	}
 
+	public void levelUpForTest() {
+		this.level += 1;
+		this.skillPoints += 1;
+		this.experience = Math.min(this.experience, nextLevelExperience(this.level) - 1);
+		touch();
+	}
+
+	public void levelDownForTest() {
+		if (this.level <= 1) {
+			this.level = 1;
+			this.experience = 0;
+			touch();
+			return;
+		}
+		this.level -= 1;
+		this.experience = Math.min(this.experience, nextLevelExperience(this.level) - 1);
+		touch();
+	}
+
     public void setAutoHuntEndsAt(Instant autoHuntEndsAt) {
 		this.autoHuntEndsAt = autoHuntEndsAt;
 		touch();
@@ -585,16 +756,6 @@ public class Player {
 		}
 		this.autoHuntEndSettledGold = Math.max(0, this.autoHuntEndSettledGold == null ? 0 : this.autoHuntEndSettledGold)
 				+ settledGold;
-		touch();
-	}
-
-    public void setBoostEndsAt(Instant boostEndsAt) {
-		this.boostEndsAt = boostEndsAt;
-		touch();
-	}
-
-	public void markBoostAdClaimed(Instant claimedAt) {
-		this.lastBoostAdClaimedAt = claimedAt;
 		touch();
 	}
 
@@ -739,7 +900,6 @@ public class Player {
 		this.cumulativeGoldEarned = 0;
 		this.skillPoints = 0;
 		this.friendInviteRewardCount = 0;
-		this.friendInviteRewardDate = null;
 		this.level = 1;
 		this.experience = 0;
 		this.currentMonsterKey = "BOSS_ROCK";
@@ -751,9 +911,7 @@ public class Player {
 		this.autoHuntEndNotifiedAt = null;
 		this.autoHuntEndSmartMessageAttemptedAt = null;
 		this.autoHuntEndSettledGold = null;
-		this.boostEndsAt = null;
 		this.lastAutoHuntAdClaimedAt = null;
-		this.lastBoostAdClaimedAt = null;
 		this.lastSkillPointAdClaimedAt = null;
 		this.tutorialRewardClaimedAt = null;
 		this.featureTutorialCompletedAt = null;
@@ -772,7 +930,6 @@ public class Player {
 		this.rookieEventLastCompletedDate = null;
 		this.rookieEventDailyHuntMillis = 0;
 		this.rookieEventDailyMonsters = 0;
-		this.rookieEventDailyBoostMonsters = 0;
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;
@@ -780,9 +937,21 @@ public class Player {
 		this.rookieEventMissionNotificationAgreedAt = null;
 		this.rookieEventMissionMessageSentDate = null;
 		this.rookieEventMissionMessageSentDay = 0;
-		this.dormantSpRewardStreakAccessedAt = null;
-		this.dormantSpRewardSentStage = 0;
-		this.dormantSpRewardLastSentAt = null;
+			this.dormantSpRewardStreakAccessedAt = null;
+			this.dormantSpRewardSentStage = 0;
+			this.dormantSpRewardLastSentAt = null;
+		this.dungeonExploreAvailableNotificationDate = null;
+		this.dungeonExploreAvailableNotificationRunCount = null;
+		this.dungeonExploreAvailableNotificationSentAt = null;
+		this.battleReadyDailyStreakAccessedAt = null;
+		this.battleReadyDailySentStage = 0;
+		this.battleReadyDailyLastSentAt = null;
+		this.dungeonCouponCount = 0;
+		this.dungeonCouponHuntMillis = 0;
+		this.dungeonRunCountDate = null;
+		this.dungeonRunCount = 0;
+		this.dungeonNextAvailableAt = null;
+		this.bossRaidTicketCount = 0;
 		this.lastSettledAt = now;
 		this.lastAccessedAt = now;
 		this.skills.forEach(PlayerSkill::resetLevel);
@@ -812,7 +981,6 @@ public class Player {
 		this.rookieEventCurrentDate = today;
 		this.rookieEventDailyHuntMillis = 0;
 		this.rookieEventDailyMonsters = 0;
-		this.rookieEventDailyBoostMonsters = 0;
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;

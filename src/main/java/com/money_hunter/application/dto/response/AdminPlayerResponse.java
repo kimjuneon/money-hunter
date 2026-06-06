@@ -5,6 +5,7 @@ import java.util.Set;
 
 import com.money_hunter.domain.JobType;
 import com.money_hunter.domain.Player;
+import com.money_hunter.domain.PlayerSkill;
 
 public record AdminPlayerResponse(
 		String userKey,
@@ -16,6 +17,7 @@ public record AdminPlayerResponse(
 		boolean onboardingRequired,
 		long gold,
 		long cumulativeGoldEarned,
+		long combatPower,
 		int skillPoints,
 		int level,
 		long experience,
@@ -23,16 +25,17 @@ public record AdminPlayerResponse(
 		int characterSlots,
 		int friendInviteRewardCount,
 		int defeatedMonsters,
-		String currentMonsterKey,
-		int currentMonsterHp,
-		Instant lastSettledAt,
-		Instant lastSkillPointAdClaimedAt,
-		Instant gameProfileUpdatedAt,
-		boolean tutorialRewardClaimed,
-		boolean featureTutorialCompleted,
-			Instant autoHuntEndsAt,
-			Instant boostEndsAt,
-			boolean suspended,
+			String currentMonsterKey,
+			int currentMonsterHp,
+			Instant lastSettledAt,
+			long totalSettledGold,
+			long totalSettledWon,
+			Instant lastSkillPointAdClaimedAt,
+			Instant gameProfileUpdatedAt,
+			boolean tutorialRewardClaimed,
+			boolean featureTutorialCompleted,
+				Instant autoHuntEndsAt,
+				boolean suspended,
 			Instant suspendedAt,
 			String suspensionReason,
 			Instant createdAt,
@@ -46,8 +49,18 @@ public record AdminPlayerResponse(
 			"EASTER_EGG_MINGYU",
 			"EASTER_EGG_JAESEO"
 	);
+	private static final long MAX_COMBAT_POWER = 99_999_999L;
+	private static final double COMBAT_POWER_LEVEL_SCALE = 40.0;
+	private static final double COMBAT_POWER_SKILL_SCALE = 180.0;
+	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
+	private static final long ROOKIE_EVENT_REWARD_DURATION_DAYS = 30;
 
-	public static AdminPlayerResponse from(Player player) {
+	public static AdminPlayerResponse from(Player player, int goldPerTossPoint) {
+		return from(player, goldPerTossPoint, Instant.now());
+	}
+
+	public static AdminPlayerResponse from(Player player, int goldPerTossPoint, Instant now) {
+		long totalSettledGold = Math.max(0, player.getCumulativeGoldEarned());
 		return new AdminPlayerResponse(
 				player.getUserKey(),
 				player.getGameProfileNickname(),
@@ -58,6 +71,7 @@ public record AdminPlayerResponse(
 				!player.hasChosenJob(),
 				player.getGold(),
 				player.getCumulativeGoldEarned(),
+				combatPower(player, now),
 				player.getSkillPoints(),
 				player.getLevel(),
 				player.getExperience(),
@@ -68,12 +82,13 @@ public record AdminPlayerResponse(
 				player.getCurrentMonsterKey(),
 				player.getCurrentMonsterHp(),
 				player.getLastSettledAt(),
+				totalSettledGold,
+				totalSettledWon(totalSettledGold, goldPerTossPoint),
 				player.getLastSkillPointAdClaimedAt(),
 				player.getGameProfileUpdatedAt(),
 				player.hasClaimedTutorialReward(),
 				player.hasCompletedFeatureTutorial(),
 					player.getAutoHuntEndsAt(),
-					player.getBoostEndsAt(),
 					player.isSuspended(),
 					player.getSuspendedAt(),
 					player.getSuspensionReason(),
@@ -84,5 +99,35 @@ public record AdminPlayerResponse(
 
 	private static boolean hasHiddenPetSkinsUnlocked(Player player) {
 		return player.ownedPetSkinKeyList().stream().anyMatch(EASTER_EGG_PET_SKINS::contains);
+	}
+
+	private static long totalSettledWon(long totalSettledGold, int goldPerTossPoint) {
+		if (goldPerTossPoint <= 0) {
+			return 0;
+		}
+		return Math.max(0, totalSettledGold / goldPerTossPoint);
+	}
+
+	private static long combatPower(Player player, Instant now) {
+		long totalSkillLevels = player.getSkills().stream()
+				.mapToLong(PlayerSkill::getLevel)
+				.sum();
+		totalSkillLevels += rookieEventPetCombatPowerSkillBonus(player, now);
+		double levelRatio = Math.min(1.0, Math.max(0.0, player.getLevel() / COMBAT_POWER_LEVEL_SCALE));
+		double spRatio = Math.min(1.0, Math.max(0.0, totalSkillLevels / COMBAT_POWER_SKILL_SCALE));
+		double power = MAX_COMBAT_POWER
+				* Math.pow(levelRatio, 0.5)
+				* Math.pow(spRatio, 1.5);
+		return Math.min(MAX_COMBAT_POWER, Math.max(0L, (long) Math.floor(power)));
+	}
+
+	private static int rookieEventPetCombatPowerSkillBonus(Player player, Instant now) {
+		Instant claimedAt = player.getRookieEventRewardClaimedAt();
+		if (claimedAt == null || now == null) {
+			return 0;
+		}
+		return now.isBefore(claimedAt.plusSeconds(ROOKIE_EVENT_REWARD_DURATION_DAYS * 86_400L))
+				? ROOKIE_EVENT_PET_SKILL_LEVEL
+				: 0;
 	}
 }

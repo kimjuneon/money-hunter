@@ -28,10 +28,11 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("friendInviteLimit", "친구 초대 보상 제한", "명", 0, 100),
 			new PolicyDefinition("maxCharacterSlots", "최대 캐릭터 슬롯", "개", 1, 3),
 			new PolicyDefinition("autoHuntAdSeconds", "자동사냥 광고 보상 시간", "초", 60, 86_400),
-			new PolicyDefinition("boostAdSeconds", "공속버프 광고 보상 시간", "초", 60, 86_400),
 			new PolicyDefinition("autoHuntAdCooldownSeconds", "자동사냥 광고 보상 쿨타임", "초", 0, 86_400),
-			new PolicyDefinition("boostAdCooldownSeconds", "공속버프 광고 보상 쿨타임", "초", 0, 86_400),
 			new PolicyDefinition("maxAdSeconds", "광고 보상 최대 누적 시간", "초", 3_600, 86_400),
+			new PolicyDefinition("dungeonFreeDailyLimit", "던전 기본 제공 횟수", "회", 0, 20),
+			new PolicyDefinition("dungeonAdditionalDailyLimit", "던전 광고 추가 횟수", "회", 0, 20),
+			new PolicyDefinition("dungeonReentryCooldownSeconds", "던전 재입장 대기 시간", "초", 0, 86_400),
 			new PolicyDefinition("skillPointAdCooldownSeconds", "SP 광고 보상 쿨타임", "초", 0, 86_400),
 			new PolicyDefinition("rewardPointAmount", "보상 수령 포인트 기준", "P", 1, 1_000_000),
 			new PolicyDefinition("anomalyLimitPerRule", "이상징후 룰별 최대 표시", "건", 1, 200),
@@ -39,7 +40,7 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("anomalyRewardClaimsPerDayWarning", "일일 보상 수령 이상징후 기준", "건", 1, 1_000),
 			new PolicyDefinition("anomalyGoldThresholdMultiplier", "보유 골드 이상징후 배수", "배", 1, 1_000),
 			new PolicyDefinition("anomalySkillPointsWarning", "미사용 SP 이상징후 기준", "SP", 1, 100_000),
-			new PolicyDefinition("anomalyTimerGraceSeconds", "버프 시간 이상징후 유예", "초", 0, 86_400)
+			new PolicyDefinition("anomalyTimerGraceSeconds", "자동사냥 시간 이상징후 유예", "초", 0, 86_400)
 	);
 
 	private final EconomyProperties defaults;
@@ -131,12 +132,13 @@ public class RuntimeEconomyService {
 				nvl(row.getSkillPointPackAmount(), defaults.skillPointPackAmount()),
 				nvl(row.getFriendInviteRewardSkillPoints(), defaults.friendInviteRewardSkillPoints()),
 				nvl(row.getFriendInviteLimit(), defaults.friendInviteLimit()),
-				nvl(row.getMaxCharacterSlots(), defaults.maxCharacterSlots()),
-				nvl(row.getAutoHuntAdSeconds(), defaults.autoHuntAdSeconds()),
-				nvl(row.getBoostAdSeconds(), defaults.boostAdSeconds()),
-				nvl(row.getAutoHuntAdCooldownSeconds(), defaults.autoHuntAdCooldownSeconds()),
-				nvl(row.getBoostAdCooldownSeconds(), defaults.boostAdCooldownSeconds()),
-				nvl(row.getMaxAdSeconds(), defaults.maxAdSeconds()),
+					nvl(row.getMaxCharacterSlots(), defaults.maxCharacterSlots()),
+					nvl(row.getAutoHuntAdSeconds(), defaults.autoHuntAdSeconds()),
+					nvl(row.getAutoHuntAdCooldownSeconds(), defaults.autoHuntAdCooldownSeconds()),
+					nvl(row.getMaxAdSeconds(), defaults.maxAdSeconds()),
+				nvl(row.getDungeonFreeDailyLimit(), defaults.dungeonFreeDailyLimit()),
+				nvl(row.getDungeonAdditionalDailyLimit(), defaults.dungeonAdditionalDailyLimit()),
+				nvl(row.getDungeonReentryCooldownSeconds(), defaults.dungeonReentryCooldownSeconds()),
 				nvl(row.getSkillPointAdCooldownSeconds(), defaults.skillPointAdCooldownSeconds()),
 				rewardGoldThreshold(goldPerTossPoint, rewardPointAmount),
 				rewardPointAmount,
@@ -158,13 +160,14 @@ public class RuntimeEconomyService {
 				defaults.skillPointPackPriceWon(),
 				defaults.skillPointPackAmount(),
 				defaults.friendInviteRewardSkillPoints(),
-				defaults.friendInviteLimit(),
-				defaults.maxCharacterSlots(),
-				defaults.autoHuntAdSeconds(),
-				defaults.boostAdSeconds(),
-				defaults.autoHuntAdCooldownSeconds(),
-				defaults.boostAdCooldownSeconds(),
-				defaults.maxAdSeconds(),
+					defaults.friendInviteLimit(),
+					defaults.maxCharacterSlots(),
+					defaults.autoHuntAdSeconds(),
+					defaults.autoHuntAdCooldownSeconds(),
+					defaults.maxAdSeconds(),
+				defaults.dungeonFreeDailyLimit(),
+				defaults.dungeonAdditionalDailyLimit(),
+				defaults.dungeonReentryCooldownSeconds(),
 				defaults.skillPointAdCooldownSeconds(),
 				rewardGoldThreshold,
 				defaults.rewardPointAmount(),
@@ -225,16 +228,8 @@ public class RuntimeEconomyService {
 		return snapshot().autoHuntAdSeconds();
 	}
 
-	public long boostAdSeconds() {
-		return snapshot().boostAdSeconds();
-	}
-
 	public long autoHuntAdCooldownSeconds() {
 		return snapshot().autoHuntAdCooldownSeconds();
-	}
-
-	public long boostAdCooldownSeconds() {
-		return snapshot().boostAdCooldownSeconds();
 	}
 
 	public long maxAdSeconds() {
@@ -277,6 +272,18 @@ public class RuntimeEconomyService {
 		return snapshot().anomalyTimerGraceSeconds();
 	}
 
+	public long dungeonReentryCooldownSeconds() {
+		return snapshot().dungeonReentryCooldownSeconds();
+	}
+
+	public int dungeonFreeDailyLimit() {
+		return snapshot().dungeonFreeDailyLimit();
+	}
+
+	public int dungeonAdditionalDailyLimit() {
+		return snapshot().dungeonAdditionalDailyLimit();
+	}
+
 	public Number valueOf(EconomyPolicySnapshot snapshot, String key) {
 		return switch (key) {
 			case "adRevenuePerRewardAdWon" -> snapshot.adRevenuePerRewardAdWon();
@@ -286,12 +293,13 @@ public class RuntimeEconomyService {
 			case "skillPointPackAmount" -> snapshot.skillPointPackAmount();
 			case "friendInviteRewardSkillPoints" -> snapshot.friendInviteRewardSkillPoints();
 			case "friendInviteLimit" -> snapshot.friendInviteLimit();
-			case "maxCharacterSlots" -> snapshot.maxCharacterSlots();
-			case "autoHuntAdSeconds" -> snapshot.autoHuntAdSeconds();
-			case "boostAdSeconds" -> snapshot.boostAdSeconds();
-			case "autoHuntAdCooldownSeconds" -> snapshot.autoHuntAdCooldownSeconds();
-			case "boostAdCooldownSeconds" -> snapshot.boostAdCooldownSeconds();
-			case "maxAdSeconds" -> snapshot.maxAdSeconds();
+				case "maxCharacterSlots" -> snapshot.maxCharacterSlots();
+				case "autoHuntAdSeconds" -> snapshot.autoHuntAdSeconds();
+				case "autoHuntAdCooldownSeconds" -> snapshot.autoHuntAdCooldownSeconds();
+				case "maxAdSeconds" -> snapshot.maxAdSeconds();
+			case "dungeonFreeDailyLimit" -> snapshot.dungeonFreeDailyLimit();
+			case "dungeonAdditionalDailyLimit" -> snapshot.dungeonAdditionalDailyLimit();
+			case "dungeonReentryCooldownSeconds" -> snapshot.dungeonReentryCooldownSeconds();
 			case "skillPointAdCooldownSeconds" -> snapshot.skillPointAdCooldownSeconds();
 			case "rewardGoldThreshold" -> snapshot.rewardGoldThreshold();
 			case "rewardPointAmount" -> snapshot.rewardPointAmount();

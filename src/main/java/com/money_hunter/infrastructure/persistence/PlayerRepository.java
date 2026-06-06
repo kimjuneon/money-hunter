@@ -8,6 +8,7 @@ import java.util.Optional;
 import com.money_hunter.domain.Player;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -29,8 +30,6 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant startedAt, Instant endedAt);
 
 	long countByAutoHuntEndsAtAfter(Instant now);
-
-	long countByBoostEndsAtAfter(Instant now);
 
 	long countByRookieEventStartedAtIsNotNull();
 
@@ -72,7 +71,46 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 					or lower(coalesce(p.gameProfileNickname, '')) like lower(concat('%', :query, '%'))
 				)
 				""")
-		org.springframework.data.domain.Page<Player> searchPlayers(
+			org.springframework.data.domain.Page<Player> searchPlayers(
+					@Param("query") String query,
+				@Param("favoriteMode") String favoriteMode,
+				@Param("statusMode") String statusMode,
+				@Param("progressMode") String progressMode,
+				@Param("hiddenSkinsOnly") boolean hiddenSkinsOnly,
+				@Param("activeAutoHuntOnly") boolean activeAutoHuntOnly,
+					@Param("now") Instant now,
+					org.springframework.data.domain.Pageable pageable);
+
+		@Query("""
+					select p
+					from Player p
+					where (
+							:favoriteMode = 'ALL'
+							or (:favoriteMode = 'FAVORITE' and p.adminFavorite = true)
+							or (:favoriteMode = 'NOT_FAVORITE' and p.adminFavorite = false)
+						)
+						and (
+							:statusMode = 'ALL'
+							or (:statusMode = 'ACTIVE' and p.suspendedAt is null)
+							or (:statusMode = 'SUSPENDED' and p.suspendedAt is not null)
+						)
+						and (
+							:progressMode = 'ALL'
+							or (:progressMode = 'ONBOARDED' and p.job is not null)
+							or (:progressMode = 'NEEDS_JOB' and p.job is null)
+							or (:progressMode = 'FEATURE_TUTORIAL_DONE' and p.featureTutorialCompletedAt is not null)
+						)
+						and (:hiddenSkinsOnly = false or coalesce(p.ownedPetSkinKeys, '') like '%EASTER_EGG%')
+						and (:activeAutoHuntOnly = false or (p.autoHuntEndsAt is not null and p.autoHuntEndsAt > :now))
+						and (
+							:query is null
+						or :query = ''
+						or lower(p.userKey) like lower(concat('%', :query, '%'))
+						or lower(coalesce(p.adminNickname, '')) like lower(concat('%', :query, '%'))
+						or lower(coalesce(p.gameProfileNickname, '')) like lower(concat('%', :query, '%'))
+					)
+					""")
+		List<Player> searchPlayers(
 				@Param("query") String query,
 				@Param("favoriteMode") String favoriteMode,
 				@Param("statusMode") String statusMode,
@@ -80,7 +118,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 				@Param("hiddenSkinsOnly") boolean hiddenSkinsOnly,
 				@Param("activeAutoHuntOnly") boolean activeAutoHuntOnly,
 				@Param("now") Instant now,
-				org.springframework.data.domain.Pageable pageable);
+				Sort sort);
 
 	@Query("""
 			select p.userKey as userKey,
@@ -111,16 +149,13 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	@Query("""
 			select p.userKey as userKey,
 				p.autoHuntEndsAt as autoHuntEndsAt,
-				p.boostEndsAt as boostEndsAt,
 				p.updatedAt as updatedAt
 			from Player p
-			where (p.autoHuntEndsAt is not null and p.autoHuntEndsAt > :maxAutoHuntEnd)
-				or (p.boostEndsAt is not null and p.boostEndsAt > :maxBoostEnd)
+			where p.autoHuntEndsAt is not null and p.autoHuntEndsAt > :maxAutoHuntEnd
 			order by p.updatedAt desc
 			""")
 	List<PlayerTimerSnapshot> findPlayersWithTimersBeyond(
 			@Param("maxAutoHuntEnd") Instant maxAutoHuntEnd,
-			@Param("maxBoostEnd") Instant maxBoostEnd,
 			org.springframework.data.domain.Pageable pageable);
 
 	@Query("""
@@ -187,6 +222,50 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 			@Param("maxStage") int maxStage,
 			org.springframework.data.domain.Pageable pageable);
 
+	@Query("""
+			select p
+			from Player p
+			where p.job is not null
+				and p.suspendedAt is null
+				and p.dungeonCouponHuntMillis >= :requiredHuntMillis
+				and p.dungeonRunCountDate = :today
+				and p.dungeonRunCount < :dailyLimit
+				and (p.dungeonNextAvailableAt is null or p.dungeonNextAvailableAt <= :now)
+				and (
+					p.dungeonExploreAvailableNotificationDate is null
+					or p.dungeonExploreAvailableNotificationDate <> :today
+					or p.dungeonExploreAvailableNotificationRunCount is null
+					or p.dungeonExploreAvailableNotificationRunCount <> p.dungeonRunCount
+				)
+			order by p.id asc
+			""")
+	List<Player> findDungeonExploreAvailableNotificationTargets(
+			@Param("now") Instant now,
+			@Param("today") LocalDate today,
+			@Param("dailyLimit") int dailyLimit,
+			@Param("requiredHuntMillis") long requiredHuntMillis,
+			org.springframework.data.domain.Pageable pageable);
+
+	@Query("""
+			select p
+			from Player p
+			where p.lastAccessedAt <= :inactiveSince
+				and p.lastAccessedAt > :expiredBefore
+				and p.job is not null
+				and p.suspendedAt is null
+				and (
+					p.battleReadyDailySentStage < :maxStage
+					or p.battleReadyDailyStreakAccessedAt is null
+					or p.battleReadyDailyStreakAccessedAt <> p.lastAccessedAt
+				)
+			order by p.lastAccessedAt asc, p.id asc
+			""")
+	List<Player> findBattleReadyDailyNotificationTargets(
+			@Param("inactiveSince") Instant inactiveSince,
+			@Param("expiredBefore") Instant expiredBefore,
+			@Param("maxStage") int maxStage,
+			org.springframework.data.domain.Pageable pageable);
+
 	@Modifying
 	@Query(value = """
 				insert into players (
@@ -215,8 +294,6 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 		String getUserKey();
 
 		Instant getAutoHuntEndsAt();
-
-		Instant getBoostEndsAt();
 
 		Instant getUpdatedAt();
 	}

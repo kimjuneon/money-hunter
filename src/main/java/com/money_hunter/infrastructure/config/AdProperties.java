@@ -6,11 +6,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "money-hunter.ads")
 public record AdProperties(
-		String mode,
-		String autoHuntRewardAdGroupId,
-		String boostRewardAdGroupId,
-		String skillPointRewardAdGroupId,
+			String mode,
+			String autoHuntRewardAdGroupId,
+			String skillPointRewardAdGroupId,
 		String rewardClaimRewardAdGroupId,
+		String dungeonAdditionalRewardAdGroupId,
 		String jobChangeInterstitialAdGroupId,
 		String bannerAdGroupId
 ) {
@@ -24,20 +24,20 @@ public record AdProperties(
 
 	public Map<String, String> clientAdGroupIds() {
 		if ("test".equals(normalizedMode())) {
-			return Map.of(
-					"autoHunt", TEST_REWARDED_AD_GROUP_ID,
-					"boost", TEST_REWARDED_AD_GROUP_ID,
-					"skillPoint", TEST_REWARDED_AD_GROUP_ID,
+				return Map.of(
+						"autoHunt", TEST_REWARDED_AD_GROUP_ID,
+						"skillPoint", TEST_REWARDED_AD_GROUP_ID,
 					"rewardClaim", TEST_REWARDED_AD_GROUP_ID,
+					"dungeonAdditional", TEST_REWARDED_AD_GROUP_ID,
 					"jobChange", TEST_INTERSTITIAL_AD_GROUP_ID,
 					"banner", TEST_BANNER_AD_GROUP_ID
 			);
 		}
-		return Map.of(
-				"autoHunt", value(autoHuntRewardAdGroupId),
-				"boost", value(boostRewardAdGroupId),
-				"skillPoint", value(skillPointRewardAdGroupId),
+			return Map.of(
+					"autoHunt", value(autoHuntRewardAdGroupId),
+					"skillPoint", value(skillPointRewardAdGroupId),
 				"rewardClaim", value(rewardClaimRewardAdGroupId),
+				"dungeonAdditional", value(dungeonAdditionalRewardAdGroupId),
 				"jobChange", value(jobChangeInterstitialAdGroupId),
 				"banner", value(bannerAdGroupId)
 		);

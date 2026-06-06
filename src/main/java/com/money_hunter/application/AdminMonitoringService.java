@@ -88,11 +88,10 @@ public class AdminMonitoringService {
 				appProperties.releaseBlockers(),
 				playerRepository.count(),
 				playerRepository.countByJobIsNotNull(),
-				playerRepository.countBySuspendedAtIsNotNull(),
-				playerRepository.countByCreatedAtGreaterThanEqual(today),
-				playerRepository.countByAutoHuntEndsAtAfter(now),
-				playerRepository.countByBoostEndsAtAfter(now),
-				playerRepository.totalGold(),
+					playerRepository.countBySuspendedAtIsNotNull(),
+					playerRepository.countByCreatedAtGreaterThanEqual(today),
+					playerRepository.countByAutoHuntEndsAtAfter(now),
+					playerRepository.totalGold(),
 				rewardAdEventsToday,
 				rewardClaimsToday,
 				rewardPointsToday,
@@ -118,7 +117,6 @@ public class AdminMonitoringService {
 		long timerGraceSeconds = economy.anomalyTimerGraceSeconds();
 		long suspiciousGold = multiplyCapped(economy.rewardGoldThreshold(), goldThresholdMultiplier);
 		Instant maxAutoHuntEnd = now.plusSeconds(economy.maxAdSeconds() + timerGraceSeconds);
-		Instant maxBoostEnd = now.plusSeconds(economy.maxAdSeconds() + timerGraceSeconds);
 		List<AdminAnomaly> detectedAnomalies = new ArrayList<>();
 
 		adEventRepository.findPlayerEventCountsSince(oneHourAgo, adEventsPerHourWarning, limit)
@@ -168,7 +166,7 @@ public class AdminMonitoringService {
 						skillPointsWarning,
 						row.getUpdatedAt())));
 
-		playerRepository.findPlayersWithTimersBeyond(maxAutoHuntEnd, maxBoostEnd, limit)
+		playerRepository.findPlayersWithTimersBeyond(maxAutoHuntEnd, limit)
 				.forEach(row -> detectedAnomalies.add(timerAnomaly(now, row, timerGraceSeconds)));
 
 		List<AdminAnomaly> anomalies = new ArrayList<>(enrichAnomalyCases(detectedAnomalies));
@@ -239,7 +237,7 @@ public class AdminMonitoringService {
 						new AdminAnomalyRule(
 								"TIMER_OVER_CAP",
 								"광고 시간 상한 초과",
-								"자동사냥/공속버프 남은 시간이 최대 누적 시간과 유예 시간을 초과하면 표시해요.",
+								"자동사냥 남은 시간이 최대 누적 시간과 유예 시간을 초과하면 표시해요.",
 								"CRITICAL",
 								timerGraceSeconds,
 								"초 유예",
@@ -301,17 +299,14 @@ public class AdminMonitoringService {
 
 	private AdminAnomaly timerAnomaly(Instant now, PlayerRepository.PlayerTimerSnapshot row, long timerGraceSeconds) {
 		long autoHuntSeconds = secondsAfterNow(now, row.getAutoHuntEndsAt());
-		long boostSeconds = secondsAfterNow(now, row.getBoostEndsAt());
-		long observedSeconds = Math.max(autoHuntSeconds, boostSeconds);
-		String timerName = autoHuntSeconds >= boostSeconds ? "자동사냥" : "공속버프";
 		return anomaly(
 				"CRITICAL",
 				"TIMER_OVER_CAP",
 				row.getUserKey(),
-				timerName + " 시간 상한 초과",
-				timerName + " 남은 시간이 " + observedSeconds + "초로, 정책 상한 "
+				"자동사냥 시간 상한 초과",
+				"자동사냥 남은 시간이 " + autoHuntSeconds + "초로, 정책 상한 "
 						+ economy.maxAdSeconds() + "초와 유예 " + timerGraceSeconds + "초를 초과했어요.",
-				observedSeconds,
+				autoHuntSeconds,
 				economy.maxAdSeconds() + timerGraceSeconds,
 				row.getUpdatedAt());
 	}
@@ -511,11 +506,10 @@ public class AdminMonitoringService {
 			java.util.List<String> releaseBlockers,
 			long totalPlayers,
 			long onboardedPlayers,
-			long suspendedPlayers,
-			long newPlayersToday,
-			long activeAutoHuntPlayers,
-			long activeBoostPlayers,
-			long totalGoldInCirculation,
+				long suspendedPlayers,
+				long newPlayersToday,
+				long activeAutoHuntPlayers,
+				long totalGoldInCirculation,
 			long rewardAdEventsToday,
 			long rewardClaimsToday,
 			long rewardPointsToday,

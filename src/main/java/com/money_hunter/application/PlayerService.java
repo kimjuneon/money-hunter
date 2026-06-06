@@ -4,11 +4,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -35,6 +38,10 @@ import com.money_hunter.infrastructure.config.IapProperties;
 import com.money_hunter.infrastructure.config.PromotionProperties;
 import com.money_hunter.infrastructure.config.SmartMessageProperties;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
+import com.money_hunter.application.dto.response.AdventureRewardPoolItemResponse;
+import com.money_hunter.application.dto.response.BossRaidRewardResponse;
+import com.money_hunter.application.dto.response.DungeonCouponRewardResponse;
+import com.money_hunter.application.dto.response.DungeonCouponStateResponse;
 import com.money_hunter.application.dto.response.NotificationResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.MonsterResponse;
@@ -57,18 +64,16 @@ public class PlayerService {
 	private static final long GOLD_MICROS = 1_000_000L;
 	private static final long HOUR_MILLIS = 3_600_000L;
 	private static final long MAX_GOLD_PER_HOUR = 6_000L;
-	private static final double BOOST_REWARD_MULTIPLIER = 1.5;
-	private static final double MAX_PREBOOST_PAYOUT_RATE = 1.0 / BOOST_REWARD_MULTIPLIER;
+	private static final double MAX_PAYOUT_RATE = 1.0;
 	private static final double BASE_PAYOUT_RATE = 0.20;
 	private static final double MAX_SKILL_PAYOUT_RATE = 0.5333333333;
 	private static final double PET_UNLOCK_PAYOUT_RATE = 0.04;
-	private static final double PET_SKILL_PAYOUT_RATE = (MAX_PREBOOST_PAYOUT_RATE
+	private static final double PET_SKILL_PAYOUT_RATE = (MAX_PAYOUT_RATE
 			- MAX_SKILL_PAYOUT_RATE
 			- PET_UNLOCK_PAYOUT_RATE * 2) / 2;
 	private static final int HIT_REWARD_PERCENT = 75;
-	private static final int BASE_ATTACK_INTERVAL_MILLIS = 1_500;
-	private static final int BOOSTED_ATTACK_INTERVAL_MILLIS = 750;
-	private static final int MIN_ATTACK_INTERVAL_MILLIS = 750;
+	private static final int BASE_ATTACK_INTERVAL_MILLIS = 667;
+	private static final int MIN_ATTACK_INTERVAL_MILLIS = 500;
 	private static final int MAX_RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS = BASE_ATTACK_INTERVAL_MILLIS - MIN_ATTACK_INTERVAL_MILLIS;
 	private static final int MAX_RAPID_DAMAGE_BONUS = 40;
 	private static final int MAX_STAT_DAMAGE_BONUS = 60;
@@ -83,6 +88,12 @@ public class PlayerService {
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
 	private static final int DORMANT_SP_REWARD_AMOUNT = 1;
 	private static final List<Integer> DORMANT_SP_REWARD_INACTIVE_DAYS = List.of(3, 5, 7, 9);
+	private static final int BATTLE_READY_DAILY_NOTIFICATION_DAYS = 5;
+	private static final long DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS = HOUR_MILLIS;
+	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+	private static final long MAX_COMBAT_POWER = 99_999_999L;
+	private static final double COMBAT_POWER_LEVEL_SCALE = 40.0;
+	private static final double COMBAT_POWER_SKILL_SCALE = 180.0;
 	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Set<String> PET_SKIN_KEYS = Set.of(
@@ -129,9 +140,9 @@ public class PlayerService {
 	);
 	private static final Set<AdEventType> REWARD_AD_TYPES = EnumSet.of(
 			AdEventType.AUTO_HUNT,
-			AdEventType.BOOST,
 			AdEventType.SKILL_POINT,
-			AdEventType.REWARD_CLAIM
+			AdEventType.REWARD_CLAIM,
+			AdEventType.DUNGEON_ADDITIONAL_ENTRY
 	);
 	private static final List<RookieEventDayPlan> ROOKIE_EVENT_PLANS = List.of(
 			new RookieEventDayPlan(1, "사냥 준비", skillPointReward(), List.of(
@@ -144,22 +155,22 @@ public class PlayerService {
 					new RookieMissionPlan("monsters_35", RookieMissionType.MONSTERS, 35, "몬스터 35마리 처치하기"),
 					new RookieMissionPlan("home_shortcut_return", RookieMissionType.HOME_SHORTCUT_RETURN, 1, "머니헌터 홈 화면에 추가하고 다시 접속하기")
 			)),
-			new RookieEventDayPlan(3, "성장 루틴", boostReward(), List.of(
+			new RookieEventDayPlan(3, "성장 루틴", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("monsters_50", RookieMissionType.MONSTERS, 50, "몬스터 50마리 처치하기"),
 					new RookieMissionPlan("spend_sp_1", RookieMissionType.SKILL_POINTS_SPENT, 1, "스킬포인트 1개 사용하기")
 			)),
-			new RookieEventDayPlan(4, "빠른 전투", skillPointReward(), List.of(
-					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
-					new RookieMissionPlan("boost_monsters_20", RookieMissionType.BOOST_MONSTERS, 20, "공속버프 상태로 몬스터 20마리 처치하기"),
-					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
-			)),
+		new RookieEventDayPlan(4, "빠른 전투", skillPointReward(), List.of(
+				new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
+				new RookieMissionPlan("monsters_60", RookieMissionType.MONSTERS, 60, "몬스터 60마리 처치하기"),
+				new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
+		)),
 			new RookieEventDayPlan(5, "보상 축적", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("monsters_70", RookieMissionType.MONSTERS, 70, "몬스터 70마리 처치하기"),
 					new RookieMissionPlan("gold_15000", RookieMissionType.GOLD, 15_000, "골드 15,000G 모으기")
 			)),
-			new RookieEventDayPlan(6, "실력 증명", boostReward(), List.of(
+				new RookieEventDayPlan(6, "실력 증명", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
 					new RookieMissionPlan("monsters_90", RookieMissionType.MONSTERS, 90, "몬스터 90마리 처치하기"),
 					new RookieMissionPlan("level_10", RookieMissionType.LEVEL, 10, "10레벨 달성하기")
@@ -174,7 +185,6 @@ public class PlayerService {
 	private enum RookieMissionType {
 		HUNT_MILLIS,
 		MONSTERS,
-		BOOST_MONSTERS,
 		GOLD,
 		TOSS_POINT_CLAIMS,
 		SKILL_POINTS_SPENT,
@@ -185,7 +195,13 @@ public class PlayerService {
 	private enum RookieEventDailyRewardType {
 		SKILL_POINT,
 		AUTO_HUNT_SECONDS,
-		BOOST_SECONDS
+	}
+
+	private enum DungeonCouponRewardType {
+		GOLD,
+		SKILL_POINT,
+		AUTO_HUNT_SECONDS,
+		BOSS_TICKET
 	}
 
 	private record RookieMissionPlan(String key, RookieMissionType type, long target, String label) {
@@ -202,16 +218,74 @@ public class PlayerService {
 	) {
 	}
 
+	private record DungeonCouponRewardPlan(DungeonCouponRewardType type, long minAmount, long maxAmount, int weight) {
+	}
+
+	private record DungeonCouponReward(DungeonCouponRewardType type, long amount, String label) {
+	}
+
+	private record DungeonCouponTier(long minCombatPower, String name, String rewardPreview, List<DungeonCouponRewardPlan> rewards) {
+	}
+
+	private record BossRaidTier(long minCombatPower, String bossName, String difficultyName, String rewardPreview, List<DungeonCouponRewardPlan> rewards) {
+	}
+
+	private static final List<DungeonCouponTier> DUNGEON_COUPON_TIERS = List.of(
+			new DungeonCouponTier(0, "초급 던전", "골드 100~300G · SP 1개 · 자동사냥 10분 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 100, 300, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 1, 1, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 600, 600, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
+			)),
+			new DungeonCouponTier(10_000_000, "숙련 던전", "골드 300~500G · SP 2개 · 자동사냥 20분 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 300, 500, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 2, 2, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_200, 1_200, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
+			)),
+			new DungeonCouponTier(20_000_000, "정예 던전", "골드 500~700G · SP 3개 · 자동사냥 30분 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 500, 700, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_800, 1_800, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
+			)),
+			new DungeonCouponTier(50_000_000, "심층 던전", "골드 700~1,000G · SP 4개 · 자동사냥 40분 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 700, 1_000, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 4, 4, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 2_400, 2_400, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
+			))
+	);
+
+	private static final List<BossRaidTier> BOSS_RAID_TIERS = List.of(
+			new BossRaidTier(0, "흑요석 골렘", "초급 보스", "골드 1,000~1,500G · SP 3개 · 자동사냥 30분", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 1_000, 1_500, 50),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_800, 1_800, 25)
+			)),
+			new BossRaidTier(10_000_000, "빙결 발톱수", "숙련 보스", "골드 1,500~2,000G · SP 3개 · 자동사냥 1시간", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 1_500, 2_000, 45),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 3_600, 3_600, 25)
+			)),
+			new BossRaidTier(20_000_000, "심록의 고목왕", "정예 보스", "골드 2,000~2,500G · SP 3개 · 자동사냥 1시간 30분", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 2_000, 2_500, 40),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 5_400, 5_400, 25)
+			)),
+			new BossRaidTier(50_000_000, "별무리 고대룡", "심층 보스", "골드 2,500~3,000G · SP 3개 · 자동사냥 2시간", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 2_500, 3_000, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 40),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 7_200, 7_200, 25)
+			))
+	);
+
 	private static RookieEventDailyRewardPlan skillPointReward() {
 		return new RookieEventDailyRewardPlan(RookieEventDailyRewardType.SKILL_POINT, 1, "SP 1개");
 	}
 
 	private static RookieEventDailyRewardPlan autoHuntReward() {
 		return new RookieEventDailyRewardPlan(RookieEventDailyRewardType.AUTO_HUNT_SECONDS, 3_600, "자동전투 1시간");
-	}
-
-	private static RookieEventDailyRewardPlan boostReward() {
-		return new RookieEventDailyRewardPlan(RookieEventDailyRewardType.BOOST_SECONDS, 3_600, "공속버프 1시간");
 	}
 
 	private final PlayerRepository playerRepository;
@@ -343,37 +417,6 @@ public class PlayerService {
 	}
 
 	@Transactional
-	public PlayerStateResponse completeBoostAd(String userKey) {
-		return completeBoostAd(userKey, null, false);
-	}
-
-	@Transactional
-	public PlayerStateResponse completeBoostAd(String userKey, String adSessionToken) {
-		return completeBoostAd(userKey, adSessionToken, true);
-	}
-
-	private PlayerStateResponse completeBoostAd(String userKey, String adSessionToken, boolean requireAdSession) {
-		Player player = getOrCreatePlayer(userKey);
-		requireOnboarded(player);
-		settle(player);
-		Instant now = clock.instant();
-		requireTimeRewardAdCooldownElapsed(player, AdEventType.BOOST, now);
-		completeRewardAdSessionIfRequired(player, AdEventType.BOOST, adSessionToken, requireAdSession, now);
-		RewardTimeGrant grant = addCappedRewardTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now);
-		player.setBoostEndsAt(grant.endsAt());
-		player.markBoostAdClaimed(now);
-		adEventRepository.save(new AdEvent(player, AdEventType.BOOST, (int) grant.grantedSeconds(), now));
-		log.info(
-				"공속버프 광고 보상 지급: userKey={}, requestedSeconds={}, grantedSeconds={}, boostEndsAt={}, adSessionRequired={}",
-				mask(userKey),
-				economy.boostAdSeconds(),
-				grant.grantedSeconds(),
-				player.getBoostEndsAt(),
-				requireAdSession);
-		return toState(player);
-	}
-
-	@Transactional
 	public PlayerStateResponse completeSkillPointAd(String userKey) {
 		return completeSkillPointAd(userKey, null, false);
 	}
@@ -415,7 +458,11 @@ public class PlayerService {
 	public PlayerStateResponse completeFeatureTutorial(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
+		boolean firstCompletion = !player.hasCompletedFeatureTutorial();
 		player.completeFeatureTutorial(clock.instant());
+		if (firstCompletion) {
+			player.addSkillPoint();
+		}
 		return toState(player);
 	}
 
@@ -512,8 +559,7 @@ public class PlayerService {
 		int claimedInvites = player.claimFriendInviteReward(
 				economy.friendInviteLimit(),
 				economy.friendInviteRewardSkillPoints(),
-				completedInvites,
-				LocalDate.now(clock));
+				completedInvites);
 		int rewardSkillPoints = economy.friendInviteRewardSkillPoints() * claimedInvites;
 		adEventRepository.save(new AdEvent(
 			player,
@@ -528,7 +574,109 @@ public class PlayerService {
 				rewardSkillPoints,
 				player.getFriendInviteRewardCount(),
 				economy.friendInviteLimit());
-		return toState(player);
+			return toState(player);
+	}
+
+	@Transactional
+	public DungeonCouponRewardResponse useDungeonCoupon(String userKey) {
+		return runDungeon(userKey);
+	}
+
+	@Transactional
+	public DungeonCouponRewardResponse runDungeon(String userKey) {
+		return runDungeon(userKey, false, null, false);
+	}
+
+	@Transactional
+	public DungeonCouponRewardResponse runAdditionalDungeonAfterAd(String userKey) {
+		return runDungeon(userKey, true, null, false);
+	}
+
+	@Transactional
+	public DungeonCouponRewardResponse runAdditionalDungeonAfterAd(String userKey, String adSessionToken) {
+		return runDungeon(userKey, true, adSessionToken, true);
+	}
+
+	private DungeonCouponRewardResponse runDungeon(
+			String userKey,
+			boolean additionalEntry,
+			String adSessionToken,
+			boolean requireAdSession
+	) {
+		if (!appProperties.dungeonCouponEnabled()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "모험 기능이 비활성화되어 있어요.");
+		}
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		Instant now = clock.instant();
+			LocalDate today = todayInSeoul();
+			player.resetDungeonRunCountIfNewDay(today);
+		requireDungeonEntryAvailable(player, now, additionalEntry);
+		if (additionalEntry) {
+			completeRewardAdSessionIfRequired(player, AdEventType.DUNGEON_ADDITIONAL_ENTRY, adSessionToken, requireAdSession, now);
+			adEventRepository.save(new AdEvent(player, AdEventType.DUNGEON_ADDITIONAL_ENTRY, 1, now));
+		}
+		DungeonCouponTier tier = dungeonCouponTier(player);
+		DungeonCouponReward reward = rollDungeonCouponReward(tier);
+		player.enterDungeon(now, today, dungeonDailyLimit(), dungeonReentryCooldown());
+		grantDungeonCouponReward(player, reward, now);
+		adEventRepository.save(new AdEvent(
+				player,
+				AdEventType.DUNGEON_RUN,
+				(int) Math.min(Integer.MAX_VALUE, reward.amount()),
+				now));
+		log.info(
+				"던전 보상 지급: userKey={}, tier={}, rewardType={}, amount={}, runsToday={}/{}, bossTickets={}",
+				mask(userKey),
+				tier.name(),
+				reward.type(),
+				reward.amount(),
+				player.getDungeonRunCount(),
+				dungeonDailyLimit(),
+				player.getBossRaidTicketCount());
+		return new DungeonCouponRewardResponse(
+				reward.type().name(),
+				reward.label(),
+				reward.amount(),
+				tier.name(),
+				reward.type() == DungeonCouponRewardType.BOSS_TICKET,
+				toState(player));
+	}
+
+	@Transactional
+	public BossRaidRewardResponse raidBoss(String userKey) {
+		if (!appProperties.dungeonCouponEnabled()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "모험 기능이 비활성화되어 있어요.");
+		}
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		Instant now = clock.instant();
+		BossRaidTier tier = bossRaidTier(player);
+		DungeonCouponReward reward = rollDungeonCouponReward(tier.rewards());
+		player.spendBossRaidTicket();
+		grantDungeonCouponReward(player, reward, now);
+		adEventRepository.save(new AdEvent(
+				player,
+				AdEventType.BOSS_RAID,
+				(int) Math.min(Integer.MAX_VALUE, reward.amount()),
+				now));
+		log.info(
+				"보스 토벌 보상 지급: userKey={}, boss={}, difficulty={}, rewardType={}, amount={}, bossTickets={}",
+				mask(userKey),
+				tier.bossName(),
+				tier.difficultyName(),
+				reward.type(),
+				reward.amount(),
+				player.getBossRaidTicketCount());
+		return new BossRaidRewardResponse(
+				tier.bossName(),
+				tier.difficultyName(),
+				reward.type().name(),
+				reward.label(),
+				reward.amount(),
+				toState(player));
 	}
 
 	@Transactional
@@ -832,26 +980,74 @@ public class PlayerService {
 	}
 
 	@Transactional
-	public PlayerStateResponse completeBoostForTest(String userKey) {
-		Player player = getOrCreatePlayer(userKey);
-		requireOnboarded(player);
-		settle(player);
-		Instant now = clock.instant();
-		player.setBoostEndsAt(addUncappedTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
-		log.info("테스트 공속버프 시간 지급: userKey={}, seconds={}, boostEndsAt={}",
-				mask(userKey),
-				economy.boostAdSeconds(),
-				player.getBoostEndsAt());
-		return toState(player);
-	}
-
-	@Transactional
 	public PlayerStateResponse grantSkillPointForTest(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
 		settle(player);
 		player.addSkillPoint();
 		log.info("테스트 스킬포인트 지급: userKey={}, skillPoints={}", mask(userKey), player.getSkillPoints());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse levelUpForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		player.levelUpForTest();
+		log.info("테스트 레벨 증가: userKey={}, level={}", mask(userKey), player.getLevel());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse levelDownForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		player.levelDownForTest();
+		log.info("테스트 레벨 감소: userKey={}, level={}", mask(userKey), player.getLevel());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse grantDungeonCouponForTest(String userKey) {
+		if (!appProperties.dungeonCouponEnabled()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "모험 기능이 비활성화되어 있어요.");
+		}
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		player.addBossRaidTickets(1);
+		log.info("테스트 보스 입장권 지급: userKey={}, bossTickets={}", mask(userKey), player.getBossRaidTicketCount());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse resetDungeonReentryCooldownForTest(String userKey) {
+		if (!appProperties.dungeonCouponEnabled()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "모험 기능이 비활성화되어 있어요.");
+		}
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		player.resetDungeonReentryCooldownForTest();
+		log.info(
+				"테스트 던전 재입장 시간 초기화: userKey={}, runsToday={}",
+				mask(userKey),
+				player.getDungeonRunCount());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse resetDungeonDailyLimitForTest(String userKey) {
+		if (!appProperties.dungeonCouponEnabled()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "모험 기능이 비활성화되어 있어요.");
+		}
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		player.resetDungeonDailyLimitForTest(todayInSeoul());
+		log.info("테스트 던전 하루 입장 제한 초기화: userKey={}", mask(userKey));
 		return toState(player);
 	}
 
@@ -999,6 +1195,75 @@ public class PlayerService {
 		return sentCount;
 	}
 
+	@Transactional
+	public int publishDungeonExploreAvailableNotifications() {
+		String templateSetCode = smartMessageProperties.normalizedDungeonExploreAvailableTemplateSetCode();
+		if (!appProperties.realSmartMessageEnabled()
+				|| !appProperties.dungeonCouponEnabled()
+				|| !smartMessageProperties.dungeonExploreAvailableEnabled()
+				|| templateSetCode.isBlank()) {
+			return 0;
+		}
+		Instant now = clock.instant();
+		LocalDate today = todayInSeoul();
+		int dailyLimit = dungeonDailyLimit();
+		if (dailyLimit < 1) {
+			return 0;
+		}
+		List<Player> players = playerRepository.findDungeonExploreAvailableNotificationTargets(
+				now,
+				today,
+				dailyLimit,
+				DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS,
+				PageRequest.of(0, smartMessageProperties.safeDungeonExploreAvailableBatchSize()));
+		int sentCount = 0;
+		for (Player player : players) {
+			player.resetDungeonRunCountIfNewDay(today);
+			if (!dungeonExploreAvailableForNotification(player, now, today, dailyLimit)) {
+				continue;
+			}
+			if (sendDungeonExploreAvailableSmartMessage(player, now, templateSetCode)) {
+				player.markDungeonExploreAvailableNotificationSent(today, now);
+				sentCount += 1;
+			}
+		}
+		if (sentCount > 0) {
+			log.info("던전 탐험 가능 스마트메시지 스케줄러 처리: sentCount={}", sentCount);
+		}
+		return sentCount;
+	}
+
+	@Transactional
+	public int publishBattleReadyDailyNotifications() {
+		String templateSetCode = smartMessageProperties.normalizedBattleReadyDailyTemplateSetCode();
+		if (!appProperties.realSmartMessageEnabled()
+				|| !smartMessageProperties.battleReadyDailyEnabled()
+				|| templateSetCode.isBlank()) {
+			return 0;
+		}
+		Instant now = clock.instant();
+		List<Player> players = playerRepository.findBattleReadyDailyNotificationTargets(
+				now.minus(Duration.ofDays(1)),
+				now.minus(Duration.ofDays(BATTLE_READY_DAILY_NOTIFICATION_DAYS + 1L)),
+				BATTLE_READY_DAILY_NOTIFICATION_DAYS,
+				PageRequest.of(0, smartMessageProperties.safeBattleReadyDailyBatchSize()));
+		int sentCount = 0;
+		for (Player player : players) {
+			int inactivityDays = battleReadyDailyNotificationDay(player, now);
+			if (inactivityDays < 1) {
+				continue;
+			}
+			if (sendBattleReadyDailySmartMessage(player, now, inactivityDays, templateSetCode)) {
+				player.markBattleReadyDailySent(player.getLastAccessedAt(), inactivityDays, now);
+				sentCount += 1;
+			}
+		}
+		if (sentCount > 0) {
+			log.info("전투 준비 완료 스마트메시지 스케줄러 처리: sentCount={}", sentCount);
+		}
+		return sentCount;
+	}
+
 	private RewardClaim createRewardClaim(Player player, String idempotencyKey) {
 		if (player.getGold() < economy.rewardGoldThreshold()) {
 			throw new IllegalStateException("Reward gauge is not full.");
@@ -1111,30 +1376,27 @@ public class PlayerService {
 	private void resolveAutoCombat(Player player, Instant settlementEnd) {
 		Instant settlementStart = player.getLastSettledAt();
 		long millis = Duration.between(settlementStart, settlementEnd).toMillis();
-		long boostedMillis = boostedMillis(player, settlementStart, settlementEnd);
-		long normalMillis = millis - boostedMillis;
-		AttackCounts attackCounts = attackCounts(player, normalMillis, boostedMillis);
+		AttackCounts attackCounts = attackCounts(player, millis);
 		long totalAttacks = attackCounts.total();
 		if (totalAttacks <= 0) {
 			return;
 		}
 
-		long rewardMicros = combatRewardMicros(player, normalMillis, boostedMillis);
-		long goldBefore = player.getGold();
-		int monstersBefore = player.getDefeatedMonsters();
-		player.reserveDefeatGold(defeatRewardMicros(rewardMicros));
-		player.collectHitGold(hitRewardMicros(rewardMicros));
-		resolveAggregateDamage(player, attackCounts);
-		long goldDelta = Math.max(0, player.getGold() - goldBefore);
-		int monsterDelta = Math.max(0, player.getDefeatedMonsters() - monstersBefore);
-		int boostMonsterDelta = boostedMillis > 0 ? monsterDelta : 0;
-		recordRookieEventCombatProgress(player, millis, goldDelta, monsterDelta, boostMonsterDelta);
-		player.setLastSettledAt(settlementEnd);
-	}
+			long rewardMicros = combatRewardMicros(player, millis);
+			long goldBefore = player.getGold();
+			int monstersBefore = player.getDefeatedMonsters();
+			player.reserveDefeatGold(defeatRewardMicros(rewardMicros));
+			player.collectHitGold(hitRewardMicros(rewardMicros));
+				resolveAggregateDamage(player, attackCounts);
+				long goldDelta = Math.max(0, player.getGold() - goldBefore);
+				int monsterDelta = Math.max(0, player.getDefeatedMonsters() - monstersBefore);
+				recordRookieEventCombatProgress(player, millis, goldDelta, monsterDelta);
+				recordDungeonHuntProgress(player, settlementStart, settlementEnd);
+				player.setLastSettledAt(settlementEnd);
+			}
 
-	private void resolveAggregateDamage(Player player, AttackCounts attackCounts) {
-		long totalDamage = attackCounts.normal() * damage(player, false)
-				+ attackCounts.boosted() * damage(player, true);
+		private void resolveAggregateDamage(Player player, AttackCounts attackCounts) {
+			long totalDamage = attackCounts.total() * damage(player);
 		while (totalDamage > 0) {
 			int currentHp = player.getCurrentMonsterHp();
 			if (totalDamage < currentHp) {
@@ -1150,7 +1412,7 @@ public class PlayerService {
 		}
 	}
 
-	private int damage(Player player, boolean boosted) {
+	private int damage(Player player) {
 		int rapidLevel = player.getOrCreateSkill(SkillType.RAPID_ATTACK).getLevel();
 		int statLevel = currentJobStatLevel(player);
 		int damage = 16
@@ -1158,18 +1420,11 @@ public class PlayerService {
 				+ scaledSkillValue(rapidLevel, MAX_RAPID_DAMAGE_BONUS)
 				+ scaledSkillValue(statLevel, MAX_STAT_DAMAGE_BONUS)
 				+ petDamage(player);
-		if (boosted) {
-			damage = Math.round(damage * 1.35f);
-		}
 		return damage;
 	}
 
-	private long combatRewardMicros(Player player, long normalMillis, long boostedMillis) {
-		long normalGoldPerHour = baseGoldPerHour(player);
-		long boostedGoldPerHour = boostedGoldPerHour(player);
-		long elapsedMillis = normalMillis + boostedMillis;
-		long rewardMicros = ((normalGoldPerHour * normalMillis)
-				+ (boostedGoldPerHour * boostedMillis)) * GOLD_MICROS / HOUR_MILLIS;
+	private long combatRewardMicros(Player player, long elapsedMillis) {
+		long rewardMicros = currentGoldPerHour(player) * elapsedMillis * GOLD_MICROS / HOUR_MILLIS;
 		return Math.min(rewardMicros, maxRewardMicros(elapsedMillis));
 	}
 
@@ -1185,13 +1440,24 @@ public class PlayerService {
 		return rewardMicros - hitRewardMicros(rewardMicros);
 	}
 
-	private long boostedMillis(Player player, Instant from, Instant to) {
-		Instant boostEnd = player.getBoostEndsAt();
-		if (boostEnd == null || !boostEnd.isAfter(from)) {
-			return 0;
+	private void recordDungeonHuntProgress(Player player, Instant from, Instant to) {
+		if (!appProperties.dungeonCouponEnabled() || from == null || to == null || !to.isAfter(from)) {
+			return;
 		}
-		Instant boostedTo = min(to, boostEnd);
-		return Math.max(0, Duration.between(from, boostedTo).toMillis());
+		LocalDate today = todayInSeoul();
+		player.resetDungeonRunCountIfNewDay(today);
+		Instant todayStart = today.atStartOfDay(SEOUL_ZONE).toInstant();
+		Instant progressStart = from.isAfter(todayStart) ? from : todayStart;
+		if (!to.isAfter(progressStart)) {
+			return;
+		}
+		player.addDungeonEntryHuntProgress(
+				Duration.between(progressStart, to).toMillis(),
+				DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS);
+	}
+
+	private LocalDate todayInSeoul() {
+		return LocalDate.ofInstant(clock.instant(), SEOUL_ZONE);
 	}
 
 	private void claimTutorialStarterReward(Player player, Instant now) {
@@ -1199,7 +1465,6 @@ public class PlayerService {
 			return;
 		}
 		player.setAutoHuntEndsAt(addCappedTime(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
-		player.setBoostEndsAt(addCappedTime(player.getBoostEndsAt(), economy.boostAdSeconds(), now));
 		player.clearAutoHuntEndNotification();
 		clearUnreadAutoHuntEndNotifications(player, now);
 		player.claimTutorialReward(now);
@@ -1217,9 +1482,6 @@ public class PlayerService {
 			requireSkillPointAdCooldownElapsed(player, now);
 		}
 		if (type == AdEventType.AUTO_HUNT) {
-			requireTimeRewardAdCooldownElapsed(player, type, now);
-		}
-		if (type == AdEventType.BOOST) {
 			requireTimeRewardAdCooldownElapsed(player, type, now);
 		}
 		if (type == AdEventType.REWARD_CLAIM && player.getGold() < economy.rewardGoldThreshold()) {
@@ -1243,15 +1505,13 @@ public class PlayerService {
 	private void requireTimeRewardAdCooldownElapsed(Player player, AdEventType type, Instant now) {
 		Instant nextAvailableAt = nextTimeRewardAdAvailableAt(player, type);
 		if (nextAvailableAt != null && nextAvailableAt.isAfter(now)) {
-			String rewardName = type == AdEventType.AUTO_HUNT ? "자동사냥" : "공속버프";
-			throw new IllegalStateException(rewardName + " 광고 보상은 " + remainingSeconds(now, nextAvailableAt) + "초 후 다시 받을 수 있어요.");
+			throw new IllegalStateException("자동사냥 광고 보상은 " + remainingSeconds(now, nextAvailableAt) + "초 후 다시 받을 수 있어요.");
 		}
 	}
 
 	private Instant nextTimeRewardAdAvailableAt(Player player, AdEventType type) {
 		Instant lastClaimedAt = switch (type) {
 			case AUTO_HUNT -> player.getLastAutoHuntAdClaimedAt();
-			case BOOST -> player.getLastBoostAdClaimedAt();
 			default -> null;
 		};
 		long cooldownSeconds = timeRewardAdCooldownSeconds(type);
@@ -1265,7 +1525,6 @@ public class PlayerService {
 	private long timeRewardAdCooldownSeconds(AdEventType type) {
 		return switch (type) {
 			case AUTO_HUNT -> economy.autoHuntAdCooldownSeconds();
-			case BOOST -> economy.boostAdCooldownSeconds();
 			default -> 0;
 		};
 	}
@@ -1287,6 +1546,26 @@ public class PlayerService {
 
 	private long remainingSeconds(Instant now, Instant target) {
 		return Math.max(1, Duration.between(now, target).toSeconds());
+	}
+
+	private int dungeonFreeDailyLimit() {
+		return Math.max(0, Math.min(20, economy.dungeonFreeDailyLimit()));
+	}
+
+	private int dungeonAdditionalDailyLimit() {
+		return Math.max(0, Math.min(20, economy.dungeonAdditionalDailyLimit()));
+	}
+
+	private int dungeonDailyLimit() {
+		return dungeonDailyLimit(dungeonFreeDailyLimit(), dungeonAdditionalDailyLimit());
+	}
+
+	private int dungeonDailyLimit(int freeDailyLimit, int additionalDailyLimit) {
+		return Math.max(0, freeDailyLimit) + Math.max(0, additionalDailyLimit);
+	}
+
+	private Duration dungeonReentryCooldown() {
+		return Duration.ofSeconds(Math.max(0, economy.dungeonReentryCooldownSeconds()));
 	}
 
 	private boolean allSkillsMaxed(Player player) {
@@ -1357,7 +1636,6 @@ public class PlayerService {
 		syncStatSkills(player);
 		prepareRookieEvent(player);
 		completeRookieEventDayIfReady(player);
-		player.resetFriendInviteRewardIfNewDay(LocalDate.now(clock));
 		List<SkillResponse> skills = Arrays.stream(SkillType.values())
 				.map(player::getOrCreateSkill)
 				.map(skill -> new SkillResponse(skill.getType(), skill.getLevel(), effectTier(skill)))
@@ -1388,32 +1666,104 @@ public class PlayerService {
 				payoutRatePercent(player),
 				(int) Math.min(100, player.getGold() * 100 / threshold),
 				player.getGold() >= threshold,
-				player.getSkillPoints(),
-				!allSkillsMaxed(player),
-				nextTimeRewardAdAvailableAt(player, AdEventType.AUTO_HUNT),
-				nextTimeRewardAdAvailableAt(player, AdEventType.BOOST),
-				nextSkillPointAdAvailableAt(player),
-				economy.autoHuntAdSeconds(),
-				economy.boostAdSeconds(),
-				economy.maxAdSeconds(),
+					player.getSkillPoints(),
+					!allSkillsMaxed(player),
+					nextTimeRewardAdAvailableAt(player, AdEventType.AUTO_HUNT),
+					nextSkillPointAdAvailableAt(player),
+					economy.autoHuntAdSeconds(),
+					economy.maxAdSeconds(),
 				player.getFriendInviteRewardCount(),
 				economy.friendInviteLimit(),
 				economy.friendInviteRewardSkillPoints(),
 				player.getLevel(),
 					player.getExperience(),
 					player.getNextLevelExperience(),
-					currentGoldPerHour(player),
-					baseGoldPerHour(player),
-					boostedGoldPerHour(player),
-					attackIntervalMillis(player),
-					normalAttackIntervalMillis(player),
-					boostedAttackIntervalMillis(player),
-					player.getAutoHuntEndsAt(),
-				player.getBoostEndsAt(),
-				monsterResponse(player),
-				skills,
-				rookieEventResponse(player),
-				latestNotification(player));
+						currentGoldPerHour(player),
+						baseGoldPerHour(player),
+						attackIntervalMillis(player),
+						normalAttackIntervalMillis(player),
+						player.getAutoHuntEndsAt(),
+						monsterResponse(player),
+					skills,
+					dungeonCouponResponse(player),
+					rookieEventResponse(player),
+					latestNotification(player));
+		}
+
+	private DungeonCouponStateResponse dungeonCouponResponse(Player player) {
+		if (!appProperties.dungeonCouponEnabled()) {
+			return new DungeonCouponStateResponse(
+					false,
+					0,
+					0,
+						0,
+						0,
+						0,
+						0,
+						0,
+						0,
+						Math.max(1, DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS / 1_000),
+						false,
+						null,
+						0,
+						false,
+					"모험 기능 준비중",
+					"",
+					"",
+					"",
+					"",
+					"",
+					Collections.emptyList(),
+					Collections.emptyList());
+		}
+		Instant now = clock.instant();
+		LocalDate today = todayInSeoul();
+		player.resetDungeonRunCountIfNewDay(today);
+		DungeonCouponTier tier = dungeonCouponTier(player);
+		BossRaidTier bossTier = bossRaidTier(player);
+		int runsToday = Math.max(0, player.getDungeonRunCount());
+		int freeDailyLimit = dungeonFreeDailyLimit();
+		int additionalDailyLimit = dungeonAdditionalDailyLimit();
+		int dailyLimit = dungeonDailyLimit(freeDailyLimit, additionalDailyLimit);
+		int remainingRuns = Math.max(0, dailyLimit - runsToday);
+		long dungeonHuntProgressMillis = player.dungeonEntryHuntProgressMillis(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS);
+		boolean dungeonHuntCompleted = player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS);
+		Instant nextAvailableAt = player.getDungeonNextAvailableAt();
+		long cooldownSeconds = nextAvailableAt == null || !nextAvailableAt.isAfter(now)
+				? 0
+				: Math.max(0, Duration.between(now, nextAvailableAt).toSeconds());
+		boolean dungeonAvailable = dungeonHuntCompleted && remainingRuns > 0 && cooldownSeconds <= 0;
+		String unavailableReason = "";
+		if (!dungeonHuntCompleted) {
+			unavailableReason = "사냥 1시간 필요";
+		} else if (remainingRuns <= 0) {
+			unavailableReason = "오늘 입장 완료";
+		} else if (cooldownSeconds > 0) {
+			unavailableReason = "재입장 대기중";
+		}
+		return new DungeonCouponStateResponse(
+				true,
+				player.getBossRaidTicketCount(),
+				player.getBossRaidTicketCount(),
+				runsToday,
+				dailyLimit,
+				freeDailyLimit,
+				additionalDailyLimit,
+				remainingRuns,
+				Math.max(0, dungeonHuntProgressMillis / 1_000),
+				Math.max(1, DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS / 1_000),
+				dungeonHuntCompleted,
+				nextAvailableAt,
+				cooldownSeconds,
+				dungeonAvailable,
+				unavailableReason,
+				tier.name(),
+				tier.rewardPreview(),
+				bossTier.bossName(),
+				bossTier.difficultyName(),
+				bossTier.rewardPreview(),
+				rewardPoolResponse(tier.rewards()),
+				rewardPoolResponse(bossTier.rewards()));
 	}
 
 	private NotificationResponse latestNotification(Player player) {
@@ -1448,13 +1798,12 @@ public class PlayerService {
 			Player player,
 			long huntMillis,
 			long gold,
-			int monsters,
-			int boostMonsters
+			int monsters
 	) {
 		if (!canProgressRookieEvent(player)) {
 			return;
 		}
-		player.addRookieEventCombatProgress(huntMillis, gold, monsters, boostMonsters);
+		player.addRookieEventCombatProgress(huntMillis, gold, monsters);
 		completeRookieEventDayIfReady(player);
 	}
 
@@ -1533,13 +1882,156 @@ public class PlayerService {
 	private void grantRookieEventDailyReward(Player player, RookieEventDailyRewardPlan reward, Instant now) {
 		switch (reward.type()) {
 			case SKILL_POINT -> player.addSkillPoint();
-			case AUTO_HUNT_SECONDS -> {
-				player.setAutoHuntEndsAt(addUncappedTime(player.getAutoHuntEndsAt(), reward.amount(), now));
-				player.clearAutoHuntEndNotification();
-				clearUnreadAutoHuntEndNotifications(player, now);
+				case AUTO_HUNT_SECONDS -> {
+					player.setAutoHuntEndsAt(addUncappedTime(player.getAutoHuntEndsAt(), reward.amount(), now));
+					player.clearAutoHuntEndNotification();
+					clearUnreadAutoHuntEndNotifications(player, now);
+				}
 			}
-			case BOOST_SECONDS -> player.setBoostEndsAt(addUncappedTime(player.getBoostEndsAt(), reward.amount(), now));
 		}
+
+	private DungeonCouponTier dungeonCouponTier(Player player) {
+		long combatPower = combatPower(player);
+		DungeonCouponTier selected = DUNGEON_COUPON_TIERS.get(0);
+		for (DungeonCouponTier tier : DUNGEON_COUPON_TIERS) {
+			if (combatPower >= tier.minCombatPower()) {
+				selected = tier;
+			}
+		}
+		return selected;
+	}
+
+	private DungeonCouponReward rollDungeonCouponReward(DungeonCouponTier tier) {
+		return rollDungeonCouponReward(tier.rewards());
+	}
+
+	private DungeonCouponReward rollDungeonCouponReward(List<DungeonCouponRewardPlan> rewards) {
+		int totalWeight = rewards.stream()
+				.mapToInt(DungeonCouponRewardPlan::weight)
+				.sum();
+		int roll = ThreadLocalRandom.current().nextInt(Math.max(1, totalWeight));
+		int cursor = 0;
+		for (DungeonCouponRewardPlan plan : rewards) {
+			cursor += Math.max(0, plan.weight());
+			if (roll < cursor) {
+				long amount = randomAmount(plan.minAmount(), plan.maxAmount());
+				return new DungeonCouponReward(plan.type(), amount, dungeonCouponRewardLabel(plan.type(), amount));
+			}
+		}
+		DungeonCouponRewardPlan fallback = rewards.get(0);
+		long amount = randomAmount(fallback.minAmount(), fallback.maxAmount());
+		return new DungeonCouponReward(fallback.type(), amount, dungeonCouponRewardLabel(fallback.type(), amount));
+	}
+
+	private BossRaidTier bossRaidTier(Player player) {
+		long combatPower = combatPower(player);
+		BossRaidTier selected = BOSS_RAID_TIERS.get(0);
+		for (BossRaidTier tier : BOSS_RAID_TIERS) {
+			if (combatPower >= tier.minCombatPower()) {
+				selected = tier;
+			}
+		}
+		return selected;
+	}
+
+	private void requireDungeonEntryAvailable(Player player, Instant now, boolean additionalEntry) {
+		int runsToday = Math.max(0, player.getDungeonRunCount());
+		int freeDailyLimit = dungeonFreeDailyLimit();
+		int dailyLimit = dungeonDailyLimit(freeDailyLimit, dungeonAdditionalDailyLimit());
+		if (!player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 자동사냥 1시간을 완료해야 던전에 입장할 수 있어요.");
+		}
+		if (!additionalEntry && runsToday >= freeDailyLimit) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장을 모두 사용했어요. 광고를 보고 추가 입장해 주세요.");
+		}
+		if (additionalEntry && runsToday < freeDailyLimit) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장이 남아 있어요.");
+		}
+		if (runsToday >= dailyLimit) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 던전 입장을 모두 사용했어요.");
+		}
+		Instant nextAvailableAt = player.getDungeonNextAvailableAt();
+		if (nextAvailableAt != null && nextAvailableAt.isAfter(now)) {
+			long cooldownSeconds = Math.max(1, Duration.between(now, nextAvailableAt).toSeconds());
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "던전은 " + durationLabel(cooldownSeconds) + " 후 다시 입장할 수 있어요.");
+		}
+	}
+
+	private long randomAmount(long minAmount, long maxAmount) {
+		long min = Math.max(0, Math.min(minAmount, maxAmount));
+		long max = Math.max(min, Math.max(minAmount, maxAmount));
+		if (min == max) {
+			return min;
+		}
+		return ThreadLocalRandom.current().nextLong(min, max + 1);
+	}
+
+	private List<AdventureRewardPoolItemResponse> rewardPoolResponse(List<DungeonCouponRewardPlan> rewards) {
+		int totalWeight = rewards.stream()
+				.mapToInt(DungeonCouponRewardPlan::weight)
+				.sum();
+		return rewards.stream()
+				.map(plan -> new AdventureRewardPoolItemResponse(
+						dungeonCouponRewardRangeLabel(plan.type(), plan.minAmount(), plan.maxAmount()),
+						probabilityLabel(plan.weight(), totalWeight)))
+				.toList();
+	}
+
+	private String probabilityLabel(int weight, int totalWeight) {
+		double probability = totalWeight <= 0 ? 0 : weight * 100.0 / totalWeight;
+		if (probability == Math.rint(probability)) {
+			return (int) probability + "%";
+		}
+		return String.format(Locale.KOREA, "%.1f%%", probability);
+	}
+
+	private String dungeonCouponRewardRangeLabel(DungeonCouponRewardType type, long minAmount, long maxAmount) {
+		long min = Math.max(0, Math.min(minAmount, maxAmount));
+		long max = Math.max(min, Math.max(minAmount, maxAmount));
+		if (min == max) {
+			return dungeonCouponRewardLabel(type, min);
+		}
+		return switch (type) {
+				case GOLD -> "골드 " + min + "~" + max + "G";
+				case SKILL_POINT -> "SP " + min + "~" + max + "개";
+				case AUTO_HUNT_SECONDS -> "자동사냥 " + durationLabel(min) + "~" + durationLabel(max);
+				case BOSS_TICKET -> "보스 입장권 " + min + "~" + max + "장";
+			};
+	}
+
+	private String dungeonCouponRewardLabel(DungeonCouponRewardType type, long amount) {
+		return switch (type) {
+				case GOLD -> "골드 " + amount + "G";
+				case SKILL_POINT -> "SP " + amount + "개";
+				case AUTO_HUNT_SECONDS -> "자동사냥 " + durationLabel(amount);
+				case BOSS_TICKET -> "보스 입장권 " + amount + "장";
+			};
+	}
+
+	private String durationLabel(long seconds) {
+		long minutes = Math.max(1, (seconds + 59) / 60);
+		long hours = minutes / 60;
+		long remainMinutes = minutes % 60;
+		if (hours > 0 && remainMinutes > 0) {
+			return hours + "시간 " + remainMinutes + "분";
+		}
+		if (hours > 0) {
+			return hours + "시간";
+		}
+		return minutes + "분";
+	}
+
+	private void grantDungeonCouponReward(Player player, DungeonCouponReward reward, Instant now) {
+		switch (reward.type()) {
+			case GOLD -> player.addGold(reward.amount());
+			case SKILL_POINT -> player.addSkillPoints((int) Math.min(Integer.MAX_VALUE, reward.amount()));
+				case AUTO_HUNT_SECONDS -> {
+					player.setAutoHuntEndsAt(addUncappedTime(player.getAutoHuntEndsAt(), reward.amount(), now));
+					player.clearAutoHuntEndNotification();
+					clearUnreadAutoHuntEndNotifications(player, now);
+				}
+				case BOSS_TICKET -> player.addBossRaidTickets((int) Math.min(Integer.MAX_VALUE, reward.amount()));
+			}
 	}
 
 	private RookieEventResponse rookieEventResponse(Player player) {
@@ -1678,10 +2170,9 @@ public class PlayerService {
 
 	private long rookieMissionValue(Player player, RookieMissionPlan mission) {
 		return switch (mission.type()) {
-			case HUNT_MILLIS -> player.getRookieEventDailyHuntMillis();
-			case MONSTERS -> player.getRookieEventDailyMonsters();
-			case BOOST_MONSTERS -> player.getRookieEventDailyBoostMonsters();
-			case GOLD -> player.getRookieEventDailyGold();
+				case HUNT_MILLIS -> player.getRookieEventDailyHuntMillis();
+				case MONSTERS -> player.getRookieEventDailyMonsters();
+				case GOLD -> player.getRookieEventDailyGold();
 			case TOSS_POINT_CLAIMS -> player.getRookieEventDailySettlements();
 			case SKILL_POINTS_SPENT -> player.getRookieEventDailySkillPointsSpent();
 			case LEVEL -> player.getLevel();
@@ -1897,6 +2388,93 @@ public class PlayerService {
 		}
 	}
 
+	private boolean dungeonExploreAvailableForNotification(Player player, Instant now, LocalDate today, int dailyLimit) {
+		if (dailyLimit < 1 || player.getDungeonRunCount() >= dailyLimit) {
+			return false;
+		}
+		if (!player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS)) {
+			return false;
+		}
+		Instant nextAvailableAt = player.getDungeonNextAvailableAt();
+		if (nextAvailableAt != null && nextAvailableAt.isAfter(now)) {
+			return false;
+		}
+		return !player.dungeonExploreAvailableNotificationSentForCurrentRun(today);
+	}
+
+	private boolean sendDungeonExploreAvailableSmartMessage(Player player, Instant now, String templateSetCode) {
+		try {
+			TossSmartMessageClient.SmartMessageSendResult result = tossSmartMessageClient.sendMessage(
+					player.getUserKey(),
+					templateSetCode,
+					smartMessageProperties.dungeonExploreAvailableContext());
+			log.info(
+					"던전 탐험 가능 스마트메시지 발송 요청 완료: userKey={}, runsToday={}, templateSetCode={}, msgCount={}, sentPushCount={}, sentInboxCount={}, failureSummary={}",
+					mask(player.getUserKey()),
+					player.getDungeonRunCount(),
+					templateSetCode,
+					result.msgCount(),
+					result.sentPushCount(),
+					result.sentInboxCount(),
+					result.failureSummary());
+			return true;
+		} catch (RuntimeException exception) {
+			log.warn(
+					"던전 탐험 가능 스마트메시지 발송 실패: userKey={}, runsToday={}, templateSetCode={}, retryAfter={}, message={}",
+					mask(player.getUserKey()),
+					player.getDungeonRunCount(),
+					templateSetCode,
+					now.plusSeconds(600),
+					exception.getMessage(),
+					exception);
+			return false;
+		}
+	}
+
+	private int battleReadyDailyNotificationDay(Player player, Instant now) {
+		Instant lastAccessedAt = player.getLastAccessedAt();
+		if (lastAccessedAt == null || !lastAccessedAt.isBefore(now)) {
+			return 0;
+		}
+		int inactivityDays = (int) Math.max(0, Duration.between(lastAccessedAt, now).toDays());
+		if (inactivityDays < 1 || inactivityDays > BATTLE_READY_DAILY_NOTIFICATION_DAYS) {
+			return 0;
+		}
+		if (player.battleReadyDailySentStageForCurrentStreak() >= inactivityDays) {
+			return 0;
+		}
+		return inactivityDays;
+	}
+
+	private boolean sendBattleReadyDailySmartMessage(Player player, Instant now, int inactivityDays, String templateSetCode) {
+		try {
+			TossSmartMessageClient.SmartMessageSendResult result = tossSmartMessageClient.sendMessage(
+					player.getUserKey(),
+					templateSetCode,
+					smartMessageProperties.battleReadyDailyContext(inactivityDays));
+			log.info(
+					"전투 준비 완료 스마트메시지 발송 요청 완료: userKey={}, inactivityDays={}, templateSetCode={}, msgCount={}, sentPushCount={}, sentInboxCount={}, failureSummary={}",
+					mask(player.getUserKey()),
+					inactivityDays,
+					templateSetCode,
+					result.msgCount(),
+					result.sentPushCount(),
+					result.sentInboxCount(),
+					result.failureSummary());
+			return true;
+		} catch (RuntimeException exception) {
+			log.warn(
+					"전투 준비 완료 스마트메시지 발송 실패: userKey={}, inactivityDays={}, templateSetCode={}, retryAfter={}, message={}",
+					mask(player.getUserKey()),
+					inactivityDays,
+					templateSetCode,
+					now.plusSeconds(600),
+					exception.getMessage(),
+					exception);
+			return false;
+		}
+	}
+
 	private boolean grantDormantSpRewardAndSendSmartMessageIfEligible(Player player, Instant now, String templateSetCode) {
 		int sentStage = player.dormantSpRewardSentStageForCurrentStreak();
 		if (sentStage >= DORMANT_SP_REWARD_INACTIVE_DAYS.size()) {
@@ -1982,23 +2560,15 @@ public class PlayerService {
 	}
 
 	private long currentGoldPerHour(Player player) {
-		return isActive(player.getBoostEndsAt()) ? boostedGoldPerHour(player) : baseGoldPerHour(player);
+		return baseGoldPerHour(player);
 	}
 
 	private long baseGoldPerHour(Player player) {
 		return Math.round(maxGoldPerHour() * basePayoutRate(player));
 	}
 
-	private long boostedGoldPerHour(Player player) {
-		return Math.min(maxGoldPerHour(), Math.round(baseGoldPerHour(player) * BOOST_REWARD_MULTIPLIER));
-	}
-
 	private int attackIntervalMillis(Player player) {
-		return isActive(player.getBoostEndsAt()) ? boostedAttackIntervalMillis(player) : normalAttackIntervalMillis(player);
-	}
-
-	private int boostedAttackIntervalMillis(Player player) {
-		return attackIntervalMillis(player, BOOSTED_ATTACK_INTERVAL_MILLIS);
+		return normalAttackIntervalMillis(player);
 	}
 
 	private int normalAttackIntervalMillis(Player player) {
@@ -2012,10 +2582,8 @@ public class PlayerService {
 				baseIntervalMillis - scaledSkillValue(rapidLevel, MAX_RAPID_ATTACK_INTERVAL_REDUCTION_MILLIS));
 	}
 
-	private AttackCounts attackCounts(Player player, long normalMillis, long boostedMillis) {
-		return new AttackCounts(
-				normalMillis / normalAttackIntervalMillis(player),
-				boostedMillis / boostedAttackIntervalMillis(player));
+	private AttackCounts attackCounts(Player player, long millis) {
+		return new AttackCounts(millis / attackIntervalMillis(player));
 	}
 
 	private long maxGoldPerHour() {
@@ -2029,10 +2597,28 @@ public class PlayerService {
 		return (int) Math.round(currentGoldPerHour(player) * 100.0 / maxGoldPerHour());
 	}
 
+	private long combatPower(Player player) {
+		long totalSkillLevels = Arrays.stream(SkillType.values())
+				.map(player::getOrCreateSkill)
+				.mapToLong(PlayerSkill::getLevel)
+				.sum();
+		long totalSp = Math.max(0, totalSkillLevels + rookieEventPetCombatPowerSkillBonus(player, clock.instant()));
+		double levelRatio = Math.min(1.0, Math.max(0.0, player.getLevel() / COMBAT_POWER_LEVEL_SCALE));
+		double spRatio = Math.min(1.0, Math.max(0.0, totalSp / COMBAT_POWER_SKILL_SCALE));
+		double power = MAX_COMBAT_POWER
+				* Math.pow(levelRatio, 0.5)
+				* Math.pow(spRatio, 1.5);
+		return Math.min(MAX_COMBAT_POWER, Math.max(0L, (long) Math.floor(power)));
+	}
+
+	private int rookieEventPetCombatPowerSkillBonus(Player player, Instant now) {
+		return rookieEventRewardActive(player, now) ? ROOKIE_EVENT_PET_SKILL_LEVEL : 0;
+	}
+
 	private double basePayoutRate(Player player) {
 		double skillProgress = skillProgress(player);
 		double skillRate = BASE_PAYOUT_RATE + (MAX_SKILL_PAYOUT_RATE - BASE_PAYOUT_RATE) * skillProgress;
-		return Math.min(MAX_PREBOOST_PAYOUT_RATE, skillRate + petPayoutRate(player));
+		return Math.min(MAX_PAYOUT_RATE, skillRate + petPayoutRate(player));
 	}
 
 	private double skillProgress(Player player) {
@@ -2108,10 +2694,20 @@ public class PlayerService {
 	}
 
 	private int effectTier(PlayerSkill skill) {
-		if (skill.getLevel() <= 0) {
-			return 0;
+		int level = Math.max(0, skill.getLevel());
+		if (level <= 5) {
+			return 1;
 		}
-		return Math.min(4, ((skill.getLevel() - 1) / 5) + 1);
+		if (level <= 10) {
+			return 2;
+		}
+		if (level <= 15) {
+			return 3;
+		}
+		if (level <= 20) {
+			return 4;
+		}
+		return 5;
 	}
 
 	private int currentJobStatLevel(Player player) {
@@ -2211,9 +2807,6 @@ public class PlayerService {
 		return value != null && value.isAfter(at);
 	}
 
-	private record AttackCounts(long normal, long boosted) {
-		long total() {
-			return normal + boosted;
-		}
+	private record AttackCounts(long total) {
 	}
 }

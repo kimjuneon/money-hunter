@@ -61,6 +61,14 @@ public class IapOrder {
 		return productType;
 	}
 
+	public Instant getGrantedAt() {
+		return grantedAt;
+	}
+
+	public Instant getCreatedAt() {
+		return createdAt;
+	}
+
 	public boolean isGranted() {
 		return grantedAt != null;
 	}

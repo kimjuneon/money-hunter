@@ -6,7 +6,9 @@ import com.money_hunter.application.AdminAnomalyCaseService;
 import com.money_hunter.application.AdminAccessGuard;
 import com.money_hunter.application.AdminAuditService;
 import com.money_hunter.application.AdminMonitoringService;
+import com.money_hunter.application.AdminPaymentService;
 import com.money_hunter.application.AdminPlayerService;
+import com.money_hunter.application.EconomyPolicySnapshot;
 import com.money_hunter.application.PlayerService;
 import com.money_hunter.application.RookieEventSettingsService;
 import com.money_hunter.application.RookieEventSettingsService.EventSettingsChangeResult;
@@ -14,6 +16,7 @@ import com.money_hunter.application.RuntimeEconomyService;
 import com.money_hunter.application.RuntimeEconomyService.PolicyChangeResult;
 import com.money_hunter.application.RuntimeEconomyService.PolicyDefinition;
 import com.money_hunter.application.dto.response.AdminRookieEventSettingsResponse;
+import com.money_hunter.application.dto.response.AdminPaymentPageResponse;
 import com.money_hunter.application.dto.response.AdminPlayerPageResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResponse;
@@ -51,14 +54,27 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
-	private static final long FULLY_BOOSTED_GOLD_PER_HOUR = 6_000L;
-	private static final long FULL_RATE_REQUIRED_ADS_PER_HOUR = 2L;
+	private static final long MAX_GOLD_PER_HOUR = 6_000L;
+	private static final long DUNGEON_ENTRY_HUNT_REQUIREMENT_SECONDS = 3_600L;
+	private static final long DAY_SECONDS = 86_400L;
+	private static final List<RewardPlan> FULL_POWER_DUNGEON_REWARDS = List.of(
+			new RewardPlan(RewardValueType.GOLD, 700, 1_000, 35),
+			new RewardPlan(RewardValueType.SKILL_POINT, 4, 4, 30),
+			new RewardPlan(RewardValueType.AUTO_HUNT_SECONDS, 2_400, 2_400, 25),
+			new RewardPlan(RewardValueType.BOSS_TICKET, 1, 1, 10)
+	);
+	private static final List<RewardPlan> FULL_POWER_BOSS_REWARDS = List.of(
+			new RewardPlan(RewardValueType.GOLD, 2_500, 3_000, 35),
+			new RewardPlan(RewardValueType.SKILL_POINT, 3, 3, 40),
+			new RewardPlan(RewardValueType.AUTO_HUNT_SECONDS, 7_200, 7_200, 25)
+	);
 
 	private final AdminAccessGuard adminAccessGuard;
 	private final AdminMonitoringService monitoringService;
 	private final RuntimeEconomyService economyService;
 	private final AdminAuditService adminAuditService;
 	private final AdminPlayerService adminPlayerService;
+	private final AdminPaymentService adminPaymentService;
 	private final AdminAnomalyCaseService anomalyCaseService;
 	private final PlayerService playerService;
 	private final RookieEventSettingsService rookieEventSettingsService;
@@ -69,6 +85,7 @@ public class AdminController {
 			RuntimeEconomyService economyService,
 			AdminAuditService adminAuditService,
 			AdminPlayerService adminPlayerService,
+			AdminPaymentService adminPaymentService,
 			AdminAnomalyCaseService anomalyCaseService,
 			PlayerService playerService,
 			RookieEventSettingsService rookieEventSettingsService
@@ -78,6 +95,7 @@ public class AdminController {
 		this.economyService = economyService;
 		this.adminAuditService = adminAuditService;
 		this.adminPlayerService = adminPlayerService;
+		this.adminPaymentService = adminPaymentService;
 		this.anomalyCaseService = anomalyCaseService;
 		this.playerService = playerService;
 		this.rookieEventSettingsService = rookieEventSettingsService;
@@ -93,6 +111,16 @@ public class AdminController {
 	public AdminMonitoringService.AdminAnomalyReport anomalies(HttpServletRequest request) {
 		adminAccessGuard.require(request);
 		return monitoringService.anomalies();
+	}
+
+	@GetMapping("/payments")
+	public AdminPaymentPageResponse payments(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "30") int size,
+			HttpServletRequest request
+	) {
+		adminAccessGuard.require(request);
+		return AdminPaymentPageResponse.from(adminPaymentService.search(page, size));
 	}
 
 	@PostMapping("/anomalies/actions")
@@ -491,7 +519,7 @@ public class AdminController {
 				"goldPerTossPoint",
 				String.valueOf(goldPerPointResult.beforeValue()),
 				String.valueOf(goldPerPointResult.afterValue()),
-				"6,000G/h, 광고 2회 기준 자동 환산",
+				"풀강 유저 광고 1회 기대 골드 기준 자동 환산",
 				request);
 		return monitoringService.overview();
 	}
@@ -559,11 +587,69 @@ public class AdminController {
 	}
 
 	private long deriveGoldPerTossPoint(long adRevenuePerRewardAdWon) {
-		long hourlyRevenueBasis = Math.multiplyExact(adRevenuePerRewardAdWon, FULL_RATE_REQUIRED_ADS_PER_HOUR);
-		return Math.max(1, ceilDiv(FULLY_BOOSTED_GOLD_PER_HOUR, hourlyRevenueBasis));
+		EconomyPolicySnapshot policy = economyService.snapshot();
+		double expectedGold = expectedFullPowerGoldPerRewardAd(policy);
+		long derived = (long) Math.ceil(expectedGold / Math.max(1L, adRevenuePerRewardAdWon));
+		return Math.max(1L, Math.min(1_000_000L, derived));
 	}
 
-	private long ceilDiv(long dividend, long divisor) {
-		return (dividend + divisor - 1) / divisor;
+	private double expectedFullPowerGoldPerRewardAd(EconomyPolicySnapshot policy) {
+		double autoHuntGold = secondsToFullPowerGold(policy.autoHuntAdSeconds());
+		double bossExpectedGold = expectedRewardGold(FULL_POWER_BOSS_REWARDS, 0);
+		double dungeonExpectedGold = expectedRewardGold(FULL_POWER_DUNGEON_REWARDS, bossExpectedGold);
+		double dungeonOpportunities = dungeonOpportunitiesUnlockedByRewardAd(policy);
+		return autoHuntGold + dungeonExpectedGold * dungeonOpportunities;
+	}
+
+	private double dungeonOpportunitiesUnlockedByRewardAd(EconomyPolicySnapshot policy) {
+		int freeDailyLimit = Math.max(0, policy.dungeonFreeDailyLimit());
+		long autoHuntSeconds = Math.max(0, policy.autoHuntAdSeconds());
+		if (freeDailyLimit == 0 || autoHuntSeconds == 0) {
+			return 0;
+		}
+		double gateContribution = Math.min(1.0, autoHuntSeconds / (double) DUNGEON_ENTRY_HUNT_REQUIREMENT_SECONDS);
+		long cooldownSeconds = Math.max(0, policy.dungeonReentryCooldownSeconds());
+		if (cooldownSeconds == 0) {
+			return freeDailyLimit * gateContribution;
+		}
+		long availableSecondsAfterGate = Math.max(0, DAY_SECONDS - DUNGEON_ENTRY_HUNT_REQUIREMENT_SECONDS);
+		long dailyRunsPossible = 1 + availableSecondsAfterGate / cooldownSeconds;
+		return Math.min(freeDailyLimit, Math.max(1, dailyRunsPossible)) * gateContribution;
+	}
+
+	private double expectedRewardGold(List<RewardPlan> rewards, double bossExpectedGold) {
+		int totalWeight = rewards.stream().mapToInt(RewardPlan::weight).sum();
+		if (totalWeight <= 0) {
+			return 0;
+		}
+		double expectedGold = 0;
+		for (RewardPlan reward : rewards) {
+			double probability = reward.weight() / (double) totalWeight;
+			expectedGold += probability * rewardGoldValue(reward, bossExpectedGold);
+		}
+		return expectedGold;
+	}
+
+	private double rewardGoldValue(RewardPlan reward, double bossExpectedGold) {
+		return switch (reward.type()) {
+			case GOLD -> (reward.minAmount() + reward.maxAmount()) / 2.0;
+			case AUTO_HUNT_SECONDS -> secondsToFullPowerGold((reward.minAmount() + reward.maxAmount()) / 2.0);
+			case BOSS_TICKET -> bossExpectedGold * ((reward.minAmount() + reward.maxAmount()) / 2.0);
+			case SKILL_POINT -> 0;
+		};
+	}
+
+	private double secondsToFullPowerGold(double seconds) {
+		return MAX_GOLD_PER_HOUR * Math.max(0, seconds) / 3_600.0;
+	}
+
+	private enum RewardValueType {
+		GOLD,
+		SKILL_POINT,
+		AUTO_HUNT_SECONDS,
+		BOSS_TICKET
+	}
+
+	private record RewardPlan(RewardValueType type, long minAmount, long maxAmount, int weight) {
 	}
 }

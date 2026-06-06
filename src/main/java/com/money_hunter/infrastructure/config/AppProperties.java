@@ -21,7 +21,8 @@ public record AppProperties(
 		boolean realIapOrderVerificationEnabled,
 		boolean realTossPointRewardsEnabled,
 		boolean realSmartMessageEnabled,
-		boolean realShareRewardEnabled
+		boolean realShareRewardEnabled,
+		boolean dungeonCouponEnabled
 ) {
 	public boolean oneStoreTarget() {
 		return "ONESTORE".equalsIgnoreCase(distributionTarget);

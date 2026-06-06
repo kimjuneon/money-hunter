@@ -4,6 +4,7 @@ import java.security.Principal;
 
 import com.money_hunter.application.PlayerService;
 import com.money_hunter.infrastructure.config.AppProperties;
+import com.money_hunter.application.dto.response.BossRaidRewardResponse;
 import com.money_hunter.presentation.dto.request.AdCompletionRequest;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
@@ -14,6 +15,7 @@ import com.money_hunter.presentation.dto.request.IapGrantRequest;
 import com.money_hunter.presentation.dto.request.PetSkinEquipRequest;
 import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
+import com.money_hunter.application.dto.response.DungeonCouponRewardResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.RewardClaimResponse;
 import com.money_hunter.presentation.dto.request.UpgradeSkillRequest;
@@ -73,18 +75,6 @@ public class PlayerController {
 				: playerService.completeAutoHuntAd(userKey);
 	}
 
-	@PostMapping("/ads/boost/complete")
-	public PlayerStateResponse completeBoostAd(
-			Principal principal,
-			@RequestBody(required = false) AdCompletionRequest request
-	) {
-		String userKey = userKey(principal);
-		requireRewardAdMode();
-		return requiresRealRewardSession()
-				? playerService.completeBoostAd(userKey, adSessionToken(request))
-				: playerService.completeBoostAd(userKey);
-	}
-
 	@PostMapping("/ads/skill-point/complete")
 	public PlayerStateResponse completeSkillPointAd(
 			Principal principal,
@@ -95,6 +85,18 @@ public class PlayerController {
 		return requiresRealRewardSession()
 				? playerService.completeSkillPointAd(userKey, adSessionToken(request))
 				: playerService.completeSkillPointAd(userKey);
+	}
+
+	@PostMapping("/ads/dungeon-additional/complete")
+	public DungeonCouponRewardResponse completeDungeonAdditionalEntryAd(
+			Principal principal,
+			@RequestBody(required = false) AdCompletionRequest request
+	) {
+		String userKey = userKey(principal);
+		requireRewardAdMode();
+		return requiresRealRewardSession()
+				? playerService.runAdditionalDungeonAfterAd(userKey, adSessionToken(request))
+				: playerService.runAdditionalDungeonAfterAd(userKey);
 	}
 
 	@PostMapping("/combat/hit")
@@ -214,6 +216,21 @@ public class PlayerController {
 		return playerService.claimFriendInviteReward(userKey, friendInviteCount(request));
 	}
 
+	@PostMapping("/dungeon-coupon/use")
+	public DungeonCouponRewardResponse useDungeonCoupon(Principal principal) {
+		return playerService.useDungeonCoupon(userKey(principal));
+	}
+
+	@PostMapping("/dungeon/run")
+	public DungeonCouponRewardResponse runDungeon(Principal principal) {
+		return playerService.runDungeon(userKey(principal));
+	}
+
+	@PostMapping("/boss/raid")
+	public BossRaidRewardResponse raidBoss(Principal principal) {
+		return playerService.raidBoss(userKey(principal));
+	}
+
 	@PostMapping("/rookie-event/days/{day}/reward/claim")
 	public PlayerStateResponse claimRookieEventDailyReward(Principal principal, @PathVariable int day) {
 		return playerService.claimRookieEventDailyReward(userKey(principal), day);
@@ -229,13 +246,6 @@ public class PlayerController {
 		String userKey = userKey(principal);
 		requireGameRewardMode();
 		return playerService.completeAutoHuntAd(userKey);
-	}
-
-	@PostMapping("/onestore/boost/claim")
-	public PlayerStateResponse claimOneStoreBoost(Principal principal) {
-		String userKey = userKey(principal);
-		requireGameRewardMode();
-		return playerService.completeBoostAd(userKey);
 	}
 
 	@PostMapping("/onestore/skill-point/claim")

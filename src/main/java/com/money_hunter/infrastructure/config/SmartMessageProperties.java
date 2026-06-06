@@ -15,7 +15,13 @@ public record SmartMessageProperties(
 		int rookieEventMissionBatchSize,
 		boolean dormantSpRewardEnabled,
 		String dormantSpRewardTemplateSetCode,
-		int dormantSpRewardBatchSize
+		int dormantSpRewardBatchSize,
+		boolean dungeonExploreAvailableEnabled,
+		String dungeonExploreAvailableTemplateSetCode,
+		int dungeonExploreAvailableBatchSize,
+		boolean battleReadyDailyEnabled,
+		String battleReadyDailyTemplateSetCode,
+		int battleReadyDailyBatchSize
 ) {
 	public String normalizedAutoHuntEndedTemplateSetCode() {
 		return value(autoHuntEndedTemplateSetCode);
@@ -59,6 +65,40 @@ public record SmartMessageProperties(
 
 	public Map<String, String> dormantSpRewardContext() {
 		return Map.of();
+	}
+
+	public String normalizedDungeonExploreAvailableTemplateSetCode() {
+		return value(dungeonExploreAvailableTemplateSetCode);
+	}
+
+	public int safeDungeonExploreAvailableBatchSize() {
+		return Math.max(1, Math.min(500, dungeonExploreAvailableBatchSize));
+	}
+
+	public Map<String, String> dungeonExploreAvailableContext() {
+		return Map.of(
+				"title", "던전 탐험 가능",
+				"message", "던전 탐험 준비가 완료됐어요.",
+				"landingUrl", value(landingUrl)
+		);
+	}
+
+	public String normalizedBattleReadyDailyTemplateSetCode() {
+		return value(battleReadyDailyTemplateSetCode);
+	}
+
+	public int safeBattleReadyDailyBatchSize() {
+		return Math.max(1, Math.min(500, battleReadyDailyBatchSize));
+	}
+
+	public Map<String, String> battleReadyDailyContext(int inactivityDays) {
+		int day = Math.max(1, Math.min(5, inactivityDays));
+		return Map.of(
+				"title", "전투 준비 완료",
+				"message", "자동 전투 보상이 기다리고 있어요.",
+				"landingUrl", value(landingUrl),
+				"day", String.valueOf(day)
+		);
 	}
 
 	private String value(String raw) {

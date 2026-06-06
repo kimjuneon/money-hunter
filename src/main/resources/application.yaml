@@ -36,6 +36,7 @@ money-hunter:
     real-toss-point-rewards-enabled: false
     real-smart-message-enabled: false
     real-share-reward-enabled: false
+    dungeon-coupon-enabled: true
   admin:
     username: ${MONEY_HUNTER_ADMIN_USERNAME:}
     password-bcrypt: ${MONEY_HUNTER_ADMIN_PASSWORD_BCRYPT:}
@@ -52,9 +53,9 @@ money-hunter:
   ads:
     mode: ${TOSS_AD_MODE:test}
     auto-hunt-reward-ad-group-id: ${TOSS_AD_GROUP_AUTO_HUNT_ID:}
-    boost-reward-ad-group-id: ${TOSS_AD_GROUP_BOOST_ID:}
     skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:}
     reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:}
+    dungeon-additional-reward-ad-group-id: ${TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID:ait.v2.live.c2d728e22ae1480b}
     job-change-interstitial-ad-group-id: ${TOSS_AD_GROUP_JOB_CHANGE_ID:}
     banner-ad-group-id: ${TOSS_AD_GROUP_BANNER_ID:}
   iap:
@@ -77,6 +78,12 @@ money-hunter:
     dormant-sp-reward-enabled: ${TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_ENABLED:false}
     dormant-sp-reward-template-set-code: ${TOSS_DORMANT_SP_REWARD_TEMPLATE_SET_CODE:gold-hunter-GOLD_HUNTER_DORMANT_SP_GRANTED_V1}
     dormant-sp-reward-batch-size: ${TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_BATCH_SIZE:100}
+    dungeon-explore-available-enabled: ${TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_ENABLED:false}
+    dungeon-explore-available-template-set-code: ${TOSS_DUNGEON_EXPLORE_AVAILABLE_TEMPLATE_SET_CODE:gold-hunter-DUNGEON_EXPLORE_AVAILABLE}
+    dungeon-explore-available-batch-size: ${TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_BATCH_SIZE:100}
+    battle-ready-daily-enabled: ${TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_ENABLED:false}
+    battle-ready-daily-template-set-code: ${TOSS_BATTLE_READY_DAILY_TEMPLATE_SET_CODE:gold-hunter-BATTLE_READY_DAILY}
+    battle-ready-daily-batch-size: ${TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_BATCH_SIZE:100}
   security:
     cors:
       allowed-origin-patterns:
@@ -113,11 +120,12 @@ money-hunter:
     friend-invite-reward-skill-points: 1
     friend-invite-limit: 5
     max-character-slots: 3
-    auto-hunt-ad-seconds: 3600
-    boost-ad-seconds: 3600
+    auto-hunt-ad-seconds: 1800
     auto-hunt-ad-cooldown-seconds: 180
-    boost-ad-cooldown-seconds: 180
     max-ad-seconds: 14400
+    dungeon-free-daily-limit: 3
+    dungeon-additional-daily-limit: 2
+    dungeon-reentry-cooldown-seconds: 1800
     skill-point-ad-cooldown-seconds: 1800
     reward-gold-threshold: 1000
     reward-point-amount: 10
@@ -160,6 +168,7 @@ money-hunter:
     real-toss-point-rewards-enabled: ${TOSS_POINT_REWARDS_ENABLED:false}
     real-smart-message-enabled: ${TOSS_SMART_MESSAGE_ENABLED:false}
     real-share-reward-enabled: ${TOSS_SHARE_REWARD_ENABLED:false}
+    dungeon-coupon-enabled: ${MONEY_HUNTER_DUNGEON_COUPON_ENABLED:false}
   security:
     cors:
       allowed-origin-patterns:
@@ -182,6 +191,7 @@ money-hunter:
     distribution-target: TOSS
     real-payments-enabled: ${REVIEW_PAYMENTS_ENABLED:false}
     real-iap-order-verification-enabled: ${REVIEW_IAP_ORDER_VERIFICATION_ENABLED:false}
+    dungeon-coupon-enabled: ${REVIEW_DUNGEON_COUPON_ENABLED:true}
   security:
     cors:
       allowed-origin-patterns:
@@ -222,3 +232,4 @@ money-hunter:
     mock-monetization-enabled: true
     integration-mode: onestore-review
     distribution-target: ONESTORE
+    dungeon-coupon-enabled: false

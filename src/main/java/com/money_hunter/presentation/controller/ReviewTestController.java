@@ -36,14 +36,39 @@ public class ReviewTestController {
 		return playerService.completeAutoHuntForTest(userKey(principal));
 	}
 
-	@PostMapping("/boost")
-	public PlayerStateResponse completeBoostForTest(Principal principal) {
-		return playerService.completeBoostForTest(userKey(principal));
-	}
-
 	@PostMapping("/skill-point")
 	public PlayerStateResponse completeSkillPointForTest(Principal principal) {
 		return playerService.grantSkillPointForTest(userKey(principal));
+	}
+
+	@PostMapping("/level/up")
+	public PlayerStateResponse levelUpForTest(Principal principal) {
+		return playerService.levelUpForTest(userKey(principal));
+	}
+
+	@PostMapping("/level/down")
+	public PlayerStateResponse levelDownForTest(Principal principal) {
+		return playerService.levelDownForTest(userKey(principal));
+	}
+
+	@PostMapping("/dungeon-coupon")
+	public PlayerStateResponse grantDungeonCouponForTest(Principal principal) {
+		return playerService.grantDungeonCouponForTest(userKey(principal));
+	}
+
+	@PostMapping("/boss-ticket")
+	public PlayerStateResponse grantBossTicketForTest(Principal principal) {
+		return playerService.grantDungeonCouponForTest(userKey(principal));
+	}
+
+	@PostMapping("/dungeon-reentry-reset")
+	public PlayerStateResponse resetDungeonReentryCooldownForTest(Principal principal) {
+		return playerService.resetDungeonReentryCooldownForTest(userKey(principal));
+	}
+
+	@PostMapping("/dungeon-daily-limit-reset")
+	public PlayerStateResponse resetDungeonDailyLimitForTest(Principal principal) {
+		return playerService.resetDungeonDailyLimitForTest(userKey(principal));
 	}
 
 	@PostMapping("/claim-reward")

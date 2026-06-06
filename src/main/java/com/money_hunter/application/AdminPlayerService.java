@@ -3,6 +3,7 @@ package com.money_hunter.application;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 
 import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
@@ -15,6 +16,7 @@ import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.slf4j.Logger;
@@ -35,22 +37,25 @@ public class AdminPlayerService {
 	private final NotificationEventRepository notificationEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
 	private final AdEventRepository adEventRepository;
+	private final RuntimeEconomyService economy;
 	private final Clock clock = Clock.systemUTC();
 
 	public AdminPlayerService(
 			PlayerRepository playerRepository,
 			LoginSessionRepository loginSessionRepository,
 			AdRewardSessionRepository adRewardSessionRepository,
-			NotificationEventRepository notificationEventRepository,
-			RewardClaimRepository rewardClaimRepository,
-			AdEventRepository adEventRepository
-	) {
+				NotificationEventRepository notificationEventRepository,
+				RewardClaimRepository rewardClaimRepository,
+				AdEventRepository adEventRepository,
+				RuntimeEconomyService economy
+		) {
 		this.playerRepository = playerRepository;
 		this.loginSessionRepository = loginSessionRepository;
 		this.adRewardSessionRepository = adRewardSessionRepository;
 		this.notificationEventRepository = notificationEventRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
 		this.adEventRepository = adEventRepository;
+		this.economy = economy;
 	}
 
 	@Transactional(readOnly = true)
@@ -67,6 +72,29 @@ public class AdminPlayerService {
 	) {
 		int safePage = Math.max(0, page);
 		int safeSize = Math.max(1, Math.min(size, MAX_SEARCH_LIMIT));
+		Instant now = clock.instant();
+		Sort sortForDatabase = playerSort(sort);
+		if (sortRequestsCombatPower(sort)) {
+			List<AdminPlayerResponse> responses = playerRepository.searchPlayers(
+							normalize(query),
+							normalizedFavoriteMode(favoriteMode),
+							normalizedStatusMode(statusMode),
+							normalizedProgressMode(progressMode),
+							hiddenSkinsOnly,
+							activeAutoHuntOnly,
+							now,
+							sortForDatabase)
+					.stream()
+					.map(this::playerResponse)
+					.sorted(combatPowerComparator(sort))
+					.toList();
+			int fromIndex = Math.min(safePage * safeSize, responses.size());
+			int toIndex = Math.min(fromIndex + safeSize, responses.size());
+			return new PageImpl<>(
+					responses.subList(fromIndex, toIndex),
+					PageRequest.of(safePage, safeSize, sortForDatabase),
+					responses.size());
+		}
 		return playerRepository.searchPlayers(
 						normalize(query),
 						normalizedFavoriteMode(favoriteMode),
@@ -74,14 +102,14 @@ public class AdminPlayerService {
 						normalizedProgressMode(progressMode),
 						hiddenSkinsOnly,
 						activeAutoHuntOnly,
-						clock.instant(),
-						PageRequest.of(safePage, safeSize, playerSort(sort)))
-				.map(AdminPlayerResponse::from);
+						now,
+						PageRequest.of(safePage, safeSize, sortForDatabase))
+				.map(this::playerResponse);
 	}
 
 	@Transactional(readOnly = true)
 	public AdminPlayerResponse get(String userKey) {
-		return AdminPlayerResponse.from(player(userKey));
+		return playerResponse(player(userKey));
 	}
 
 	@Transactional
@@ -90,7 +118,7 @@ public class AdminPlayerService {
 		player.suspend(reason, clock.instant());
 		loginSessionRepository.deleteByUserKey(userKey);
 		log.warn("관리자 유저 정지 처리: userKey={}, reason={}", mask(userKey), truncate(reason, 120));
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -98,7 +126,7 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		player.resume();
 		log.info("관리자 유저 정지 해제: userKey={}", mask(userKey));
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -106,7 +134,7 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		player.setAdminFavorite(favorite);
 		log.info("관리자 유저 즐겨찾기 변경: userKey={}, favorite={}", mask(userKey), favorite);
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -114,7 +142,7 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		player.updateAdminNickname(nickname);
 		log.info("관리자 유저 별명 변경: userKey={}, nickname={}", mask(userKey), truncate(player.getAdminNickname(), 80));
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -126,7 +154,7 @@ public class AdminPlayerService {
 			player.adjustGold(amount);
 		}
 		log.warn("관리자 골드 조정: userKey={}, mode={}, amount={}, result={}", mask(userKey), normalizedMode(mode), amount, player.getGold());
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -139,7 +167,7 @@ public class AdminPlayerService {
 			player.adjustSkillPoints(safeAmount);
 		}
 		log.warn("관리자 SP 조정: userKey={}, mode={}, amount={}, result={}", mask(userKey), normalizedMode(mode), safeAmount, player.getSkillPoints());
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -147,7 +175,7 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		player.purchaseCharacterSlot(maxCharacterSlots);
 		log.warn("관리자 펫 지급: userKey={}, characterSlots={}", mask(userKey), player.getCharacterSlots());
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -159,7 +187,7 @@ public class AdminPlayerService {
 				mask(userKey),
 				player.getCharacterSlots(),
 				refundedSkillPoints);
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -206,7 +234,7 @@ public class AdminPlayerService {
 		Instant now = clock.instant();
 		player.resetRookieEventForTest(now, LocalDate.now(clock));
 		log.warn("관리자 이벤트 테스트 초기화: userKey={}", mask(userKey));
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -231,7 +259,7 @@ public class AdminPlayerService {
 				mask(userKey),
 				completedDays,
 				rewardedDays);
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -245,7 +273,7 @@ public class AdminPlayerService {
 				mask(userKey),
 				player.getRookieEventCompletedDays(),
 				player.getRookieEventRewardedDays());
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	@Transactional
@@ -273,12 +301,16 @@ public class AdminPlayerService {
 				safeCompletedDays,
 				safeRewardedDays,
 				safeFinalRewardClaimed);
-		return AdminPlayerResponse.from(player);
+		return playerResponse(player);
 	}
 
 	private Player player(String userKey) {
 		return playerRepository.findByUserKey(requiredUserKey(userKey))
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "유저를 찾지 못했어요."));
+	}
+
+	private AdminPlayerResponse playerResponse(Player player) {
+		return AdminPlayerResponse.from(player, economy.goldPerTossPoint(), clock.instant());
 	}
 
 	private String requiredUserKey(String userKey) {
@@ -327,6 +359,33 @@ public class AdminPlayerService {
 		return Sort.by(orders);
 	}
 
+	private boolean sortRequestsCombatPower(String rawSort) {
+		for (String token : normalize(rawSort).split(",")) {
+			String[] parts = normalize(token).split(":", 2);
+			if (parts.length > 0 && isCombatPowerSortField(parts[0])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private Comparator<AdminPlayerResponse> combatPowerComparator(String rawSort) {
+		Comparator<AdminPlayerResponse> comparator = Comparator.comparingLong(AdminPlayerResponse::combatPower);
+		return combatPowerDirection(rawSort) == Sort.Direction.ASC ? comparator : comparator.reversed();
+	}
+
+	private Sort.Direction combatPowerDirection(String rawSort) {
+		for (String token : normalize(rawSort).split(",")) {
+			String[] parts = normalize(token).split(":", 2);
+			if (parts.length > 0 && isCombatPowerSortField(parts[0])) {
+				return parts.length > 1 && parts[1].equalsIgnoreCase("asc")
+						? Sort.Direction.ASC
+						: Sort.Direction.DESC;
+			}
+		}
+		return Sort.Direction.DESC;
+	}
+
 	private java.util.Optional<Sort.Order> sortOrder(String token) {
 		String normalized = normalize(token);
 		if (normalized.isBlank()) {
@@ -349,17 +408,24 @@ public class AdminPlayerService {
 			case "access", "accessed", "lastaccess", "lastaccessed", "lastaccessedat" -> "lastAccessedAt";
 			case "updated", "updatedat" -> "updatedAt";
 			case "created", "createdat" -> "createdAt";
-			case "score", "cumulativegold", "cumulativegoldearned" -> "cumulativeGoldEarned";
+			case "score", "combatpower", "combat", "power" -> "";
+			case "cumulativegold", "cumulativegoldearned" -> "cumulativeGoldEarned";
 			case "gold" -> "gold";
 			case "level" -> "level";
 			case "experience", "exp" -> "experience";
 			case "skillpoint", "skillpoints", "sp" -> "skillPoints";
 			case "defeated", "defeatedmonsters" -> "defeatedMonsters";
 			case "autohunt", "autohuntendsat" -> "autoHuntEndsAt";
-			case "boost", "boostendsat" -> "boostEndsAt";
 			case "profile", "gameprofileupdatedat" -> "gameProfileUpdatedAt";
 			case "userkey" -> "userKey";
 			default -> "";
+		};
+	}
+
+	private boolean isCombatPowerSortField(String field) {
+		return switch (normalize(field).toLowerCase(java.util.Locale.ROOT)) {
+			case "score", "combatpower", "combat", "power" -> true;
+			default -> false;
 		};
 	}
 
