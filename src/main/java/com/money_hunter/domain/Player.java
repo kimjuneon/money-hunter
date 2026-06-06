@@ -82,6 +82,15 @@ public class Player {
 
 	private Long autoHuntEndSettledGold;
 
+	@Column(nullable = false)
+	private int autoHuntEndLevelGain = 0;
+
+	@Column(nullable = false)
+	private int autoHuntEndSkillPointGain = 0;
+
+	@Column(nullable = false)
+	private long autoHuntEndCombatPowerGain = 0;
+
 	private Instant lastAutoHuntAdClaimedAt;
 
 	private Instant lastSkillPointAdClaimedAt;
@@ -154,6 +163,9 @@ public class Player {
 
 	@Column(nullable = false)
 	private int rookieEventDailySkillPointsSpent = 0;
+
+	@Column(nullable = false)
+	private boolean rookieEventDailySkillPointHelpClaimed = false;
 
 	@Column(nullable = false)
 	private boolean rookieEventDailyHomeShortcutReturned = false;
@@ -419,6 +431,15 @@ public class Player {
 
 	public void addRookieEventSkillPointSpent() {
 		this.rookieEventDailySkillPointsSpent += 1;
+		touch();
+	}
+
+	public void claimRookieEventDailySkillPointHelp() {
+		if (rookieEventDailySkillPointHelpClaimed) {
+			throw new IllegalStateException("이미 이벤트 SP를 받았어요.");
+		}
+		this.skillPoints += 1;
+		this.rookieEventDailySkillPointHelpClaimed = true;
 		touch();
 	}
 
@@ -779,10 +800,13 @@ public class Player {
 		touch();
 	}
 
-    public void clearAutoHuntEndNotification() {
+	public void clearAutoHuntEndNotification() {
 		this.autoHuntEndNotifiedAt = null;
 		this.autoHuntEndSmartMessageAttemptedAt = null;
 		this.autoHuntEndSettledGold = null;
+		this.autoHuntEndLevelGain = 0;
+		this.autoHuntEndSkillPointGain = 0;
+		this.autoHuntEndCombatPowerGain = 0;
 		touch();
 	}
 
@@ -797,11 +821,20 @@ public class Player {
 	}
 
 	public void addAutoHuntEndSettledGold(long settledGold) {
-		if (settledGold < 1) {
+		addAutoHuntEndSettlementSummary(settledGold, 0, 0, 0);
+	}
+
+	public void addAutoHuntEndSettlementSummary(long settledGold, int levelGain, int skillPointGain, long combatPowerGain) {
+		if (settledGold < 1 && levelGain < 1 && skillPointGain < 1 && combatPowerGain < 1) {
 			return;
 		}
-		this.autoHuntEndSettledGold = Math.max(0, this.autoHuntEndSettledGold == null ? 0 : this.autoHuntEndSettledGold)
-				+ settledGold;
+		if (settledGold > 0) {
+			this.autoHuntEndSettledGold = Math.max(0, this.autoHuntEndSettledGold == null ? 0 : this.autoHuntEndSettledGold)
+					+ settledGold;
+		}
+		this.autoHuntEndLevelGain += Math.max(0, levelGain);
+		this.autoHuntEndSkillPointGain += Math.max(0, skillPointGain);
+		this.autoHuntEndCombatPowerGain += Math.max(0, combatPowerGain);
 		touch();
 	}
 
@@ -957,6 +990,9 @@ public class Player {
 		this.autoHuntEndNotifiedAt = null;
 		this.autoHuntEndSmartMessageAttemptedAt = null;
 		this.autoHuntEndSettledGold = null;
+		this.autoHuntEndLevelGain = 0;
+		this.autoHuntEndSkillPointGain = 0;
+		this.autoHuntEndCombatPowerGain = 0;
 		this.lastAutoHuntAdClaimedAt = null;
 		this.lastSkillPointAdClaimedAt = null;
 		this.tutorialRewardClaimedAt = null;
@@ -983,6 +1019,7 @@ public class Player {
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;
+		this.rookieEventDailySkillPointHelpClaimed = false;
 		this.rookieEventDailyHomeShortcutReturned = false;
 		this.rookieEventMissionNotificationAgreedAt = null;
 		this.rookieEventMissionMessageSentDate = null;
@@ -1034,6 +1071,7 @@ public class Player {
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;
+		this.rookieEventDailySkillPointHelpClaimed = false;
 		this.rookieEventDailyHomeShortcutReturned = false;
 		touch();
 	}

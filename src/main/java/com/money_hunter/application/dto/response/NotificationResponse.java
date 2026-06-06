@@ -8,6 +8,9 @@ public record NotificationResponse(
 		String title,
 		String body,
 		Instant sentAt,
-		Long settledGold
+		Long settledGold,
+		int levelGained,
+		int skillPointsGained,
+		long combatPowerGained
 ) {
 }

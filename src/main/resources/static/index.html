@@ -235,6 +235,20 @@
                 </button>
               </div>
             </article>
+
+            <article id="weeklyBossCard" class="weekly-boss-card locked" aria-label="주간 보스">
+              <div class="weekly-boss-visual" aria-hidden="true">W</div>
+              <div class="weekly-boss-copy">
+                <strong>주간 보스</strong>
+                <p>추후 구현 예정</p>
+                <small>강력한 보스와 주간 보상을 준비 중이에요</small>
+              </div>
+              <div class="adventure-card-actions">
+                <button class="weekly-boss-button" type="button" disabled>
+                  <span>추후 구현 예정</span>
+                </button>
+              </div>
+            </article>
           </section>
 
           <section id="rewardPanel" class="panel-view reward-panel hidden" aria-label="보상 수령">
@@ -333,7 +347,7 @@
               <div class="job-change-shop-icon" aria-hidden="true"></div>
               <div class="shop-copy">
                 <strong>헌터 변경</strong>
-                <p>전사, 궁수, 마법사, 도적 중 원하는 외형으로 변경</p>
+                <p>전사, 궁수, 마법사, 도적 중<br />원하는 외형으로 변경</p>
                 <small>성장 능력치는 그대로 유지돼요</small>
               </div>
               <button id="openJobModal" class="job-change-shop-button" type="button">변경하기</button>
@@ -532,6 +546,11 @@
               <strong>정산 완료</strong>
               <span>자리 비운 동안의 골드와 EXP가 반영됐어요</span>
               <small id="settledGoldAmount">획득 골드 계산 중</small>
+            </div>
+            <div id="notificationGrowthSummary" class="hidden">
+              <strong>성장 완료</strong>
+              <span id="notificationGrowthText">레벨과 SP 변화 확인 중</span>
+              <small id="notificationCombatPowerGain">전투력 상승 계산 중</small>
             </div>
             <div>
               <strong>재시작 가능</strong>

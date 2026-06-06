@@ -205,20 +205,20 @@ const monsterMeta = {
   BOSS_TREANT: { name: "심록의 고목왕", image: "/assets/boss-treant.png" },
 };
 const bossRaidTiers = [
-  { minCombatPower: 0, powerLabel: "0~1,000만", bossName: "흑요석 골렘", difficultyName: "초급 보스", image: "/assets/boss-rock.png", rewardPreview: "골드 1,000~1,500G · SP 3개 · 자동사냥 30분" },
-  { minCombatPower: 10_000_000, powerLabel: "1,000만~2,000만", bossName: "빙결 발톱수", difficultyName: "숙련 보스", image: "/assets/boss-frost.png", rewardPreview: "골드 1,500~2,000G · SP 3개 · 자동사냥 1시간" },
-  { minCombatPower: 20_000_000, powerLabel: "2,000만~3,500만", bossName: "심록의 고목왕", difficultyName: "정예 보스", image: "/assets/boss-treant.png", rewardPreview: "골드 2,000~2,500G · SP 3개 · 자동사냥 1시간 30분" },
-  { minCombatPower: 50_000_000, powerLabel: "5,000만 이상", bossName: "별무리 고대룡", difficultyName: "심층 보스", image: "/assets/boss-treant.png", rewardPreview: "골드 2,500~3,000G · SP 3개 · 자동사냥 2시간" },
+  { minCombatPower: 0, powerLabel: "0~500만", bossName: "흑요석 골렘", difficultyName: "초급 보스", image: "/assets/boss-rock.png", rewardPreview: "골드 1,000~1,500G · SP 3개 · 자동사냥 30분" },
+  { minCombatPower: 5_000_000, powerLabel: "500만~2,000만", bossName: "빙결 발톱수", difficultyName: "숙련 보스", image: "/assets/boss-frost.png", rewardPreview: "골드 1,500~2,000G · SP 3개 · 자동사냥 1시간" },
+  { minCombatPower: 20_000_000, powerLabel: "2,000만~6,000만", bossName: "심록의 고목왕", difficultyName: "정예 보스", image: "/assets/boss-treant.png", rewardPreview: "골드 2,000~2,500G · SP 3개 · 자동사냥 1시간 30분" },
+  { minCombatPower: 60_000_000, powerLabel: "6,000만 이상", bossName: "별무리 고대룡", difficultyName: "심층 보스", image: "/assets/boss-treant.png", rewardPreview: "골드 2,500~3,000G · SP 3개 · 자동사냥 2시간" },
 ];
 const maxCombatPower = 99_999_999;
 const combatPowerLevelScale = 40;
 const combatPowerSkillScale = 180;
 const dungeonFreeDailyLimit = 3;
 const dungeonTiers = [
-  { minCombatPower: 0, powerLabel: "0~1,000만", name: "초급 던전", rewardPreview: "골드 100~300G · SP 1개 · 자동사냥 10분 · 보스 입장권 10%" },
-  { minCombatPower: 10_000_000, powerLabel: "1,000만~2,000만", name: "숙련 던전", rewardPreview: "골드 300~500G · SP 2개 · 자동사냥 20분 · 보스 입장권 10%" },
-  { minCombatPower: 20_000_000, powerLabel: "2,000만~3,500만", name: "정예 던전", rewardPreview: "골드 500~700G · SP 3개 · 자동사냥 30분 · 보스 입장권 10%" },
-  { minCombatPower: 50_000_000, powerLabel: "5,000만 이상", name: "심층 던전", rewardPreview: "골드 700~1,000G · SP 4개 · 자동사냥 40분 · 보스 입장권 10%" },
+  { minCombatPower: 0, powerLabel: "0~500만", name: "초급 던전", rewardPreview: "골드 100~300G · SP 1개 · 자동사냥 10분 · 보스 입장권 10%" },
+  { minCombatPower: 5_000_000, powerLabel: "500만~2,000만", name: "숙련 던전", rewardPreview: "골드 300~500G · SP 2개 · 자동사냥 20분 · 보스 입장권 10%" },
+  { minCombatPower: 20_000_000, powerLabel: "2,000만~6,000만", name: "정예 던전", rewardPreview: "골드 500~700G · SP 3개 · 자동사냥 30분 · 보스 입장권 10%" },
+  { minCombatPower: 60_000_000, powerLabel: "6,000만 이상", name: "심층 던전", rewardPreview: "골드 700~1,000G · SP 4개 · 자동사냥 40분 · 보스 입장권 10%" },
 ];
 const adventureAssets = {
   dungeon: "/assets/adventure/dungeon-icon-filled-inside.png?v=20260605-01",
@@ -378,7 +378,7 @@ const featureTutorialSteps = [
   {
     target: ".action-row",
     title: "보상 버튼",
-    body: "전투력과 시간당 골드를 확인하고 자동사냥 시간을 충전해요. 사냥 속도 1.5배는 항상 적용돼요.",
+    body: "전투력과 시간당 골드를 확인하고 자동사냥 시간을 충전해요.",
   },
   {
     target: "#skillPanel .upgrade-row:not(.hidden)",
@@ -1643,10 +1643,36 @@ function renderNotification(player) {
   $("settledGoldAmount").textContent = settledGold > 0
     ? `${settledGold.toLocaleString("ko-KR")} 골드를 벌었어요`
     : "이번 정산에서 추가 골드는 없어요";
+  renderNotificationGrowth(notification);
   $("notificationMeta").textContent = notification.sentAt
     ? `알림 도착 · ${formatShortTime(notification.sentAt)}`
     : "자동사냥 종료 안내";
   $("notificationModal").classList.remove("hidden");
+}
+
+function renderNotificationGrowth(notification) {
+  const levelGained = Math.max(0, Math.floor(Number(notification?.levelGained) || 0));
+  const skillPointsGained = Math.max(0, Math.floor(Number(notification?.skillPointsGained) || 0));
+  const combatPowerGained = Math.max(0, Math.floor(Number(notification?.combatPowerGained) || 0));
+  const summary = $("notificationGrowthSummary");
+  const hasGrowth = levelGained > 0 || skillPointsGained > 0 || combatPowerGained > 0;
+  summary.classList.toggle("hidden", !hasGrowth);
+  if (!hasGrowth) {
+    return;
+  }
+  const growthText = [];
+  if (levelGained > 0) {
+    growthText.push(`레벨 +${levelGained.toLocaleString("ko-KR")}`);
+  }
+  if (skillPointsGained > 0) {
+    growthText.push(`SP +${skillPointsGained.toLocaleString("ko-KR")}`);
+  }
+  $("notificationGrowthText").textContent = growthText.length > 0
+    ? growthText.join(" · ")
+    : "레벨업 없이 전투력이 올랐어요";
+  $("notificationCombatPowerGain").textContent = combatPowerGained > 0
+    ? `전투력 +${formatCombatPower(combatPowerGained)}`
+    : "전투력 변화 없음";
 }
 
 function notificationSettledGold(notification) {
@@ -2666,6 +2692,7 @@ function renderRookieEventSelectedDay(day) {
   const missions = Array.isArray(day.missions) ? day.missions : [];
   $("rookieEventMissionList").replaceChildren(rookieEventDailyRewardElement(day), ...missions.map((mission) => {
     const isHomeShortcutMission = mission.key === "home_shortcut_return";
+    const hasMissionAction = Boolean(mission.action && mission.actionEnabled && !mission.completed);
     const row = document.createElement("div");
     row.className = "rookie-event-mission";
     row.classList.toggle("is-completed", mission.completed);
@@ -2679,7 +2706,7 @@ function renderRookieEventSelectedDay(day) {
     const bar = document.createElement("i");
     bar.style.setProperty("--progress", `${Math.max(0, Math.min(100, mission.progressPercent || 0))}%`);
     row.append(label);
-    if (!isHomeShortcutMission || mission.completed) {
+    if ((!isHomeShortcutMission && !hasMissionAction) || mission.completed) {
       row.append(progress);
     }
     if (isHomeShortcutMission && !mission.completed) {
@@ -2691,9 +2718,37 @@ function renderRookieEventSelectedDay(day) {
       action.addEventListener("click", openHomeShortcutGuide);
       row.append(action);
     }
+    if (hasMissionAction && mission.action === "CLAIM_SKILL_POINT_HELP") {
+      row.classList.add("has-action");
+      const action = document.createElement("button");
+      action.className = "rookie-event-mission-action";
+      action.type = "button";
+      action.textContent = mission.actionLabel || "SP 받기";
+      action.addEventListener("click", () => claimRookieEventSkillPointHelp(action));
+      row.append(action);
+    }
     row.append(bar);
     return row;
   }));
+}
+
+async function claimRookieEventSkillPointHelp(button) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "지급 중";
+  }
+  try {
+    const player = await requestWithLoginRetry(() => api("/api/player/rookie-event/skill-point-help", { method: "POST" }));
+    setServerPlayer(player, { resetDisplayGold: true });
+    render();
+    setMessage("이벤트 SP 1개를 받았어요. 스킬을 강화해 미션을 완료해 보세요.");
+  } catch (error) {
+    setMessage(error.message || "이벤트 SP 지급에 실패했어요.");
+    if (button) {
+      button.disabled = false;
+      button.textContent = "SP 받기";
+    }
+  }
 }
 
 function rookieEventDailyRewardElement(day) {

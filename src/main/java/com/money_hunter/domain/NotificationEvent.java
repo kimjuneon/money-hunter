@@ -40,6 +40,15 @@ public class NotificationEvent {
 
 	private Long settledGold;
 
+	@Column(nullable = false)
+	private int levelGain = 0;
+
+	@Column(nullable = false)
+	private int skillPointGain = 0;
+
+	@Column(nullable = false)
+	private long combatPowerGain = 0;
+
 	private Instant readAt;
 
 	@Column(nullable = false)
@@ -53,12 +62,29 @@ public class NotificationEvent {
 	}
 
 	public NotificationEvent(Player player, NotificationType type, String title, String body, Instant sentAt, Long settledGold) {
+		this(player, type, title, body, sentAt, settledGold, 0, 0, 0);
+	}
+
+	public NotificationEvent(
+			Player player,
+			NotificationType type,
+			String title,
+			String body,
+			Instant sentAt,
+			Long settledGold,
+			int levelGain,
+			int skillPointGain,
+			long combatPowerGain
+	) {
 		this.player = player;
 		this.type = type;
 		this.title = title;
 		this.body = body;
 		this.sentAt = sentAt;
 		this.settledGold = settledGold;
+		this.levelGain = Math.max(0, levelGain);
+		this.skillPointGain = Math.max(0, skillPointGain);
+		this.combatPowerGain = Math.max(0, combatPowerGain);
 		this.createdAt = sentAt;
 	}
 
@@ -84,6 +110,18 @@ public class NotificationEvent {
 
 	public Long getSettledGold() {
 		return settledGold;
+	}
+
+	public int getLevelGain() {
+		return levelGain;
+	}
+
+	public int getSkillPointGain() {
+		return skillPointGain;
+	}
+
+	public long getCombatPowerGain() {
+		return combatPowerGain;
 	}
 
 	public Instant getReadAt() {

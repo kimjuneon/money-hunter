@@ -5,6 +5,9 @@ public record RookieEventMissionResponse(
 		String label,
 		String progressText,
 		int progressPercent,
-		boolean completed
+		boolean completed,
+		String action,
+		String actionLabel,
+		boolean actionEnabled
 ) {
 }

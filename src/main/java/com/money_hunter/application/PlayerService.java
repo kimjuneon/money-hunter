@@ -240,7 +240,7 @@ public class PlayerService {
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 600, 600, 25),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
 			)),
-			new DungeonCouponTier(10_000_000, "숙련 던전", "골드 300~500G · SP 2개 · 자동사냥 20분 · 보스 입장권 10%", List.of(
+			new DungeonCouponTier(5_000_000, "숙련 던전", "골드 300~500G · SP 2개 · 자동사냥 20분 · 보스 입장권 10%", List.of(
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 300, 500, 35),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 2, 2, 30),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_200, 1_200, 25),
@@ -252,7 +252,7 @@ public class PlayerService {
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_800, 1_800, 25),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
 			)),
-			new DungeonCouponTier(50_000_000, "심층 던전", "골드 700~1,000G · SP 4개 · 자동사냥 40분 · 보스 입장권 10%", List.of(
+			new DungeonCouponTier(60_000_000, "심층 던전", "골드 700~1,000G · SP 4개 · 자동사냥 40분 · 보스 입장권 10%", List.of(
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 700, 1_000, 35),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 4, 4, 30),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 2_400, 2_400, 25),
@@ -266,7 +266,7 @@ public class PlayerService {
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 25),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_800, 1_800, 25)
 			)),
-			new BossRaidTier(10_000_000, "빙결 발톱수", "숙련 보스", "골드 1,500~2,000G · SP 3개 · 자동사냥 1시간", List.of(
+			new BossRaidTier(5_000_000, "빙결 발톱수", "숙련 보스", "골드 1,500~2,000G · SP 3개 · 자동사냥 1시간", List.of(
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 1_500, 2_000, 45),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 30),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 3_600, 3_600, 25)
@@ -276,7 +276,7 @@ public class PlayerService {
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 35),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 5_400, 5_400, 25)
 			)),
-			new BossRaidTier(50_000_000, "별무리 고대룡", "심층 보스", "골드 2,500~3,000G · SP 3개 · 자동사냥 2시간", List.of(
+			new BossRaidTier(60_000_000, "별무리 고대룡", "심층 보스", "골드 2,500~3,000G · SP 3개 · 자동사냥 2시간", List.of(
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 2_500, 3_000, 35),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 40),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 7_200, 7_200, 25)
@@ -970,6 +970,22 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse claimRookieEventSkillPointHelp(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		prepareRookieEvent(player);
+		if (!canProgressRookieEvent(player) || !currentRookieEventHasMission(player, RookieMissionType.SKILL_POINTS_SPENT)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "현재 진행 중인 SP 사용 미션이 아니에요.");
+		}
+		if (player.isRookieEventDailySkillPointHelpClaimed()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 이벤트 SP를 받았어요.");
+		}
+		player.claimRookieEventDailySkillPointHelp();
+		log.info("신규 이벤트 SP 사용 미션 도움 지급: userKey={}, skillPoints={}", mask(userKey), player.getSkillPoints());
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse markRookieEventMissionNotificationAgreed(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
@@ -1419,10 +1435,16 @@ public class PlayerService {
 		}
 
 		long goldBefore = player.getGold();
+		int levelBefore = player.getLevel();
+		int skillPointsBefore = player.getSkillPoints();
+		long combatPowerBefore = combatPower(player);
 		resolveAutoCombat(player, settlementEnd);
 		long settledGold = Math.max(0, player.getGold() - goldBefore);
+		int levelGain = Math.max(0, player.getLevel() - levelBefore);
+		int skillPointGain = Math.max(0, player.getSkillPoints() - skillPointsBefore);
+		long combatPowerGain = Math.max(0, combatPower(player) - combatPowerBefore);
 		if (!huntEnd.isAfter(now) && settlementEnd.equals(huntEnd) && player.getAutoHuntEndNotifiedAt() == null) {
-			player.addAutoHuntEndSettledGold(settledGold);
+			player.addAutoHuntEndSettlementSummary(settledGold, levelGain, skillPointGain, combatPowerGain);
 		}
 		if (!huntEnd.isAfter(now) && player.getLastSettledAt().isBefore(settlementEnd)) {
 			player.setLastSettledAt(settlementEnd);
@@ -1828,10 +1850,13 @@ public class PlayerService {
 				.map(notification -> new NotificationResponse(
 						notification.getId(),
 						notification.getType().name(),
-						notification.getTitle(),
-						notification.getBody(),
-						notification.getSentAt(),
-						notification.getSettledGold()))
+					notification.getTitle(),
+					notification.getBody(),
+					notification.getSentAt(),
+					notification.getSettledGold(),
+					notification.getLevelGain(),
+					notification.getSkillPointGain(),
+					notification.getCombatPowerGain()))
 				.orElse(null);
 	}
 
@@ -2222,12 +2247,19 @@ public class PlayerService {
 		long progress = dayCompleted ? mission.target() : showProgress ? rookieMissionValue(player, mission) : 0;
 		int progressPercent = progressPercent(progress, mission.target());
 		boolean completed = dayCompleted || progress >= mission.target();
+		boolean canClaimSkillPointHelp = showProgress
+				&& !completed
+				&& mission.type() == RookieMissionType.SKILL_POINTS_SPENT
+				&& !player.isRookieEventDailySkillPointHelpClaimed();
 		return new RookieEventMissionResponse(
 				mission.key(),
 				mission.label(),
 				rookieMissionProgressText(mission, progress),
 				progressPercent,
-				completed);
+				completed,
+				canClaimSkillPointHelp ? "CLAIM_SKILL_POINT_HELP" : null,
+				canClaimSkillPointHelp ? "SP 받기" : null,
+				canClaimSkillPointHelp);
 	}
 
 	private long rookieMissionValue(Player player, RookieMissionPlan mission) {
@@ -2358,15 +2390,21 @@ public class PlayerService {
 			notificationEventRepository.save(new NotificationEvent(
 					player,
 					NotificationType.AUTO_HUNT_ENDED,
-					"자동사냥이 종료됐어요",
-					"광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.",
-					now,
-					autoHuntEndSettledGold(player, settledGold)));
+						"자동사냥이 종료됐어요",
+						"광고를 보고 자동사냥 시간을 다시 충전할 수 있어요.",
+						now,
+						autoHuntEndSettledGold(player, settledGold),
+						player.getAutoHuntEndLevelGain(),
+						player.getAutoHuntEndSkillPointGain(),
+						player.getAutoHuntEndCombatPowerGain()));
 			log.info(
-					"자동사냥 종료 인앱 알림 생성: userKey={}, endedAt={}, settledGold={}",
+					"자동사냥 종료 인앱 알림 생성: userKey={}, endedAt={}, settledGold={}, levelGain={}, skillPointGain={}, combatPowerGain={}",
 					mask(player.getUserKey()),
 					autoHuntEndsAt,
-					autoHuntEndSettledGold(player, settledGold));
+					autoHuntEndSettledGold(player, settledGold),
+					player.getAutoHuntEndLevelGain(),
+					player.getAutoHuntEndSkillPointGain(),
+					player.getAutoHuntEndCombatPowerGain());
 		}
 		if (sendAutoHuntEndedSmartMessage(player, now)) {
 			player.markAutoHuntEndNotified(now);

@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -238,6 +239,82 @@ class RealRewardAdSessionTest {
 				.andExpect(jsonPath("$.rookieEvent.completedDays", is(1)))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimed", is(true)))
 				.andExpect(jsonPath("$.skillPoints", is(1)));
+	}
+
+	@Test
+	void rookieEventSkillPointHelpCanBeClaimedOnceForSpendMission() throws Exception {
+		mockMvc.perform(post("/api/player/job")
+						.with(user("rookie-event-sp-help-user"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey("rookie-event-sp-help-user").orElseThrow();
+			player.overrideRookieEventForTest(
+					Instant.now().minus(Duration.ofDays(2)),
+					LocalDate.now().minusDays(1),
+					2,
+					2,
+					false,
+					7);
+		});
+
+		mockMvc.perform(get("/api/player")
+						.with(user("rookie-event-sp-help-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.currentDay", is(3)))
+				.andExpect(jsonPath("$.rookieEvent.days[2].missions[2].key", is("spend_sp_1")))
+				.andExpect(jsonPath("$.rookieEvent.days[2].missions[2].action", is("CLAIM_SKILL_POINT_HELP")))
+				.andExpect(jsonPath("$.rookieEvent.days[2].missions[2].actionLabel", is("SP 받기")))
+				.andExpect(jsonPath("$.rookieEvent.days[2].missions[2].actionEnabled", is(true)))
+				.andExpect(jsonPath("$.skillPoints", is(0)));
+
+		mockMvc.perform(post("/api/player/rookie-event/skill-point-help")
+						.with(user("rookie-event-sp-help-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.skillPoints", is(1)))
+				.andExpect(jsonPath("$.rookieEvent.days[2].missions[2].actionEnabled", is(false)));
+
+		mockMvc.perform(post("/api/player/rookie-event/skill-point-help")
+						.with(user("rookie-event-sp-help-user")))
+				.andExpect(status().isConflict());
+
+		mockMvc.perform(post("/api/player/skills/upgrade")
+						.with(user("rookie-event-sp-help-user"))
+						.contentType(APPLICATION_JSON)
+				.content("{\"type\":\"STRENGTH\"}"))
+		.andExpect(status().isOk())
+		.andExpect(jsonPath("$.rookieEvent.completedDays", is(2)))
+		.andExpect(jsonPath("$.rookieEvent.days[2].missions[2].completed", is(true)));
+	}
+
+	@Test
+	void autoHuntEndNotificationIncludesGrowthSummary() throws Exception {
+		mockMvc.perform(post("/api/player/job")
+						.with(user("auto-hunt-growth-user"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey("auto-hunt-growth-user").orElseThrow();
+			player.addSkillPoint();
+			player.spendSkillPoints(1);
+			player.getOrCreateSkill(SkillType.STRENGTH).levelUp();
+			Instant now = Instant.now();
+			player.setLastSettledAt(now.minus(Duration.ofHours(2)));
+			player.setAutoHuntEndsAt(now.minusSeconds(1));
+		});
+
+		mockMvc.perform(get("/api/player")
+						.with(user("auto-hunt-growth-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.latestNotification.type", is("AUTO_HUNT_ENDED")))
+				.andExpect(jsonPath("$.latestNotification.settledGold", greaterThan(0)))
+				.andExpect(jsonPath("$.latestNotification.levelGained", greaterThan(0)))
+				.andExpect(jsonPath("$.latestNotification.skillPointsGained", greaterThan(0)))
+				.andExpect(jsonPath("$.latestNotification.combatPowerGained", greaterThan(0)));
 	}
 
 	@Test
