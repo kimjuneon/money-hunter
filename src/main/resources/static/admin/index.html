@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260603-02" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260605-03" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -38,6 +38,7 @@
           <button class="nav-item" data-view="eventView">이벤트 관리</button>
           <button class="nav-item" data-view="policyView">정책값</button>
           <button class="nav-item" data-view="playerView">유저 관리</button>
+	          <button class="nav-item" data-view="paymentView">결제</button>
 	          <button class="nav-item" data-view="anomalyView">이상징후</button>
 	          <button class="nav-item" data-view="auditView">감사 로그</button>
 	          <button class="nav-item" data-view="monitoringView">모니터링</button>
@@ -82,7 +83,7 @@
             <div class="panel-head">
               <div>
                 <h3>이상징후 감지</h3>
-                <p>광고 호출, 보상 수령, 보유 재화, 버프 시간 상한을 기준으로 점검해요.</p>
+                <p>광고 호출, 보상 수령, 보유 재화, 자동사냥 시간 상한을 기준으로 점검해요.</p>
               </div>
               <span id="anomalyUpdatedAt" class="muted"></span>
             </div>
@@ -121,13 +122,12 @@
 	                <option value="createdAt:desc">신규 가입순</option>
 	                <option value="createdAt:asc">오래된 가입순</option>
 	                <option value="favorite:desc,lastAccessedAt:desc">즐겨찾기 우선</option>
-	                <option value="cumulativeGoldEarned:desc">누적 골드 높은순</option>
+	                <option value="combatPower:desc,level:desc">전투력 높은순</option>
 	                <option value="gold:desc">보유 골드 높은순</option>
                 <option value="level:desc,experience:desc">레벨 높은순</option>
                 <option value="skillPoints:desc">SP 많은순</option>
                 <option value="defeatedMonsters:desc">처치 몬스터순</option>
                 <option value="autoHuntEndsAt:asc">자동사냥 종료 임박순</option>
-                <option value="boostEndsAt:asc">공속버프 종료 임박순</option>
 	                <option value="gameProfileUpdatedAt:desc">프로필 최근 갱신순</option>
 	              </select>
 	              <select id="playerFavoriteMode" aria-label="즐겨찾기 필터">
@@ -176,6 +176,23 @@
             </div>
             <div id="policyList" class="policy-list"></div>
             <p id="policyResult" class="feedback"></p>
+          </section>
+        </section>
+
+        <section id="paymentView" class="view hidden">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>결제</h3>
+                <p>인앱 결제 주문과 상품 지급 내역을 확인해요.</p>
+              </div>
+              <span id="paymentPageInfo" class="muted">1 / 1</span>
+            </div>
+            <div id="paymentList" class="payment-list"></div>
+            <div class="pager">
+              <button id="prevPaymentButton" class="ghost" type="button">이전</button>
+              <button id="nextPaymentButton" class="ghost" type="button">다음</button>
+            </div>
           </section>
         </section>
 
@@ -263,6 +280,6 @@
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260603-02"></script>
+    <script src="/admin/app.js?v=20260605-03"></script>
   </body>
 </html>

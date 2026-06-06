@@ -4,6 +4,9 @@ const state = {
   view: "dashboardView",
   auditPage: 0,
   auditSize: 30,
+  paymentPage: 0,
+  paymentSize: 30,
+  paymentTotalPages: 1,
   toastTimer: null,
   overview: null,
   players: [],
@@ -21,17 +24,28 @@ const state = {
 };
 
 const maxGoldPerHour = 6000;
-const fullRateRequiredAdsPerHour = 2;
+const dungeonEntryHuntRequiredSeconds = 3600;
+const daySeconds = 86400;
+const fullPowerDungeonRewards = [
+  { type: "GOLD", minAmount: 700, maxAmount: 1000, weight: 35 },
+  { type: "SKILL_POINT", minAmount: 4, maxAmount: 4, weight: 30 },
+  { type: "AUTO_HUNT_SECONDS", minAmount: 2400, maxAmount: 2400, weight: 25 },
+  { type: "BOSS_TICKET", minAmount: 1, maxAmount: 1, weight: 10 },
+];
+const fullPowerBossRewards = [
+  { type: "GOLD", minAmount: 2500, maxAmount: 3000, weight: 35 },
+  { type: "SKILL_POINT", minAmount: 3, maxAmount: 3, weight: 40 },
+  { type: "AUTO_HUNT_SECONDS", minAmount: 7200, maxAmount: 7200, weight: 25 },
+];
 const hourPolicyKeys = new Set([
   "autoHuntAdSeconds",
-  "boostAdSeconds",
   "maxAdSeconds",
+  "dungeonReentryCooldownSeconds",
   "skillPointAdCooldownSeconds",
   "anomalyTimerGraceSeconds",
 ]);
 const minutePolicyKeys = new Set([
   "autoHuntAdCooldownSeconds",
-  "boostAdCooldownSeconds",
 ]);
 const $ = (id) => document.getElementById(id);
 
@@ -71,6 +85,18 @@ function bindEvents() {
   $("nextAuditButton").addEventListener("click", () => {
     state.auditPage += 1;
     loadAudits();
+  });
+  $("prevPaymentButton").addEventListener("click", () => {
+    if (state.paymentPage > 0) {
+      state.paymentPage -= 1;
+      loadPayments();
+    }
+  });
+  $("nextPaymentButton").addEventListener("click", () => {
+    if (state.paymentPage + 1 < state.paymentTotalPages) {
+      state.paymentPage += 1;
+      loadPayments();
+    }
   });
   $("prevPlayerButton").addEventListener("click", () => {
     if (state.playerPage > 0) {
@@ -171,6 +197,7 @@ function activateView(viewId) {
     eventView: "이벤트 관리",
     anomalyView: "이상징후",
     playerView: "유저 관리",
+    paymentView: "결제",
     policyView: "정책값",
     auditView: "감사 로그",
     monitoringView: "모니터링",
@@ -197,6 +224,8 @@ async function refreshCurrentView(options = {}) {
       await loadPolicies();
     } else if (state.view === "auditView") {
       await loadAudits();
+    } else if (state.view === "paymentView") {
+      await loadPayments();
     } else if (state.view === "anomalyView") {
       await loadAnomalies();
     } else if (state.view === "playerView") {
@@ -485,7 +514,7 @@ function renderRookieEventTestState(player) {
       ${testMetric("남은 기간", event.visible ? `${formatNumber(event.daysRemaining || 0)}일` : "-")}
       ${testMetric("최종 보상", event.rewardClaimed ? "수령 완료" : finalClaimable ? "수령 가능" : "대기")}
       ${testMetric("SP", formatNumber(player.skillPoints))}
-      ${testMetric("자동/공속", `${formatDate(player.autoHuntEndsAt)} / ${formatDate(player.boostEndsAt)}`)}
+      ${testMetric("자동사냥", formatDate(player.autoHuntEndsAt))}
     </div>
     <div class="test-tool-days">
       ${days.map((day) => `
@@ -568,7 +597,6 @@ function renderMetrics(data) {
     ["정지 유저", data.suspendedPlayers, "명"],
     ["오늘 신규", data.newPlayersToday, "명"],
     ["자동사냥 활성", data.activeAutoHuntPlayers, "명"],
-    ["공속버프 활성", data.activeBoostPlayers, "명"],
     ["총 보유 골드", data.totalGoldInCirculation, "G"],
     ["오늘 광고 이벤트", data.rewardAdEventsToday, "회"],
     ["오늘 보상 수령", data.rewardClaimsToday, "건"],
@@ -591,8 +619,9 @@ function renderEconomyPanel(data) {
   const pendingWon = pendingPoints;
   const adRevenue = Number(economy.adRevenuePerRewardAdWon || 0);
   const goldPerPoint = Number(economy.goldPerTossPoint || 0);
-  const revenueBasis = adRevenue * fullRateRequiredAdsPerHour;
-  const derivedGoldPerPoint = deriveGoldPerPoint(adRevenue);
+  const expectedGoldPerAd = expectedFullPowerGoldPerRewardAd(economy);
+  const dungeonOpportunities = dungeonOpportunitiesUnlockedByRewardAd(economy);
+  const derivedGoldPerPoint = deriveGoldPerPoint(adRevenue, economy);
   const currentMaxPointValue = goldPerPoint > 0 ? Math.floor(maxGoldPerHour / goldPerPoint) : 0;
   $("economyPanel").innerHTML = `
     <section class="panel economy-panel">
@@ -606,7 +635,8 @@ function renderEconomyPanel(data) {
       <div class="economy-grid">
         ${economyItem("리워드 광고 단가", economy.adRevenuePerRewardAdWon, "원/회")}
         ${economyItem("최대 수급 기준", maxGoldPerHour, "G/h")}
-        ${economyItem("광고 기준 수익", revenueBasis, "원/h")}
+        ${economyItem("광고 1회 기대 골드", Math.ceil(expectedGoldPerAd), "G")}
+        ${economyItem("무료 던전 기대 횟수", dungeonOpportunities.toFixed(2), "회")}
         ${economyItem("현재 최대 환산", currentMaxPointValue, "P/h")}
         ${economyItem("포인트 환산", economy.goldPerTossPoint, "골드/P")}
         ${economyItem("보상 신청 기준", economy.rewardPointAmount, "P")}
@@ -616,7 +646,7 @@ function renderEconomyPanel(data) {
       <div class="quick-policy-card calibration-card">
         <div>
           <strong>광고 수익 기준 자동 환산</strong>
-          <p>자동사냥 광고 1회와 공속버프 광고 1회를 기준으로 6,000G/h의 포인트 환산값을 계산해요.</p>
+          <p>풀강 유저의 광고 1회 기대 골드가 광고 단가와 같아지도록 환산값을 계산해요.</p>
         </div>
         <label>
           <span>1회 예상 매출(원)</span>
@@ -625,6 +655,7 @@ function renderEconomyPanel(data) {
         <div class="derived-policy">
           <span>자동 환산값</span>
           <strong id="derivedGoldPerPoint">${formatNumber(derivedGoldPerPoint)}G/P</strong>
+          <small id="expectedGoldPerAd">기대 ${formatNumber(Math.ceil(expectedGoldPerAd))}G</small>
         </div>
         <button id="revenueCalibrationSaveButton" class="secondary" type="button">환산 저장</button>
       </div>
@@ -646,7 +677,8 @@ function renderEconomyPanel(data) {
     </section>
   `;
   $("revenueAdInput").addEventListener("input", () => {
-    $("derivedGoldPerPoint").textContent = `${formatNumber(deriveGoldPerPoint(Number($("revenueAdInput").value)))}G/P`;
+    $("derivedGoldPerPoint").textContent = `${formatNumber(deriveGoldPerPoint(Number($("revenueAdInput").value), economy))}G/P`;
+    $("expectedGoldPerAd").textContent = `기대 ${formatNumber(Math.ceil(expectedFullPowerGoldPerRewardAd(economy)))}G`;
   });
   $("revenueCalibrationSaveButton").addEventListener("click", () => {
     saveRevenueCalibration($("revenueCalibrationSaveButton"));
@@ -670,12 +702,64 @@ function economyItem(label, value, unit) {
   `;
 }
 
-function deriveGoldPerPoint(adRevenuePerAd) {
+function deriveGoldPerPoint(adRevenuePerAd, economy = {}) {
   const adRevenue = Number(adRevenuePerAd || 0);
   if (!Number.isFinite(adRevenue) || adRevenue <= 0) {
     return 1;
   }
-  return Math.max(1, Math.ceil(maxGoldPerHour / (adRevenue * fullRateRequiredAdsPerHour)));
+  return Math.max(1, Math.min(1000000, Math.ceil(expectedFullPowerGoldPerRewardAd(economy) / adRevenue)));
+}
+
+function expectedFullPowerGoldPerRewardAd(economy = {}) {
+  const autoHuntGold = secondsToFullPowerGold(Number(economy.autoHuntAdSeconds || 0));
+  const bossExpectedGold = expectedRewardGold(fullPowerBossRewards, 0);
+  const dungeonExpectedGold = expectedRewardGold(fullPowerDungeonRewards, bossExpectedGold);
+  return autoHuntGold + dungeonExpectedGold * dungeonOpportunitiesUnlockedByRewardAd(economy);
+}
+
+function dungeonOpportunitiesUnlockedByRewardAd(economy = {}) {
+  const freeDailyLimit = Math.max(0, Number(economy.dungeonFreeDailyLimit || 0));
+  const autoHuntSeconds = Math.max(0, Number(economy.autoHuntAdSeconds || 0));
+  if (freeDailyLimit <= 0 || autoHuntSeconds <= 0) {
+    return 0;
+  }
+  const gateContribution = Math.min(1, autoHuntSeconds / dungeonEntryHuntRequiredSeconds);
+  const cooldownSeconds = Math.max(0, Number(economy.dungeonReentryCooldownSeconds || 0));
+  if (cooldownSeconds <= 0) {
+    return freeDailyLimit * gateContribution;
+  }
+  const availableSecondsAfterGate = Math.max(0, daySeconds - dungeonEntryHuntRequiredSeconds);
+  const dailyRunsPossible = 1 + Math.floor(availableSecondsAfterGate / cooldownSeconds);
+  return Math.min(freeDailyLimit, Math.max(1, dailyRunsPossible)) * gateContribution;
+}
+
+function expectedRewardGold(rewards, bossExpectedGold) {
+  const totalWeight = rewards.reduce((sum, reward) => sum + Number(reward.weight || 0), 0);
+  if (totalWeight <= 0) {
+    return 0;
+  }
+  return rewards.reduce((sum, reward) => {
+    const probability = Number(reward.weight || 0) / totalWeight;
+    return sum + probability * rewardGoldValue(reward, bossExpectedGold);
+  }, 0);
+}
+
+function rewardGoldValue(reward, bossExpectedGold) {
+  const averageAmount = (Number(reward.minAmount || 0) + Number(reward.maxAmount || 0)) / 2;
+  if (reward.type === "GOLD") {
+    return averageAmount;
+  }
+  if (reward.type === "AUTO_HUNT_SECONDS") {
+    return secondsToFullPowerGold(averageAmount);
+  }
+  if (reward.type === "BOSS_TICKET") {
+    return bossExpectedGold * averageAmount;
+  }
+  return 0;
+}
+
+function secondsToFullPowerGold(seconds) {
+  return maxGoldPerHour * Math.max(0, Number(seconds || 0)) / 3600;
 }
 
 async function saveRevenueCalibration(button) {
@@ -735,7 +819,6 @@ function renderMonitoringPanel(data) {
   const items = [
     ["온보딩 전환", formatPercent(data.onboardedPlayers, totalPlayers), "직업 선택 완료 비율"],
     ["자동사냥 활성률", formatPercent(data.activeAutoHuntPlayers, totalPlayers), "현재 사냥 중인 유저"],
-    ["공속버프 활성률", formatPercent(data.activeBoostPlayers, totalPlayers), "현재 공속버프 중인 유저"],
     ["오늘 광고/유저", totalPlayers > 0 ? (adEvents / totalPlayers).toFixed(2) : "0.00", "전체 유저 기준 평균"],
     ["대기 보상", `${formatNumber(data.pendingRewardClaims)}건`, `${formatNumber(data.pendingRewardPoints)}P 지급 대기`],
     ["오늘 순수익", `${formatNumber(data.estimatedNetWonToday)}원`, "광고 추정 - 포인트 지급"],
@@ -1173,7 +1256,6 @@ function playerRow(player) {
   const statusClass = player.suspended ? "suspended" : "active";
   const job = player.job || "미선택";
   const autoHunt = player.autoHuntEndsAt ? new Date(player.autoHuntEndsAt).toLocaleString("ko-KR") : "-";
-  const boost = player.boostEndsAt ? new Date(player.boostEndsAt).toLocaleString("ko-KR") : "-";
   const lastAccessed = formatDate(player.lastAccessedAt);
   const selected = player.userKey === state.selectedUserKey ? "selected" : "";
   const name = playerDisplayName(player);
@@ -1192,8 +1274,8 @@ function playerRow(player) {
           <strong>${escapeHtml(name)}</strong>
           <span class="player-status ${statusClass}">${status}</span>
         </div>
-        <p>${escapeHtml(jobLabel(job))} · Lv.${formatNumber(player.level)} · 보유 ${formatNumber(player.gold)}G · 누적 ${formatNumber(player.cumulativeGoldEarned || player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
-        <small>최근 접속 ${escapeHtml(lastAccessed)} · 자동사냥 ${escapeHtml(autoHunt)} · 공속버프 ${escapeHtml(boost)}</small>
+        <p>${escapeHtml(jobLabel(job))} · Lv.${formatNumber(player.level)} · 전투력 ${formatCombatPower(player.combatPower)} · 보유 ${formatNumber(player.gold)}G · SP ${formatNumber(player.skillPoints)}</p>
+        <small>최근 접속 ${escapeHtml(lastAccessed)} · 자동사냥 ${escapeHtml(autoHunt)}</small>
         ${player.suspended ? `<small>정지 사유: ${escapeHtml(player.suspensionReason || "-")}</small>` : ""}
       </div>
       <div class="player-actions">
@@ -1224,29 +1306,31 @@ function renderSelectedPlayerDetail() {
   const basicDetails = [
     ["유저 식별 ID", player.userKey],
     ["관리자 별명", player.adminNickname || "미설정"],
-    ["게임 프로필", player.gameProfileNickname || "미동기화"],
+    ["가입", formatDate(player.createdAt)],
     ["마지막 접속", formatDate(player.lastAccessedAt)],
-    ["히든 스킨", player.hiddenPetSkinsUnlocked ? "해금" : "미해금"],
-    ["골드", `${formatNumber(player.gold)}G`],
-    ["누적 골드", `${formatNumber(player.cumulativeGoldEarned || player.gold)}G`],
+	    ["전투력", formatCombatPower(player.combatPower)],
+	    ["누적 골드", `${formatNumber(player.cumulativeGoldEarned || player.gold)}G`],
+	    ["최근 정산 시간", formatDate(player.lastSettledAt)],
+	    ["총 정산 금액", `${formatNumber(player.totalSettledWon || 0)}원`],
+	  ];
+	  const extraDetails = [
+	    ["게임 프로필", player.gameProfileNickname || "미동기화"],
+	    ["히든 스킨", player.hiddenPetSkinsUnlocked ? "해금" : "미해금"],
+	    ["보유 골드", `${formatNumber(player.gold)}G`],
+	    ["총 정산 골드", `${formatNumber(player.totalSettledGold)}G`],
     ["SP", formatNumber(player.skillPoints)],
     ["레벨", `Lv.${formatNumber(player.level)}`],
     ["경험치", `${formatNumber(player.experience)} / ${formatNumber(player.nextLevelExperience)}`],
     ["펫 슬롯", `${formatNumber(player.characterSlots)} / 3`],
     ["초대 보상", `${formatNumber(player.friendInviteRewardCount)}회`],
-  ];
-  const extraDetails = [
     ["처치 몬스터", formatNumber(player.defeatedMonsters)],
     ["현재 몬스터", `${player.currentMonsterKey || "-"} · HP ${formatNumber(player.currentMonsterHp)}`],
     ["튜토리얼 보상", player.tutorialRewardClaimed ? "완료" : "미수령"],
     ["기능 튜토리얼", player.featureTutorialCompleted ? "완료" : "미완료"],
-    ["마지막 정산", formatDate(player.lastSettledAt)],
     ["최근 SP 광고", formatDate(player.lastSkillPointAdClaimedAt)],
     ["자동사냥 종료", formatDate(player.autoHuntEndsAt)],
-    ["공속버프 종료", formatDate(player.boostEndsAt)],
     ["게임 프로필 갱신", formatDate(player.gameProfileUpdatedAt)],
     ["즐겨찾기", player.adminFavorite ? "예" : "아니오"],
-    ["가입", formatDate(player.createdAt)],
     ["수정", formatDate(player.updatedAt)],
   ];
   $("playerDetail").innerHTML = `
@@ -1580,12 +1664,15 @@ function policyGroups() {
       description: "광고 1회 보상 시간과 누적 상한",
       keys: [
         "autoHuntAdSeconds",
-        "boostAdSeconds",
         "autoHuntAdCooldownSeconds",
-        "boostAdCooldownSeconds",
         "maxAdSeconds",
         "skillPointAdCooldownSeconds",
       ],
+    },
+    {
+      title: "모험",
+      description: "던전 입장 횟수와 재입장 대기 시간",
+      keys: ["dungeonFreeDailyLimit", "dungeonAdditionalDailyLimit", "dungeonReentryCooldownSeconds"],
     },
     {
       title: "상점/초대",
@@ -1698,6 +1785,47 @@ async function loadAudits() {
   `).join("") || `<p class="empty">감사 로그가 아직 없어요.</p>`;
 }
 
+async function loadPayments() {
+  const data = await request(`/api/admin/payments?page=${state.paymentPage}&size=${state.paymentSize}`);
+  const payments = data.content || [];
+  state.paymentPage = Number(data.page ?? state.paymentPage);
+  state.paymentTotalPages = Math.max(1, Number(data.totalPages ?? 1));
+  $("paymentPageInfo").textContent = `${state.paymentPage + 1} / ${state.paymentTotalPages}`;
+  $("prevPaymentButton").disabled = state.paymentPage <= 0;
+  $("nextPaymentButton").disabled = state.paymentPage + 1 >= state.paymentTotalPages;
+  $("paymentList").innerHTML = payments.map((payment) => `
+    <article class="payment-row" data-payment-row data-user-key="${escapeHtml(payment.userKey)}">
+      <div>
+        <div class="payment-title">
+          <span class="payment-status ${payment.granted ? "granted" : "pending"}">${payment.granted ? "지급 완료" : "지급 대기"}</span>
+          <strong>${escapeHtml(payment.productLabel || payment.productType || "상품")}</strong>
+        </div>
+        <p>${escapeHtml(payment.productType || "-")} · ${escapeHtml(payment.productId || "-")}</p>
+        <small>주문 ${escapeHtml(payment.orderId || "-")} · 구매 ${formatDate(payment.createdAt)} · 지급 ${formatDate(payment.grantedAt)}</small>
+      </div>
+      <div class="payment-meta" data-payment-control>
+        <button class="ghost" type="button" data-payment-open-user>유저 보기</button>
+        <strong>${escapeHtml(payment.userKey || "-")}</strong>
+      </div>
+    </article>
+  `).join("") || `<p class="empty">결제 내역이 아직 없어요.</p>`;
+
+  document.querySelectorAll("[data-payment-row]").forEach((row) => {
+    row.addEventListener("click", (event) => {
+      if (event.target.closest("[data-payment-control]")) {
+        return;
+      }
+      openPlayerFromAnomaly(row.dataset.userKey);
+    });
+  });
+  document.querySelectorAll("[data-payment-open-user]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openPlayerFromAnomaly(button.closest("[data-payment-row]").dataset.userKey);
+    });
+  });
+}
+
 async function request(url, options = {}) {
   return send(url, {
     ...options,
@@ -1793,6 +1921,16 @@ function hideLoading() {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("ko-KR");
+}
+
+function formatCombatPower(value) {
+  const safeValue = Math.max(0, Math.floor(Number(value || 0)));
+  if (safeValue >= 10000) {
+    const man = Math.floor(safeValue / 10000);
+    const rest = safeValue % 10000;
+    return rest > 0 ? `${formatNumber(man)}만${String(rest).padStart(4, "0")}` : `${formatNumber(man)}만`;
+  }
+  return formatNumber(safeValue);
 }
 
 function formatPercent(value, total) {

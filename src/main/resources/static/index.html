@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260603-10" />
+    <link rel="stylesheet" href="/styles.css?v=20260606-01" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -15,12 +15,8 @@
             <span class="coin-stack" aria-hidden="true"></span>
             <div>
               <strong id="gold">0 골드</strong>
-              <p><span id="levelText">Lv.1</span> · 게임 재화</p>
+              <p>보유 골드</p>
             </div>
-          </div>
-          <div class="rate-box">
-            <strong id="goldRateTop">0/시간</strong>
-            <p id="huntMode">대기중</p>
           </div>
           <button id="muteToggle" class="mute-toggle" type="button" aria-label="BGM 음소거">♪</button>
         </header>
@@ -33,6 +29,7 @@
           <div class="speech-bubble" id="battleTip">보상으로 자동사냥을 시작하세요</div>
           <button id="rookieEventButton" class="rookie-event-button hidden" type="button" aria-label="7일 사냥 동행 이벤트">
             <img src="/assets/events/rookie-event-badge.png?v=20260602-01" alt="" />
+            <strong class="rookie-event-callout">신규 유입 보상</strong>
             <span id="rookieEventButtonProgress">0/7</span>
           </button>
 
@@ -70,17 +67,17 @@
 
       <section class="scroll-panel">
         <section class="action-row" aria-label="보상 액션">
+          <div class="action-metric" aria-label="전투력">
+            <span>전투력</span>
+            <b id="combatPowerMetric">0</b>
+          </div>
+          <div class="action-metric" aria-label="시간당 획득 골드">
+            <span>시간당 골드</span>
+            <b id="goldRateTop">0/시간</b>
+          </div>
           <button id="autoHuntAd" type="button">
             <span>자동사냥</span>
-            <b id="huntTime">보상 · 1시간</b>
-          </button>
-          <button id="boostAd" type="button">
-            <span>공속버프</span>
-            <b id="boostTime">보상 · 1시간</b>
-          </button>
-          <button id="skillAd" type="button">
-            <span>스킬포인트</span>
-            <b id="skillGateLabel">보상</b>
+            <b id="huntTime">보상 · 30분</b>
           </button>
         </section>
 
@@ -193,6 +190,53 @@
 
           </section>
 
+          <section id="adventurePanel" class="panel-view adventure-panel hidden" aria-label="모험">
+            <div class="adventure-heading">
+	              <div>
+	                <strong>모험</strong>
+	                <p id="adventureEntryPolicyCopy">던전은 기본 입장과 광고 추가 입장, 보스는 입장권으로 도전해요</p>
+	              </div>
+              <button id="openAdventureInfo" class="adventure-info-button" type="button" aria-label="모험 설명">?</button>
+            </div>
+
+            <article id="dungeonCouponCard" class="dungeon-coupon-card" aria-label="던전 탐험" hidden>
+              <button id="openDungeonRewardList" class="reward-list-button" type="button">
+                <span>보상</span>
+              </button>
+              <div class="dungeon-coupon-icon" aria-hidden="true">D</div>
+              <div class="dungeon-coupon-copy">
+                <strong>던전 탐험</strong>
+                <p id="dungeonCouponCopy">초급 던전 · 0/5</p>
+                <small id="dungeonHuntProgress">사냥 진행도 0분/1시간</small>
+                <small id="dungeonCouponStatus" hidden></small>
+              </div>
+              <div class="adventure-card-actions">
+                <button id="useDungeonCoupon" class="dungeon-coupon-button" type="button">
+                  <span>던전 입장</span>
+                </button>
+              </div>
+            </article>
+
+            <article id="bossRaidCard" class="boss-raid-card" aria-label="보스 토벌">
+              <button id="openBossRewardList" class="reward-list-button" type="button">
+                <span>보상</span>
+              </button>
+              <div class="boss-raid-visual">
+                <img id="bossRaidImage" src="/assets/adventure/boss-icon-filled-inside.png?v=20260605-01" alt="" />
+              </div>
+              <div class="boss-raid-copy">
+                <strong>보스 토벌</strong>
+                <p id="bossRaidTitle">흑요석 골렘 · 초급 보스</p>
+                <small id="bossRaidStatus">던전에서 입장권 획득</small>
+              </div>
+              <div class="adventure-card-actions">
+                <button id="challengeBossRaid" class="boss-raid-button" type="button">
+                  <span>보스 토벌</span>
+                </button>
+              </div>
+            </article>
+          </section>
+
           <section id="rewardPanel" class="panel-view reward-panel hidden" aria-label="보상 수령">
           <div class="reward-heading">
             <div>
@@ -227,9 +271,9 @@
           <article class="leaderboard-card" aria-label="랭킹">
             <div class="leaderboard-icon" aria-hidden="true">R</div>
             <div class="leaderboard-copy">
-              <strong>누적 골드 랭킹</strong>
+              <strong>전투력 랭킹</strong>
               <p id="leaderboardProfileText">게임 프로필을 기준으로 랭킹에 참여해요</p>
-              <small id="leaderboardStatus">누적 0G 기준</small>
+              <small id="leaderboardStatus">전투력 0 기준</small>
             </div>
             <div class="leaderboard-actions">
               <button id="openLeaderboard" class="leaderboard-button" type="button">
@@ -247,6 +291,7 @@
             </div>
             <span id="companionCount">0/2</span>
           </div>
+          <div class="shop-section-title">펫</div>
           <div class="pet-shop-list">
             <article id="petOneShop" class="shop-item pet-shop-item">
               <img id="petOneShopImage" class="shop-pet-image" src="/assets/pet-flarefox.svg" alt="" />
@@ -255,7 +300,9 @@
                 <p id="petOneShopCopy">불꽃 발톱으로 추가 공격</p>
                 <small id="petOneStatus">잠김 · 첫 번째 동료 펫</small>
               </div>
-              <button id="changePetOneSkin" class="pet-skin-change-button hidden" type="button">스킨 변경</button>
+              <button id="changePetOneSkin" class="pet-skin-change-button shop-buy-button" type="button" data-pet-shop-action="locked">
+                <span>잠김</span>
+              </button>
             </article>
             <article id="petTwoShop" class="shop-item pet-shop-item locked">
               <img id="petTwoShopImage" class="shop-pet-image" src="/assets/pet-aquabun.svg" alt="" />
@@ -264,12 +311,12 @@
                 <p id="petTwoShopCopy">물방울 탄환으로 추가 공격</p>
                 <small id="petTwoStatus">잠김 · 두 번째 동료 펫</small>
               </div>
-              <button id="changePetTwoSkin" class="pet-skin-change-button hidden" type="button">스킨 변경</button>
+              <button id="changePetTwoSkin" class="pet-skin-change-button shop-buy-button" type="button" data-pet-shop-action="locked">
+                <span>잠김</span>
+              </button>
             </article>
           </div>
-          <button id="buyCompanion" class="buy-pet-button shop-buy-button" type="button">
-            <span>동료 펫 구매 · ₩4,900</span>
-          </button>
+          <div class="shop-section-title">스킬 포인트</div>
           <article class="shop-item skill-point-shop-item">
             <div class="skill-point-shop-icon" aria-hidden="true"></div>
             <div class="shop-copy">
@@ -277,11 +324,21 @@
               <p id="skillPointPackCopy">SP 10개 즉시 지급</p>
               <small id="skillPointPackStatus">₩999</small>
             </div>
+            <button id="buySkillPointPack" class="buy-skill-pack-button shop-buy-button" type="button">
+              <span>구매하기</span>
+            </button>
           </article>
-          <button id="buySkillPointPack" class="buy-skill-pack-button shop-buy-button" type="button">
-            <span>SP 10 구매 · ₩999</span>
-          </button>
-          </section>
+          <div class="shop-section-title">헌터 변경</div>
+            <article class="shop-item job-change-shop-item">
+              <div class="job-change-shop-icon" aria-hidden="true"></div>
+              <div class="shop-copy">
+                <strong>헌터 변경</strong>
+                <p>전사, 궁수, 마법사, 도적 중 원하는 외형으로 변경</p>
+                <small>성장 능력치는 그대로 유지돼요</small>
+              </div>
+              <button id="openJobModal" class="job-change-shop-button" type="button">변경하기</button>
+            </article>
+	          </section>
         </div>
 
         <section id="dummyBannerAd" class="dummy-banner-ad hidden" aria-label="배너 광고">
@@ -291,12 +348,12 @@
         </section>
         <section id="realBannerAd" class="real-banner-ad hidden" aria-label="인앱 배너 광고"></section>
 
-        <section class="panel-tabs" aria-label="하단 메뉴">
-          <button id="showSkillPanel" class="active" type="button">스킬</button>
-          <button id="showShopPanel" type="button">상점</button>
-          <button id="showRewardPanel" type="button">보상 수령</button>
-          <button id="openJobModal" type="button">직업 변경</button>
-        </section>
+	        <section class="panel-tabs" aria-label="하단 메뉴">
+	          <button id="showSkillPanel" class="active" type="button">스킬</button>
+	          <button id="showAdventurePanel" type="button">모험</button>
+	          <button id="showShopPanel" type="button">상점</button>
+	          <button id="showRewardPanel" type="button">보상 수령</button>
+	        </section>
       </section>
 
       <section id="featureTutorial" class="feature-tutorial hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
@@ -345,7 +402,7 @@
           <p id="jobCopy" class="modal-copy">능력치는 동일해요. 마음에 드는 공격 모션을 고르세요.</p>
           <div id="tutorialReward" class="tutorial-reward">
             <strong>시작 보상</strong>
-            <span>선택 즉시 자동사냥 1시간과 공속버프 1시간이 지급돼요.</span>
+            <span>선택 즉시 자동사냥 30분이 지급돼요. 튜토리얼 완료 시 SP 1개도 받아요.</span>
           </div>
           <div class="job-select-grid">
             <button class="job-select warrior" type="button" data-job="WARRIOR">
@@ -423,6 +480,41 @@
           <h2 id="rewardConfirmTitle">토스포인트를 받을까요?</h2>
           <p id="rewardConfirmBody">확인을 누르면 받을 수 있는 토스포인트를 수령 신청해요.</p>
           <button id="confirmRewardClaim" class="reward-confirm-primary" type="button">확인하고 받기</button>
+        </div>
+      </section>
+
+      <section id="adventureRewardModal" class="adventure-reward-modal hidden" role="dialog" aria-modal="true" aria-labelledby="adventureRewardTitle">
+        <div class="adventure-reward-card">
+          <button id="closeAdventureRewardModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <p id="adventureRewardKicker" class="modal-kicker">DUNGEON</p>
+          <h2 id="adventureRewardTitle">던전 보상 목록</h2>
+          <p id="adventureRewardCopy">현재 전투력 기준으로 등장하는 보상과 확률이에요.</p>
+          <div id="adventureRewardList" class="adventure-reward-list"></div>
+        </div>
+      </section>
+
+      <section id="adventureInfoModal" class="adventure-info-modal hidden" role="dialog" aria-modal="true" aria-labelledby="adventureInfoTitle">
+        <div class="adventure-info-card">
+          <button id="closeAdventureInfoModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <p class="modal-kicker">ADVENTURE GUIDE</p>
+          <h2 id="adventureInfoTitle">전투력별 모험 정보</h2>
+          <p>전투력이 오르면 더 높은 던전과 보스가 열리고, 높은 단계일수록 보상도 증가해요.</p>
+          <div id="adventureInfoList" class="adventure-info-list"></div>
+        </div>
+      </section>
+
+      <section id="adventureActionModal" class="adventure-action-modal hidden" role="dialog" aria-modal="true" aria-labelledby="adventureActionTitle">
+        <div class="adventure-action-card">
+          <div id="adventureActionIcon" class="adventure-action-icon" aria-hidden="true">D</div>
+          <p id="adventureActionScene" class="adventure-action-scene">입구 정찰</p>
+          <p id="adventureActionKicker" class="modal-kicker">DUNGEON</p>
+          <h2 id="adventureActionTitle">던전 탐험 중</h2>
+          <p id="adventureActionBody">문을 열고 안쪽을 살피는 중이에요.</p>
+          <div class="adventure-action-track" aria-hidden="true">
+            <span id="adventureActionProgress"></span>
+          </div>
+          <div id="adventureActionReward" class="adventure-action-reward hidden"></div>
+          <button id="closeAdventureActionModal" class="adventure-action-primary hidden" type="button">확인</button>
         </div>
       </section>
 
@@ -543,8 +635,12 @@
         <div class="dev-grid">
           <button id="devBattlePreset" class="dev-primary" type="button">전투 테스트 세팅</button>
           <button id="devAutoHunt" type="button">자동사냥 +1h</button>
-          <button id="devBoost" type="button">공속버프 +1h</button>
           <button id="devSkillPoint" type="button">SP +1</button>
+          <button id="devLevelUp" type="button">레벨 +1</button>
+          <button id="devLevelDown" type="button">레벨 -1</button>
+          <button id="devDungeonCoupon" type="button">보스입장권 +1</button>
+          <button id="devDungeonReentryReset" type="button">던전 재입장 초기화</button>
+          <button id="devDungeonDailyLimitReset" type="button">던전 하루제한 초기화</button>
           <button id="devBuyPets" type="button">펫 2마리</button>
           <button id="devEndAutoHunt" type="button">사냥 종료 알림</button>
           <button id="devFillReward" type="button">게이지 채우기</button>
@@ -556,6 +652,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260603-10"></script>
+    <script src="/app.js?v=20260606-01"></script>
   </body>
 </html>

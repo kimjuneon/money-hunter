@@ -89,14 +89,18 @@ const state = {
   shareRewardModuleId: "",
   shareRewardMessage: "친구에게 공유하고 SP 1개를 받아요",
   realAdInFlight: false,
+  realAdPreloads: new Map(),
+  realAdPreloadTimers: new Map(),
   realPaymentInFlight: false,
   tossAdsInitialized: false,
   tossAdsInitializationPromise: null,
   iapProductInfoRequested: false,
   pendingIapRestoreInFlight: false,
   pendingIapProductIdsByOrderId: readPendingIapProductIds(),
-  shareRewardInFlight: false,
-  gameProfileSyncTimer: null,
+	shareRewardInFlight: false,
+	adventureActionInFlight: false,
+	adventureActionStepTimers: [],
+	gameProfileSyncTimer: null,
   gameProfileSyncInFlight: false,
   lastGameProfileSyncAt: 0,
   lastGameProfileMissingAt: 0,
@@ -198,6 +202,55 @@ const monsterMeta = {
   BOSS_FROST: { name: "빙결 발톱수", image: "/assets/boss-frost.png" },
   BOSS_TREANT: { name: "심록의 고목왕", image: "/assets/boss-treant.png" },
 };
+const bossRaidTiers = [
+  { minCombatPower: 0, powerLabel: "0~1,000만", bossName: "흑요석 골렘", difficultyName: "초급 보스", image: "/assets/boss-rock.png", rewardPreview: "골드 1,000~1,500G · SP 3개 · 자동사냥 30분" },
+  { minCombatPower: 10_000_000, powerLabel: "1,000만~2,000만", bossName: "빙결 발톱수", difficultyName: "숙련 보스", image: "/assets/boss-frost.png", rewardPreview: "골드 1,500~2,000G · SP 3개 · 자동사냥 1시간" },
+  { minCombatPower: 20_000_000, powerLabel: "2,000만~3,500만", bossName: "심록의 고목왕", difficultyName: "정예 보스", image: "/assets/boss-treant.png", rewardPreview: "골드 2,000~2,500G · SP 3개 · 자동사냥 1시간 30분" },
+  { minCombatPower: 50_000_000, powerLabel: "5,000만 이상", bossName: "별무리 고대룡", difficultyName: "심층 보스", image: "/assets/boss-treant.png", rewardPreview: "골드 2,500~3,000G · SP 3개 · 자동사냥 2시간" },
+];
+const maxCombatPower = 99_999_999;
+const combatPowerLevelScale = 40;
+const combatPowerSkillScale = 180;
+const dungeonFreeDailyLimit = 3;
+const dungeonTiers = [
+  { minCombatPower: 0, powerLabel: "0~1,000만", name: "초급 던전", rewardPreview: "골드 100~300G · SP 1개 · 자동사냥 10분 · 보스 입장권 10%" },
+  { minCombatPower: 10_000_000, powerLabel: "1,000만~2,000만", name: "숙련 던전", rewardPreview: "골드 300~500G · SP 2개 · 자동사냥 20분 · 보스 입장권 10%" },
+  { minCombatPower: 20_000_000, powerLabel: "2,000만~3,500만", name: "정예 던전", rewardPreview: "골드 500~700G · SP 3개 · 자동사냥 30분 · 보스 입장권 10%" },
+  { minCombatPower: 50_000_000, powerLabel: "5,000만 이상", name: "심층 던전", rewardPreview: "골드 700~1,000G · SP 4개 · 자동사냥 40분 · 보스 입장권 10%" },
+];
+const adventureAssets = {
+  dungeon: "/assets/adventure/dungeon-icon-filled-inside.png?v=20260605-01",
+  bossRaid: "/assets/adventure/boss-icon-filled-inside.png?v=20260605-01",
+  bossTicket: "/assets/adventure/boss-ticket.png?v=20260604-01",
+};
+const adventureSceneSpecs = {
+  dungeon: {
+    fallback: adventureAssets.dungeon,
+    running: [
+      { key: "dungeon-gate", label: "입구 정찰", body: "입구를 열고 안쪽을 살피는 중이에요.", image: "/assets/adventure/scenes/dungeon-01-gate.png?v=20260604-01" },
+      { key: "dungeon-crossroads", label: "갈림길 추적", body: "갈림길에서 흔적을 추적하는 중이에요.", image: "/assets/adventure/scenes/dungeon-02-crossroads.png?v=20260604-01" },
+      { key: "dungeon-rune", label: "함정 해제", body: "낡은 룬 함정을 조심스럽게 해제하는 중이에요.", image: "/assets/adventure/scenes/dungeon-03-rune-trap.png?v=20260604-01" },
+      { key: "dungeon-treasure", label: "보물 확인", body: "깊은 방의 보물 상자를 확인하는 중이에요.", image: "/assets/adventure/scenes/dungeon-04-treasure.png?v=20260604-01" },
+      { key: "dungeon-ticket-clue", label: "단서 탐색", body: "숨겨진 입장권 단서를 찾는 중이에요.", image: "/assets/adventure/scenes/dungeon-05-ticket-clue.png?v=20260604-01" },
+    ],
+    success: { key: "dungeon-clear", label: "탐험 완료", body: "탐험 기록을 정리하는 중이에요.", image: "/assets/adventure/scenes/dungeon-06-clear.png?v=20260604-01" },
+    failure: { key: "dungeon-fail", label: "탐험 중단", body: "입구 근처로 후퇴했어요.", image: "/assets/adventure/scenes/dungeon-07-retreat.png?v=20260604-01" },
+  },
+  boss: {
+    fallback: adventureAssets.bossRaid,
+    running: [
+      { key: "boss-encounter", label: "조우", body: "보스의 움직임을 살피는 중이에요.", image: "/assets/adventure/scenes/boss-01-encounter.png?v=20260604-01" },
+      { key: "boss-pattern", label: "패턴 분석", body: "공격 패턴의 빈틈을 찾는 중이에요.", image: "/assets/adventure/scenes/boss-02-pattern.png?v=20260604-01" },
+      { key: "boss-dodge", label: "회피", body: "거대한 공격을 피하며 거리를 좁히는 중이에요.", image: "/assets/adventure/scenes/boss-03-dodge.png?v=20260604-01" },
+      { key: "boss-counter", label: "총공세", body: "동료 펫과 함께 공격을 몰아치는 중이에요.", image: "/assets/adventure/scenes/boss-04-counterattack.png?v=20260604-01" },
+      { key: "boss-final", label: "마무리", body: "마지막 일격을 준비하는 중이에요.", image: "/assets/adventure/scenes/boss-05-final-strike.png?v=20260604-01" },
+    ],
+    success: { key: "boss-victory", label: "토벌 완료", body: "토벌 결과를 정산하는 중이에요.", image: "/assets/adventure/scenes/boss-06-victory.png?v=20260604-01" },
+    failure: { key: "boss-fail", label: "토벌 실패", body: "전열을 정비하며 물러났어요.", image: "/assets/adventure/scenes/boss-07-retreat.png?v=20260604-01" },
+  },
+};
+const adventureActionStepDurationMs = 1750;
+const adventureActionTotalDurationMs = 8800;
 const monsterKeys = ["BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"];
 const monsterBaseHp = {
   BOSS_ROCK: 120,
@@ -238,7 +291,7 @@ const petMeta = [
   { key: "aqua", skill: "PET_AQUA_ATTACK", defaultSkin: "ICE", imageId: "petAqua", shopImageId: "petTwoShopImage", shopNameId: "petTwoShopName", shopCopyId: "petTwoShopCopy", statusId: "petTwoStatus" },
 ];
 
-const effectAssetVersion = "20260525-02";
+const effectAssetVersion = "20260605-07";
 const goldPerTossPoint = 100;
 const companionPriceWon = 4900;
 const skillPointPackPriceWon = 999;
@@ -246,12 +299,11 @@ const skillPointPackAmount = 10;
 const friendInviteRewardSkillPoints = 1;
 const friendInviteLimit = 5;
 const battleBackgrounds = [
-  "/assets/background-options/option-1-sunny-ruins.png?v=20260525-01",
-  "/assets/background-options/option-2-crystal-cave.png?v=20260525-01",
-  "/assets/background-options/option-3-moon-forest.png?v=20260525-01",
-  "/assets/background-options/option-4-lava-forge.png?v=20260525-01",
+  "/assets/background-options/combat-background-4.png?v=20260605-01",
+  "/assets/background-options/combat-background-3.png?v=20260605-01",
+  "/assets/background-options/combat-background-1.png?v=20260605-01",
+  "/assets/background-options/combat-background-2.png?v=20260605-01",
 ];
-const battleBackgroundExpTextThemes = ["dark", "light", "light", "light"];
 const battleBackgroundStorageKey = "moneyHunterBattleBackgroundIndex";
 const monsterSignatureStorageKey = "moneyHunterMonsterSignature";
 const dummyBannerStorageKey = "moneyHunterShowDummyBanner";
@@ -260,10 +312,15 @@ const guestUserKeyStorageKey = "moneyHunterGuestUserKey";
 const authTokenStorageKey = "moneyHunterAuthToken";
 const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationAgreementStatus";
 const rookieEventMissionNotificationAgreementStatusStorageKey = "moneyHunter.rookieEventMissionNotificationAgreementStatus";
+const rookieEventButtonSeenDateStoragePrefix = "moneyHunter.rookieEventButtonSeenDate";
 const gameProfileWebviewUrl = "servicetoss://game-center/profile";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
+const realFullScreenAdGroupKeys = ["autoHunt", "rewardClaim", "dungeonAdditional", "jobChange"];
+const realAdPreloadRetryMs = 30000;
+const realAdCooldownPreloadLeadMs = 20000;
+const realAdLoadedTtlMs = 120000;
 let tossSdkPromise = null;
 let tossBridgePromise = null;
 let bannerAdHandle = null;
@@ -295,6 +352,8 @@ const statSkillByJob = {
 };
 
 const skillMaxLevel = 30;
+const skillEffectMaxTier = 5;
+const skillEffectTierStartLevels = [0, 6, 11, 16, 21];
 
 const skillMeta = {
   STRENGTH: { label: "STR 전사", short: "전사 공격", step: 80 / skillMaxLevel, max: skillMaxLevel, effectPrefix: "str" },
@@ -317,7 +376,7 @@ const featureTutorialSteps = [
   {
     target: ".action-row",
     title: "보상 버튼",
-    body: "자동사냥, 공속버프, 스킬포인트는 여기서 충전해요. 광고 보상은 최대 누적 시간까지 추가로 쌓을 수 있어요.",
+    body: "전투력과 시간당 골드를 확인하고 자동사냥 시간을 충전해요. 사냥 속도 1.5배는 항상 적용돼요.",
   },
   {
     target: "#skillPanel .upgrade-row:not(.hidden)",
@@ -329,7 +388,13 @@ const featureTutorialSteps = [
     target: "#shopPanel",
     panel: "shop",
     title: "상점과 동료 펫",
-    body: "동료 펫을 데려오면 함께 공격하고 수익률이 올라가요. 필요한 경우 SP 팩도 이 화면에서 확인해요.",
+    body: "동료 펫을 데려오면 함께 공격하고 수익률이 올라가요. 헌터 외형 변경도 이 화면에서 할 수 있어요.",
+  },
+  {
+    target: "#adventurePanel",
+    panel: "adventure",
+    title: "모험",
+    body: "던전은 기본 입장과 광고 추가 입장을 사용할 수 있고, 보스 입장권은 던전 보상에서 확률적으로 얻어요.",
   },
   {
     target: "#rewardPanel",
@@ -340,7 +405,7 @@ const featureTutorialSteps = [
   {
     target: ".panel-tabs",
     title: "하단 메뉴",
-    body: "스킬, 보상 수령, 상점, 직업 변경을 아래 메뉴에서 빠르게 오갈 수 있어요.",
+    body: "스킬, 모험, 상점, 보상 수령을 아래 메뉴에서 빠르게 오갈 수 있어요.",
   },
   {
     target: "#muteToggle",
@@ -397,6 +462,13 @@ function removeStoredValue(key) {
   } catch {
     // Local storage can be unavailable in embedded test environments.
   }
+}
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function createGuestUserKey() {
@@ -510,12 +582,137 @@ function adGroupId(key) {
   return String(state.adGroupIds?.[key] || "").trim();
 }
 
+function configuredRealFullScreenAdGroupIds() {
+  return Array.from(new Set(realFullScreenAdGroupKeys.map(adGroupId).filter(Boolean)));
+}
+
+function realAdPreloadEntry(groupId) {
+  let entry = state.realAdPreloads.get(groupId);
+  if (!entry) {
+    entry = {
+      status: "idle",
+      promise: null,
+      loadedAt: 0,
+      failedAt: 0,
+      error: null,
+    };
+    state.realAdPreloads.set(groupId, entry);
+  }
+  return entry;
+}
+
+function isRealFullScreenAdLoaded(groupId) {
+  const entry = realAdPreloadEntry(groupId);
+  if (entry.status !== "loaded") {
+    return false;
+  }
+  return Date.now() - entry.loadedAt < realAdLoadedTtlMs;
+}
+
+function preloadRealFullScreenAd(groupId) {
+  if (!groupId || !shouldUseRealFullScreenAds() || !state.pageVisible) {
+    return;
+  }
+  const entry = realAdPreloadEntry(groupId);
+  if (entry.status === "loaded" && Date.now() - entry.loadedAt < realAdLoadedTtlMs) {
+    return;
+  }
+  if (entry.status === "loaded") {
+    markRealFullScreenAdConsumed(groupId);
+  }
+  if (entry.status === "loading") {
+    return;
+  }
+  if (entry.status === "failed" && Date.now() - entry.failedAt < realAdPreloadRetryMs) {
+    return;
+  }
+  loadRealFullScreenAd(groupId).catch(() => {});
+}
+
+function clearRealFullScreenAdPreloadTimers() {
+  state.realAdPreloadTimers.forEach((timer) => window.clearTimeout(timer));
+  state.realAdPreloadTimers.clear();
+}
+
+function scheduleRealFullScreenAdPreload(groupId, delayMs = 0) {
+  if (!groupId) {
+    return;
+  }
+  const previousTimer = state.realAdPreloadTimers.get(groupId);
+  if (previousTimer) {
+    window.clearTimeout(previousTimer);
+    state.realAdPreloadTimers.delete(groupId);
+  }
+  if (delayMs <= 0) {
+    preloadRealFullScreenAd(groupId);
+    return;
+  }
+  const timer = window.setTimeout(() => {
+    state.realAdPreloadTimers.delete(groupId);
+    preloadRealFullScreenAd(groupId);
+  }, delayMs);
+  state.realAdPreloadTimers.set(groupId, timer);
+}
+
+function realAdCooldownPreloadDelay(availableAt) {
+  if (!availableAt || !isActive(availableAt)) {
+    return 0;
+  }
+  const availableTime = new Date(availableAt).getTime();
+  if (Number.isNaN(availableTime)) {
+    return 0;
+  }
+  return Math.max(0, availableTime - Date.now() - realAdCooldownPreloadLeadMs);
+}
+
+function scheduleRealFullScreenAdPreloads(player = state.player) {
+  clearRealFullScreenAdPreloadTimers();
+  if (!shouldUseRealFullScreenAds()) {
+    return;
+  }
+  const scheduledGroupIds = new Set();
+  const schedule = (groupKey, availableAt = null, enabled = true) => {
+    const groupId = adGroupId(groupKey);
+    if (!enabled || !groupId || scheduledGroupIds.has(groupId)) {
+      return;
+    }
+    scheduledGroupIds.add(groupId);
+    scheduleRealFullScreenAdPreload(groupId, realAdCooldownPreloadDelay(availableAt));
+  };
+  schedule("autoHunt", player?.nextAutoHuntAdAvailableAt);
+  const dungeon = player?.dungeonCoupon || {};
+  const dungeonRunsToday = dungeon.dungeonRunsToday || 0;
+  const dungeonFreeLimit = dungeon.dungeonFreeDailyLimit ?? dungeonFreeDailyLimit;
+  const dungeonRemainingRuns = Math.max(0, dungeon.dungeonRemainingRuns ?? ((dungeon.dungeonDailyLimit || 5) - dungeonRunsToday));
+  const dungeonCooldownSeconds = dungeon.dungeonNextAvailableAt
+    ? remainingSecondsFrom(dungeon.dungeonNextAvailableAt)
+    : Math.max(0, dungeon.dungeonCooldownSeconds || 0);
+  const dungeonAvailable = Boolean(dungeon.dungeonAvailable);
+  schedule("dungeonAdditional", null, Boolean(dungeon.enabled) && dungeonRunsToday >= dungeonFreeLimit && dungeonRemainingRuns > 0 && dungeonCooldownSeconds <= 0 && dungeonAvailable);
+  schedule("rewardClaim");
+  schedule("jobChange");
+  configuredRealFullScreenAdGroupIds()
+    .filter((groupId) => !scheduledGroupIds.has(groupId))
+    .forEach((groupId) => scheduleRealFullScreenAdPreload(groupId));
+}
+
+function markRealFullScreenAdConsumed(groupId) {
+  const entry = realAdPreloadEntry(groupId);
+  entry.status = "idle";
+  entry.promise = null;
+  entry.loadedAt = 0;
+  entry.error = null;
+}
+
 function iapProductId(key) {
   return String(state.iapProductIds?.[key] || "").trim();
 }
 
 function runRewardFlow(title, description, action) {
   if (isOneStoreTarget()) {
+    if (typeof action.afterAd === "function") {
+      return action.afterAd(null);
+    }
     return run(action.request, action.message);
   }
   if (shouldUseRealFullScreenAds()) {
@@ -583,7 +780,7 @@ async function finishFeatureTutorial() {
   try {
     setServerPlayer(await api("/api/player/tutorial/feature/complete", { method: "POST" }));
     render();
-    setMessage("튜토리얼을 완료했어요. 이제 자유롭게 성장해보세요.");
+    setMessage("튜토리얼을 완료했어요. SP 1개를 받았어요.");
     scheduleGameProfileSync(800);
     window.setTimeout(() => maybeResumeDeferredGameProfileCreation(), 350);
   } catch (error) {
@@ -753,6 +950,7 @@ function handlePageVisibility(visible = !document.hidden) {
     .catch((error) => setMessage(error.message))
     .finally(() => {
       restoreBattleVisualAssets();
+      scheduleRealFullScreenAdPreloads();
       state.resumeRefreshInFlight = false;
     });
 }
@@ -880,6 +1078,7 @@ function applyServerPlayer(player, { resetDisplayGold = false } = {}) {
   if (shouldPromptNotificationAgreement) {
     window.setTimeout(() => requestAutoHuntNotificationAgreementIfNeeded(), 450);
   }
+  scheduleRealFullScreenAdPreloads(player);
 }
 
 function resetLocalCombatView(player) {
@@ -951,11 +1150,9 @@ function combatRatesChanged(previousPlayer, nextPlayer) {
   if (!previousPlayer || !nextPlayer) {
     return false;
   }
-  return previousPlayer.baseGoldPerHour !== nextPlayer.baseGoldPerHour
-    || previousPlayer.boostedGoldPerHour !== nextPlayer.boostedGoldPerHour
-    || previousPlayer.normalAttackIntervalMillis !== nextPlayer.normalAttackIntervalMillis
-    || previousPlayer.boostedAttackIntervalMillis !== nextPlayer.boostedAttackIntervalMillis
-    || previousPlayer.goldPerHour !== nextPlayer.goldPerHour;
+	  return previousPlayer.baseGoldPerHour !== nextPlayer.baseGoldPerHour
+	    || previousPlayer.normalAttackIntervalMillis !== nextPlayer.normalAttackIntervalMillis
+	    || previousPlayer.goldPerHour !== nextPlayer.goldPerHour;
 }
 
 function setAuthToken(token) {
@@ -1143,6 +1340,8 @@ async function loadAppConfig() {
     state.rookieEventMissionNotificationAgreementTemplateCode = config.rookieEventMissionNotificationAgreementTemplateCode || "";
     state.adMode = config.adMode || "test";
     state.adGroupIds = config.adGroupIds || {};
+    state.realAdPreloads.clear();
+    clearRealFullScreenAdPreloadTimers();
     state.iapProductIds = config.iapProductIds || {};
     state.shareRewardModuleId = config.shareRewardModuleId || "";
     state.shareRewardMessage = config.shareRewardMessage || state.shareRewardMessage;
@@ -1162,6 +1361,8 @@ async function loadAppConfig() {
     state.rookieEventMissionNotificationAgreementTemplateCode = "";
     state.adMode = "test";
     state.adGroupIds = {};
+    state.realAdPreloads.clear();
+    clearRealFullScreenAdPreloadTimers();
     state.iapProductIds = {};
     state.iapProducts = {};
     state.shareRewardModuleId = "";
@@ -1225,28 +1426,17 @@ function render() {
   updateGoldViews();
   $("levelText").textContent = `Lv.${displayLevel(player)}`;
   $("skillPointsTop").textContent = player.skillPoints;
+  renderAdventurePanel(player);
   renderRewardPanel(player);
   renderShopPanel(player);
   renderPets(player);
   renderRookieEvent(player);
   const autoHuntCooldownReady = timeRewardAdCooldownReady("AUTO_HUNT", player);
-  const boostCooldownReady = timeRewardAdCooldownReady("BOOST", player);
   $("autoHuntAd").disabled = !autoHuntCooldownReady;
-  $("boostAd").disabled = !boostCooldownReady;
   $("huntTime").textContent = !autoHuntCooldownReady
     ? timeRewardCooldownLabel(player.autoHuntEndsAt, nextTimeRewardAdAvailableAt("AUTO_HUNT", player))
     : timeRewardReadyLabel(player.autoHuntEndsAt, player.autoHuntAdSeconds, player.maxAdSeconds);
-  $("boostTime").textContent = !boostCooldownReady
-    ? timeRewardCooldownLabel(player.boostEndsAt, nextTimeRewardAdAvailableAt("BOOST", player))
-    : timeRewardReadyLabel(player.boostEndsAt, player.boostAdSeconds, player.maxAdSeconds);
-  const spAvailable = skillPointRewardsAvailable(player);
-  const spCooldownReady = skillPointAdCooldownReady(player);
-  $("skillAd").disabled = !spAvailable || !spCooldownReady;
-  $("skillGateLabel").textContent = !spAvailable
-    ? "스킬 MAX"
-    : spCooldownReady
-      ? rewardGateLabel()
-      : `${remain(player.nextSkillPointAdAvailableAt)} 후`;
+  $("combatPowerMetric").textContent = formatCombatPower(combatPower(player));
   renderMonster(player);
   renderExperience(player);
   renderDummyBanner();
@@ -1258,6 +1448,33 @@ function render() {
   refreshWhenAutoHuntEnds(hunting);
   maybeStartFeatureTutorial();
   maybeResumeDeferredGameProfileCreation();
+}
+
+function combatPower(player = state.player) {
+  if (!player) {
+    return 0;
+  }
+  const totalSkillLevels = Array.isArray(player.skills)
+    ? player.skills.reduce((sum, skill) => sum + Number(skill?.level || 0), 0)
+    : 0;
+  const eventPetSkillBonus = rookieEventRewardActive(player)
+    ? Number(player.rookieEvent?.eventPetSkillLevel || 15)
+    : 0;
+  const totalSp = Math.max(0, totalSkillLevels + eventPetSkillBonus);
+  const levelRatio = Math.min(1, Math.max(0, displayLevel(player) / combatPowerLevelScale));
+  const spRatio = Math.min(1, Math.max(0, totalSp / combatPowerSkillScale));
+  const power = maxCombatPower * Math.pow(levelRatio, 0.5) * Math.pow(spRatio, 1.5);
+  return Math.min(maxCombatPower, Math.max(0, Math.floor(power)));
+}
+
+function formatCombatPower(power) {
+  const value = Math.max(0, Math.floor(Number(power) || 0));
+  const man = Math.floor(value / 10_000);
+  const rest = value % 10_000;
+  if (man <= 0) {
+    return String(value);
+  }
+  return rest > 0 ? `${man}만${rest}` : `${man}만`;
 }
 
 function renderDummyBanner() {
@@ -1491,8 +1708,6 @@ function applyBattleBackground(monster) {
 
   const screen = document.querySelector(".battle-screen");
   screen.classList.add("has-art-bg");
-  screen.classList.remove("exp-text-dark", "exp-text-light");
-  screen.classList.add(`exp-text-${battleBackgroundExpTextThemes[state.battleBackgroundIndex] || "dark"}`);
   screen.style.backgroundImage = `url("${battleBackgrounds[state.battleBackgroundIndex]}")`;
 }
 
@@ -1522,20 +1737,277 @@ function displayNextLevelExperience(player = state.player) {
 
 function attackIntervalMillis(player = state.player) {
   if (!player) {
-    return 1500;
+    return 667;
   }
-  const boosted = isActive(player.boostEndsAt);
-  if (boosted && player.boostedAttackIntervalMillis) {
-    return player.boostedAttackIntervalMillis;
-  }
-  if (!boosted && player.normalAttackIntervalMillis) {
-    return player.normalAttackIntervalMillis;
-  }
-  if (player.attackIntervalMillis) {
+	  if (player.attackIntervalMillis) {
     return player.attackIntervalMillis;
   }
-  const rapidBonus = Math.min(900, skillLevel("RAPID_ATTACK") * 45);
-  return Math.max(750, (isActive(player?.boostEndsAt) ? 750 : 1500) - rapidBonus);
+  const rapidBonus = Math.min(167, skillLevel("RAPID_ATTACK") * 6);
+  return Math.max(500, 667 - rapidBonus);
+}
+
+function bossRaidTier(player = state.player) {
+  const power = combatPower(player);
+  return bossRaidTiers.reduce((selected, tier) => power >= tier.minCombatPower ? tier : selected, bossRaidTiers[0]);
+}
+
+function renderAdventurePanel(player) {
+  const dungeonCoupon = player.dungeonCoupon || {};
+  const dungeonCouponEnabled = Boolean(dungeonCoupon.enabled);
+  const bossTicketCount = dungeonCoupon.bossTicketCount ?? dungeonCoupon.count ?? 0;
+	  const dungeonDailyLimit = dungeonCoupon.dungeonDailyLimit ?? 5;
+	  const dungeonFreeLimit = dungeonCoupon.dungeonFreeDailyLimit ?? dungeonFreeDailyLimit;
+	  const dungeonAdditionalLimit = dungeonCoupon.dungeonAdditionalDailyLimit ?? Math.max(0, dungeonDailyLimit - dungeonFreeLimit);
+  const dungeonRunsToday = dungeonCoupon.dungeonRunsToday || 0;
+  const dungeonRemainingRuns = Math.max(0, dungeonCoupon.dungeonRemainingRuns ?? (dungeonDailyLimit - dungeonRunsToday));
+  const dungeonCooldownSeconds = dungeonCoupon.dungeonNextAvailableAt
+    ? remainingSecondsFrom(dungeonCoupon.dungeonNextAvailableAt)
+    : Math.max(0, dungeonCoupon.dungeonCooldownSeconds || 0);
+  const dungeonHuntProgressSeconds = Math.max(0, dungeonCoupon.dungeonHuntProgressSeconds || 0);
+  const dungeonHuntRequiredSeconds = Math.max(1, dungeonCoupon.dungeonHuntRequiredSeconds || 3600);
+	  const dungeonHuntCompleted = dungeonCoupon.dungeonHuntRequirementCompleted ?? dungeonHuntProgressSeconds >= dungeonHuntRequiredSeconds;
+	  const dungeonAvailable = dungeonCoupon.dungeonAvailable ?? (dungeonHuntCompleted && dungeonRemainingRuns > 0 && dungeonCooldownSeconds <= 0);
+	  const adventureEntryPolicyCopy = document.getElementById("adventureEntryPolicyCopy");
+	  if (adventureEntryPolicyCopy) {
+	    adventureEntryPolicyCopy.textContent = `던전은 기본 ${dungeonFreeLimit}번과 광고 추가 ${dungeonAdditionalLimit}번, 보스는 입장권으로 도전해요`;
+	  }
+  const fallbackBossTier = bossRaidTier(player);
+  const bossTier = {
+    ...fallbackBossTier,
+    bossName: dungeonCoupon.bossName || fallbackBossTier.bossName,
+    difficultyName: dungeonCoupon.bossDifficultyName || fallbackBossTier.difficultyName,
+  };
+  const dungeonRequiresAd = dungeonRunsToday >= dungeonFreeLimit;
+  $("dungeonCouponCard").hidden = !dungeonCouponEnabled;
+  $("dungeonCouponCard").classList.toggle("has-coupon", dungeonAvailable);
+  $("bossRaidCard").classList.toggle("locked", !dungeonCouponEnabled || bossTicketCount < 1);
+  $("bossRaidImage").src = adventureAssets.bossRaid;
+  $("bossRaidTitle").textContent = `${bossTier.bossName} · ${bossTier.difficultyName}`;
+  $("bossRaidStatus").textContent = dungeonCouponEnabled
+    ? bossTicketCount > 0
+      ? `보스 입장권 ${bossTicketCount.toLocaleString("ko-KR")}장 보유 · 토벌 가능`
+      : "던전에서 확률적으로 입장권 획득"
+    : "모험 기능 준비중";
+  $("challengeBossRaid").disabled = !dungeonCouponEnabled || bossTicketCount < 1;
+  $("challengeBossRaid").innerHTML = bossTicketCount > 0
+    ? `<span class="boss-ticket-button-label"><img src="${adventureAssets.bossTicket}" alt="" />입장권 ${bossTicketCount.toLocaleString("ko-KR")}장 · 토벌</span>`
+    : `<span class="boss-ticket-button-label"><img src="${adventureAssets.bossTicket}" alt="" />입장권 필요</span>`;
+  if (dungeonCouponEnabled) {
+    $("dungeonCouponCopy").textContent = `${dungeonCoupon.tierName || "초급 던전"} · ${dungeonRunsToday}/${dungeonDailyLimit}`;
+    $("dungeonHuntProgress").textContent = `사냥 진행도 ${timeRewardModalDurationLabel(dungeonHuntProgressSeconds)}/${timeRewardModalDurationLabel(dungeonHuntRequiredSeconds)}`;
+    $("dungeonHuntProgress").classList.toggle("is-complete", dungeonHuntCompleted);
+    $("dungeonCouponStatus").hidden = dungeonCooldownSeconds <= 0;
+    if (dungeonRemainingRuns <= 0) {
+      $("dungeonCouponStatus").hidden = true;
+      $("dungeonCouponStatus").textContent = "";
+    } else if (dungeonCooldownSeconds > 0) {
+      $("dungeonCouponStatus").textContent = `${timeRewardModalDurationLabel(dungeonCooldownSeconds)} 후 재입장`;
+    } else if (dungeonRequiresAd) {
+      $("dungeonCouponStatus").textContent = "";
+    } else {
+      $("dungeonCouponStatus").textContent = "";
+    }
+    $("useDungeonCoupon").disabled = !dungeonAvailable;
+    $("useDungeonCoupon").innerHTML = dungeonAvailable
+      ? dungeonRequiresAd
+        ? "<span>광고 보고 추가 입장</span>"
+        : "<span>던전 입장</span>"
+      : `<span>${dungeonCoupon.dungeonUnavailableReason || "입장 대기"}</span>`;
+  }
+}
+
+function openAdventureInfoModal() {
+  const power = combatPower();
+  $("adventureInfoList").innerHTML = dungeonTiers.map((tier, index) => {
+    const boss = bossRaidTiers[index] || bossRaidTiers[bossRaidTiers.length - 1];
+    const unlocked = power >= tier.minCombatPower;
+    return `
+      <div class="adventure-info-row ${unlocked ? "is-unlocked" : ""}">
+        <strong>${tier.powerLabel}</strong>
+        <div>
+          <b>${tier.name} · ${boss.bossName}</b>
+          <span>던전: ${tier.rewardPreview}</span>
+          <span>보스: ${boss.difficultyName} · ${boss.rewardPreview}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+  $("adventureInfoModal").classList.remove("hidden");
+}
+
+function closeAdventureInfoModal() {
+  $("adventureInfoModal").classList.add("hidden");
+}
+
+function openAdventureRewardModal(kind) {
+  const adventure = state.player?.dungeonCoupon || {};
+  const isBoss = kind === "boss";
+  const rewards = isBoss ? adventure.bossRewards : adventure.dungeonRewards;
+  $("adventureRewardKicker").textContent = isBoss ? "BOSS RAID" : "DUNGEON";
+  $("adventureRewardTitle").textContent = isBoss ? "보스 토벌 보상 목록" : "던전 보상 목록";
+  $("adventureRewardCopy").textContent = isBoss
+    ? `${adventure.bossName || "보스"} 토벌에서 등장하는 보상과 확률이에요.`
+    : `${adventure.tierName || "현재 던전"}에서 등장하는 보상과 확률이에요.`;
+  $("adventureRewardList").innerHTML = Array.isArray(rewards) && rewards.length > 0
+    ? rewards.map((reward) => `
+      <div class="adventure-reward-row">
+        <span>${reward.rewardLabel || "랜덤 보상"}</span>
+        <strong>${reward.probabilityLabel || "-"}</strong>
+      </div>
+    `).join("")
+    : '<div class="adventure-reward-empty">보상 정보를 불러오는 중이에요.</div>';
+  $("adventureRewardModal").classList.remove("hidden");
+}
+
+function closeAdventureRewardModal() {
+  $("adventureRewardModal").classList.add("hidden");
+}
+
+function adventureActionConfig(kind, result = {}) {
+	if (kind === "boss") {
+		return {
+			icon: "B",
+			kicker: "BOSS RAID",
+			runningTitle: "보스 토벌 중",
+			runningBody: "보스의 움직임을 살피는 중이에요.",
+			successTitle: "토벌 완료",
+			successBody: `${result.bossName || "보스"} 토벌에 성공했어요.`,
+			rewardMessage: `${result.rewardLabel || "랜덤 보상"} 받았어요.`,
+    };
+  }
+  return {
+		icon: "D",
+		kicker: "DUNGEON",
+		runningTitle: "던전 탐험 중",
+		runningBody: "입구를 열고 안쪽을 살피는 중이에요.",
+		successTitle: "탐험 완료",
+		successBody: `${result.tierName || "던전"} 탐험을 마쳤어요.`,
+    rewardMessage: result.bossTicketGranted
+      ? `${result.rewardLabel || "보스 입장권"}을 찾았어요.`
+      : `${result.rewardLabel || "랜덤 보상"} 받았어요.`,
+	};
+}
+
+function adventureActionSteps(kind) {
+	return adventureSceneSpecs[kind]?.running || adventureSceneSpecs.dungeon.running;
+}
+
+function adventureActionScene(kind, phase = "success") {
+	return adventureSceneSpecs[kind]?.[phase] || adventureSceneSpecs.dungeon[phase];
+}
+
+function setAdventureActionScene(kind, scene) {
+	const fallback = adventureSceneSpecs[kind]?.fallback || adventureAssets.dungeon;
+	const image = scene?.image || fallback;
+	$("adventureActionIcon").className = `adventure-action-icon ${kind === "boss" ? "boss" : "dungeon"}`;
+	$("adventureActionIcon").style.backgroundImage = `url("${image}"), url("${fallback}")`;
+	$("adventureActionScene").textContent = scene?.label || "";
+	if (scene?.body) {
+		$("adventureActionBody").textContent = scene.body;
+	}
+}
+
+function clearAdventureActionStepTimers() {
+	(state.adventureActionStepTimers || []).forEach((timer) => clearTimeout(timer));
+	state.adventureActionStepTimers = [];
+}
+
+function scheduleAdventureActionSteps(kind) {
+	clearAdventureActionStepTimers();
+	const steps = adventureActionSteps(kind);
+	steps.forEach((scene, index) => {
+		const timer = setTimeout(() => {
+			if (!$("adventureActionModal").classList.contains("is-running")) {
+				return;
+			}
+			setAdventureActionScene(kind, scene);
+		}, index * adventureActionStepDurationMs);
+		state.adventureActionStepTimers.push(timer);
+	});
+}
+
+function openAdventureActionModal(kind) {
+	const config = adventureActionConfig(kind);
+  $("adventureActionIcon").textContent = config.icon;
+  $("adventureActionKicker").textContent = config.kicker;
+  $("adventureActionTitle").textContent = config.runningTitle;
+  $("adventureActionBody").textContent = config.runningBody;
+	setAdventureActionScene(kind, adventureActionSteps(kind)[0]);
+  $("adventureActionReward").classList.add("hidden");
+  $("adventureActionReward").textContent = "";
+  $("closeAdventureActionModal").classList.add("hidden");
+	$("adventureActionModal").classList.remove("is-complete");
+	$("adventureActionModal").classList.add("is-running");
+	$("adventureActionModal").classList.remove("hidden");
+	scheduleAdventureActionSteps(kind);
+}
+
+function completeAdventureActionModal(kind, result) {
+	clearAdventureActionStepTimers();
+	const config = adventureActionConfig(kind, result);
+	setAdventureActionScene(kind, adventureActionScene(kind, "success"));
+  $("adventureActionTitle").textContent = config.successTitle;
+  $("adventureActionBody").textContent = config.successBody;
+  $("adventureActionReward").textContent = config.rewardMessage;
+  $("adventureActionReward").classList.remove("hidden");
+  $("closeAdventureActionModal").classList.remove("hidden");
+  $("adventureActionModal").classList.remove("is-running");
+  $("adventureActionModal").classList.add("is-complete");
+}
+
+function failAdventureActionModal(kind, message) {
+	clearAdventureActionStepTimers();
+	const config = adventureActionConfig(kind);
+	setAdventureActionScene(kind, adventureActionScene(kind, "failure"));
+  $("adventureActionTitle").textContent = kind === "boss" ? "토벌 실패" : "탐험 중단";
+  $("adventureActionBody").textContent = message || "잠시 후 다시 시도해 주세요.";
+  $("adventureActionReward").textContent = "";
+  $("adventureActionReward").classList.add("hidden");
+  $("closeAdventureActionModal").classList.remove("hidden");
+  $("adventureActionModal").classList.remove("is-running");
+  $("adventureActionModal").classList.add("is-complete");
+  $("adventureActionKicker").textContent = config.kicker;
+  $("adventureActionIcon").textContent = config.icon;
+}
+
+function closeAdventureActionModal() {
+	if (state.adventureActionInFlight) {
+		return;
+	}
+	clearAdventureActionStepTimers();
+	$("adventureActionModal").classList.add("hidden");
+  $("adventureActionModal").classList.remove("is-running", "is-complete");
+}
+
+function adventureActionDelay() {
+	return new Promise((resolve) => setTimeout(resolve, adventureActionTotalDurationMs));
+}
+
+async function runAdventureAction(kind, request) {
+  if (state.adventureActionInFlight) {
+    return;
+  }
+  state.adventureActionInFlight = true;
+  openAdventureActionModal(kind);
+  try {
+    await adventureActionDelay();
+    const result = await request();
+    if (result.state) {
+      setServerPlayer(result.state, { resetDisplayGold: true });
+      if (state.player.job) {
+        state.selectedJob = state.player.job;
+      }
+      render();
+      completeAdventureActionModal(kind, result);
+      scheduleGameProfileSync(800);
+      scheduleLeaderboardEntryScoreSubmit(1200);
+    }
+  } catch (error) {
+    setMessage(error.message);
+    failAdventureActionModal(kind, error.message);
+  } finally {
+    state.adventureActionInFlight = false;
+  }
 }
 
 function renderRewardPanel(player) {
@@ -1546,6 +2018,8 @@ function renderRewardPanel(player) {
   const inviteCount = player.friendInviteRewardCount ?? 0;
   const inviteLimit = player.friendInviteLimit ?? friendInviteLimit;
   const inviteReward = player.friendInviteRewardSkillPoints ?? friendInviteRewardSkillPoints;
+  const friendInviteMaxed = inviteLimit > 0 && inviteCount >= inviteLimit;
+  $("rewardPanel").classList.toggle("friend-invite-maxed", friendInviteMaxed);
   $("rewardBar").style.width = `${Math.min(100, availablePointAmount * 100 / minimumClaimPointAmount)}%`;
   $("rewardNeed").textContent = `${availablePointAmount.toLocaleString("ko-KR")} / ${minimumClaimPointAmount.toLocaleString("ko-KR")}P`;
   $("rewardPointEstimate").textContent = isOneStoreTarget()
@@ -1572,7 +2046,7 @@ function renderRewardPanel(player) {
   $("leaderboardProfileText").textContent = isOneStoreTarget()
     ? "심사용 게임 기록으로 랭킹을 확인해요"
     : `${nickname || "게임 프로필"} 닉네임으로 랭킹에 참여해요`;
-  $("leaderboardStatus").textContent = `누적 골드 ${leaderboardGoldScore(player).toLocaleString("ko-KR")}G 기준`;
+  $("leaderboardStatus").textContent = `전투력 ${formatCombatPower(leaderboardCombatPowerScore(player))} 기준`;
 }
 
 function availableRewardPointAmount(player = state.player) {
@@ -1580,6 +2054,19 @@ function availableRewardPointAmount(player = state.player) {
     return 0;
   }
   return Math.floor(player.gold / (player.goldPerTossPoint || goldPerTossPoint));
+}
+
+function durationProgressLabel(milliseconds) {
+  const totalMinutes = Math.max(0, Math.floor(Number(milliseconds || 0) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0 && minutes > 0) {
+    return `${hours}시간 ${minutes}분`;
+  }
+  if (hours > 0) {
+    return `${hours}시간`;
+  }
+  return `${minutes}분`;
 }
 
 function renderShopPanel(player) {
@@ -1592,6 +2079,7 @@ function renderShopPanel(player) {
   $("companionCount").textContent = `${pets}/${maxPets}`;
   petMeta.forEach((pet, index) => {
     const unlocked = pets > index;
+    const purchasable = !unlocked && pets === index && pets < maxPets;
     const skin = petSkinForSlot(index + 1, player);
     const shopCard = $(`pet${index + 1 === 1 ? "One" : "Two"}Shop`);
     const status = $(pet.statusId);
@@ -1601,21 +2089,21 @@ function renderShopPanel(player) {
     shopCard.classList.toggle("locked", !unlocked);
     shopCard.classList.toggle("skin-change-available", unlocked);
     const skinButton = $(index === 0 ? "changePetOneSkin" : "changePetTwoSkin");
-    skinButton.classList.toggle("hidden", !unlocked);
-    skinButton.disabled = !unlocked;
-    skinButton.textContent = "스킨 변경";
+    skinButton.dataset.petShopAction = unlocked ? "skin" : purchasable ? "purchase" : "locked";
+    skinButton.disabled = !unlocked && !purchasable;
+    skinButton.innerHTML = unlocked
+      ? "<span>스킨 변경</span>"
+      : purchasable
+        ? "<span>구매하기</span>"
+        : "<span>잠김</span>";
     status.textContent = unlocked
       ? `동행 중 · ${skin.name} 공격 가능`
-      : isOneStoreTarget()
-        ? "잠김 · 심사용 잠금 해제"
-        : `잠김 · ${iapDisplayAmount(index === 0 ? "flarePet" : "aquaPet", price)}`;
+      : purchasable
+        ? isOneStoreTarget()
+          ? "잠금 해제 가능 · 심사용"
+          : `구매 가능 · ${iapDisplayAmount(index === 0 ? "flarePet" : "aquaPet", price)}`
+        : "잠김 · 이전 펫을 먼저 데려오세요";
   });
-  $("buyCompanion").disabled = pets >= maxPets;
-  $("buyCompanion").innerHTML = pets >= maxPets
-    ? "<span>동료 펫 MAX · 모든 펫 동행 중</span>"
-    : isOneStoreTarget()
-      ? `<span>${petSkinForSlot(pets + 1, player).name || "동료 펫"} 잠금 해제 · 심사용</span>`
-      : `<span>${petSkinForSlot(pets + 1, player).name || "동료 펫"} 구매 · ${iapDisplayAmount(pets === 0 ? "flarePet" : "aquaPet", price)}</span>`;
   $("skillPointPackCopy").textContent = `SP ${packAmount.toLocaleString("ko-KR")}개 즉시 지급`;
   const spAvailable = skillPointRewardsAvailable(player);
   $("skillPointPackStatus").textContent = spAvailable
@@ -1625,10 +2113,8 @@ function renderShopPanel(player) {
     : "모든 스킬 MAX";
   $("buySkillPointPack").disabled = !spAvailable;
   $("buySkillPointPack").innerHTML = spAvailable
-    ? isOneStoreTarget()
-      ? `<span>SP ${packAmount.toLocaleString("ko-KR")} 받기 · 심사용</span>`
-      : `<span>SP ${packAmount.toLocaleString("ko-KR")} 구매 · ${iapDisplayAmount("skillPointPack", packPrice)}</span>`
-    : "<span>SP 구매 비활성 · 모든 스킬 MAX</span>";
+    ? "<span>구매하기</span>"
+    : "<span>MAX</span><small>완료</small>";
   renderPetSkinShop(player);
 }
 
@@ -1794,13 +2280,16 @@ function renderRookieEvent(player) {
   const event = player?.rookieEvent;
   const visible = Boolean(event?.visible);
   const button = $("rookieEventButton");
+  const callout = button.querySelector(".rookie-event-callout");
   button.classList.toggle("hidden", !visible);
   document.querySelector(".battle-screen").classList.toggle("has-rookie-event", visible);
   if (!visible) {
+    callout?.classList.add("hidden");
     closeRookieEventModal();
     return;
   }
   $("rookieEventButtonProgress").textContent = event.started ? `${event.completedDays || 0}/7` : "시작";
+  callout?.classList.toggle("hidden", !shouldShowRookieEventCallout(event, player));
   if (!$("rookieEventModal").classList.contains("hidden")) {
     renderRookieEventModal(event);
   }
@@ -1811,6 +2300,8 @@ async function openRookieEventModal() {
   if (!event?.visible) {
     return;
   }
+  markRookieEventButtonSeenToday();
+  renderRookieEvent(state.player);
   if (!event.started && event.startable) {
     const button = $("rookieEventButton");
     button.disabled = true;
@@ -1963,6 +2454,27 @@ function rookieEventRewardRemainingText(event = state.player?.rookieEvent) {
 
 function rookieEventRewardActive(player = state.player) {
   return Boolean(player?.rookieEvent?.rewardActive);
+}
+
+function rookieEventButtonSeenDateStorageKey(player = state.player) {
+  const userKey = String(player?.userKey || "guest").trim() || "guest";
+  return `${rookieEventButtonSeenDateStoragePrefix}.${userKey}`;
+}
+
+function rookieEventButtonSeenToday(player = state.player) {
+  return storedValue(rookieEventButtonSeenDateStorageKey(player)) === localDateKey();
+}
+
+function markRookieEventButtonSeenToday(player = state.player) {
+  storeValue(rookieEventButtonSeenDateStorageKey(player), localDateKey());
+}
+
+function shouldShowRookieEventCallout(event = state.player?.rookieEvent, player = state.player) {
+  return Boolean(event?.visible)
+    && !event.expired
+    && !event.rewardClaimed
+    && !event.rewardActive
+    && !rookieEventButtonSeenToday(player);
 }
 
 function rookieHomeShortcutReturnRequested() {
@@ -2244,17 +2756,13 @@ function skillPointAdCooldownReady(player = state.player) {
 }
 
 function timeRewardAdCooldownReady(type, player = state.player) {
-  const nextAvailableAt = type === "AUTO_HUNT"
-    ? player?.nextAutoHuntAdAvailableAt
-    : player?.nextBoostAdAvailableAt;
-  return !nextAvailableAt || !isActive(nextAvailableAt);
-}
+	  const nextAvailableAt = player?.nextAutoHuntAdAvailableAt;
+	  return !nextAvailableAt || !isActive(nextAvailableAt);
+	}
 
 function nextTimeRewardAdAvailableAt(type, player = state.player) {
-  return type === "AUTO_HUNT"
-    ? player?.nextAutoHuntAdAvailableAt
-    : player?.nextBoostAdAvailableAt;
-}
+	  return player?.nextAutoHuntAdAvailableAt;
+	}
 
 function timeRewardCooldownLabel(currentEndAt, cooldownEndAt) {
   const remaining = remainingSecondsFrom(currentEndAt);
@@ -2341,12 +2849,7 @@ function remainingSecondsFrom(value) {
 }
 
 function secondsLabel(seconds) {
-  const totalSeconds = Math.max(0, Number(seconds || 3600));
-  const hours = totalSeconds / 3600;
-  if (Number.isInteger(hours)) {
-    return `${hours}시간`;
-  }
-  return `${hours.toFixed(1).replace(/\\.0$/, "")}시간`;
+  return timeRewardModalDurationLabel(seconds || 3600);
 }
 
 function timeRewardModalDurationLabel(seconds) {
@@ -2377,11 +2880,14 @@ function topicParticle(value) {
 function showContentPanel(panel) {
   const showReward = panel === "reward";
   const showShop = panel === "shop";
-  document.querySelector(".game-shell").dataset.panel = showReward ? "reward" : showShop ? "shop" : "skill";
-  $("skillPanel").classList.toggle("hidden", showReward || showShop);
+  const showAdventure = panel === "adventure";
+  document.querySelector(".game-shell").dataset.panel = showReward ? "reward" : showShop ? "shop" : showAdventure ? "adventure" : "skill";
+  $("skillPanel").classList.toggle("hidden", showReward || showShop || showAdventure);
+  $("adventurePanel").classList.toggle("hidden", !showAdventure);
   $("rewardPanel").classList.toggle("hidden", !showReward);
   $("shopPanel").classList.toggle("hidden", !showShop);
-  $("showSkillPanel").classList.toggle("active", !showReward && !showShop);
+  $("showSkillPanel").classList.toggle("active", !showReward && !showShop && !showAdventure);
+  $("showAdventurePanel").classList.toggle("active", showAdventure);
   $("showRewardPanel").classList.toggle("active", showReward);
   $("showShopPanel").classList.toggle("active", showShop);
   document.querySelector(".content-scroll")?.scrollTo({ top: 0 });
@@ -2465,7 +2971,7 @@ function renderSkills(player) {
       tierElement.textContent = locked
         ? `${meta.petIndex}번째 동료 펫을 상점에서 구매해야 해요`
         : meta.effectPrefix
-        ? `이펙트 ${skill.effectTier}단계`
+        ? skillEffectTierText(skill, maxLevel)
         : meta.petIndex
           ? `${petSkinForSlot(meta.petIndex, player).name} 공격 피해량이 올라가요`
           : meta.description;
@@ -2535,7 +3041,39 @@ function skillLevel(type) {
 }
 
 function skillTier(type) {
-  return state.player?.skills.find((skill) => skill.type === type)?.effectTier || 0;
+  const skill = state.player?.skills.find((item) => item.type === type);
+  if (!skill) {
+    return 0;
+  }
+  return Math.max(skill.effectTier || 0, skillEffectTierFromLevel(skill.level));
+}
+
+function skillEffectTierFromLevel(level) {
+  const safeLevel = Math.max(0, Number(level || 0));
+  if (safeLevel >= 21) {
+    return 5;
+  }
+  if (safeLevel >= 16) {
+    return 4;
+  }
+  if (safeLevel >= 11) {
+    return 3;
+  }
+  if (safeLevel >= 6) {
+    return 2;
+  }
+  return 1;
+}
+
+function skillEffectTierText(skill, maxLevel = skillMaxLevel) {
+  const level = Math.max(0, Number(skill?.level || 0));
+  const tier = Math.max(skill?.effectTier || 0, skillEffectTierFromLevel(level));
+  if (tier >= skillEffectMaxTier || level >= maxLevel) {
+    return `이펙트 ${tier}단계 · 최고 단계`;
+  }
+  const nextTierLevel = skillEffectTierStartLevels[tier] || maxLevel;
+  const remainingLevels = Math.max(1, nextTierLevel - level);
+  return `이펙트 ${tier}단계 · 다음 이펙트까지 ${remainingLevels}레벨`;
 }
 
 function effectImageFor(type, tier) {
@@ -2559,24 +3097,14 @@ function isActiveAt(value, timeMs) {
   return value && new Date(value).getTime() > timeMs;
 }
 
-function boostedMillisBetween(player, fromMs, toMs) {
-  const boostEndsAt = player?.boostEndsAt ? new Date(player.boostEndsAt).getTime() : 0;
-  if (!boostEndsAt || boostEndsAt <= fromMs) {
-    return 0;
-  }
-  return Math.max(0, Math.min(toMs, boostEndsAt) - fromMs);
-}
-
-function localGoldPerHour(player, boosted) {
-  if (boosted) {
-    return player?.boostedGoldPerHour ?? player?.goldPerHour ?? 0;
+function localGoldPerHour(player) {
+  if (player?.goldPerHour !== undefined) {
+    return player.goldPerHour;
   }
   if (player?.baseGoldPerHour !== undefined) {
     return player.baseGoldPerHour;
   }
-  return isActive(player?.boostEndsAt)
-    ? Math.round((player?.goldPerHour || 0) / 1.5)
-    : player?.goldPerHour || 0;
+  return 0;
 }
 
 function applyLocalMonsterHit(player = state.player) {
@@ -2584,7 +3112,7 @@ function applyLocalMonsterHit(player = state.player) {
     return { defeated: false, leveledUp: false };
   }
   let monster = displayMonster(player);
-  let remainingDamage = localDamage(player, isActive(player.boostEndsAt));
+  let remainingDamage = localDamage(player);
   let defeated = false;
   let leveledUp = false;
   while (remainingDamage > 0 && monster) {
@@ -2603,7 +3131,7 @@ function applyLocalMonsterHit(player = state.player) {
   return { defeated, leveledUp };
 }
 
-function localDamage(player, boosted) {
+function localDamage(player) {
   const rapidLevel = skillLevel("RAPID_ATTACK");
   const statLevel = skillLevel(activeStatSkill());
   let damage = 16
@@ -2611,9 +3139,6 @@ function localDamage(player, boosted) {
     + scaledSkillValue(rapidLevel, 40)
     + scaledSkillValue(statLevel, 60)
     + localPetDamage(player);
-  if (boosted) {
-    damage = Math.round(damage * 1.35);
-  }
   return Math.max(1, damage);
 }
 
@@ -2697,12 +3222,7 @@ function accrueLocalCombatGold(now = Date.now()) {
     return 0;
   }
 
-  const boostedMillis = boostedMillisBetween(player, fromMs, toMs);
-  const normalMillis = toMs - fromMs - boostedMillis;
-  const gainedGold = (
-    localGoldPerHour(player, false) * normalMillis
-    + localGoldPerHour(player, true) * boostedMillis
-  ) / 3_600_000;
+  const gainedGold = localGoldPerHour(player) * (toMs - fromMs) / 3_600_000;
   state.displayGold = Math.max(state.displayGold, player.gold) + Math.max(0, gainedGold);
   state.lastLocalGoldEstimateAt = toMs;
   return gainedGold;
@@ -2756,7 +3276,7 @@ async function runRealFullScreenAd(title, description, action) {
     return;
   }
   state.realAdInFlight = true;
-  setMessage(`${title} 준비 중...`);
+  setMessage(isRealFullScreenAdLoaded(groupId) ? `${title} 여는 중...` : `${title} 준비 중...`);
   try {
     const adSession = action.requiresReward === false
       ? null
@@ -2765,18 +3285,59 @@ async function runRealFullScreenAd(title, description, action) {
           body: JSON.stringify({ type: action.adEventType }),
         });
     await loadRealFullScreenAd(groupId);
-    await showRealFullScreenAd(groupId, action.requiresReward !== false);
+    markRealFullScreenAdConsumed(groupId);
+    await showRealFullScreenAdWithRetry(groupId, action.requiresReward !== false);
     setMessage("광고 시청 완료, 보상을 지급하는 중이에요.");
-    await run(() => action.request(adSession?.sessionToken), action.message);
+    if (typeof action.afterAd === "function") {
+      await action.afterAd(adSession?.sessionToken);
+    } else {
+      await run(() => action.request(adSession?.sessionToken), action.message);
+    }
   } catch (error) {
     const message = error?.message || "광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
     setMessage(message);
   } finally {
     state.realAdInFlight = false;
+    window.setTimeout(() => scheduleRealFullScreenAdPreloads(), 800);
   }
 }
 
 async function loadRealFullScreenAd(groupId) {
+  const entry = realAdPreloadEntry(groupId);
+  if (entry.status === "loaded" && Date.now() - entry.loadedAt < realAdLoadedTtlMs) {
+    return;
+  }
+  if (entry.status === "loaded") {
+    markRealFullScreenAdConsumed(groupId);
+  }
+  if (entry.status === "loading" && entry.promise) {
+    return entry.promise;
+  }
+  entry.status = "loading";
+  entry.promise = requestRealFullScreenAdLoad(groupId)
+    .then(() => {
+      entry.status = "loaded";
+      entry.loadedAt = Date.now();
+      entry.error = null;
+    })
+    .catch((error) => {
+      entry.status = "failed";
+      entry.failedAt = Date.now();
+      entry.error = error;
+      throw error;
+    })
+    .finally(() => {
+      entry.promise = null;
+    });
+  return entry.promise;
+}
+
+async function loadFreshRealFullScreenAd(groupId) {
+  markRealFullScreenAdConsumed(groupId);
+  return loadRealFullScreenAd(groupId);
+}
+
+async function requestRealFullScreenAdLoad(groupId) {
   const sdk = await loadTossSdk();
   const loadFullScreenAd = sdk.loadFullScreenAd;
   if (typeof loadFullScreenAd !== "function" || loadFullScreenAd.isSupported?.() !== true) {
@@ -2835,7 +3396,9 @@ async function showRealFullScreenAd(groupId, requiresReward) {
           return;
         }
         if (event.type === "failedToShow") {
-          finish(null, new Error("광고 표시가 실패했어요."));
+          const error = new Error("광고가 아직 준비되지 않았어요. 다시 준비하고 있어요.");
+          error.retryableAdShowFailure = true;
+          finish(null, error);
           return;
         }
         if (event.type === "dismissed" && requiresReward && !completed) {
@@ -2843,10 +3406,26 @@ async function showRealFullScreenAd(groupId, requiresReward) {
         }
       },
       onError: (error) => {
-        finish(null, error instanceof Error ? error : new Error("광고 표시가 실패했어요."));
+        const nextError = error instanceof Error ? error : new Error("광고 표시가 실패했어요.");
+        nextError.retryableAdShowFailure = true;
+        finish(null, nextError);
       },
     });
   });
+}
+
+async function showRealFullScreenAdWithRetry(groupId, requiresReward) {
+  try {
+    return await showRealFullScreenAd(groupId, requiresReward);
+  } catch (error) {
+    if (!error?.retryableAdShowFailure) {
+      throw error;
+    }
+    setMessage("광고를 다시 준비하고 있어요.");
+    await loadFreshRealFullScreenAd(groupId);
+    markRealFullScreenAdConsumed(groupId);
+    return showRealFullScreenAd(groupId, requiresReward);
+  }
 }
 
 async function runRealIapPurchase(action) {
@@ -3073,6 +3652,44 @@ function claimFriendInviteReward(completedInvites = 1) {
     method: "POST",
     body: JSON.stringify({ completedInvites }),
   });
+}
+
+function dungeonAdditionalEntryRequired(player = state.player) {
+  const dungeon = player?.dungeonCoupon || {};
+  const runsToday = dungeon.dungeonRunsToday || 0;
+  const freeLimit = dungeon.dungeonFreeDailyLimit ?? dungeonFreeDailyLimit;
+  return runsToday >= freeLimit;
+}
+
+function dungeonRunRequest(adSessionToken = null) {
+  const additionalEntry = dungeonAdditionalEntryRequired();
+  return api(additionalEntry ? "/api/player/ads/dungeon-additional/complete" : "/api/player/dungeon/run", {
+    method: "POST",
+    body: additionalEntry ? JSON.stringify({ adSessionToken }) : undefined,
+  });
+}
+
+async function useDungeonCoupon() {
+  if (dungeonAdditionalEntryRequired()) {
+    setMessage("광고를 보면 던전에 추가 입장할 수 있어요.");
+    return runRewardFlow(
+      "던전 추가 입장 광고",
+      "완료하면 오늘 던전에 한 번 더 입장해요.",
+      {
+        adGroupKey: "dungeonAdditional",
+        adEventType: "DUNGEON_ADDITIONAL_ENTRY",
+        requiresReward: true,
+        afterAd: (adSessionToken) => runAdventureAction("dungeon", () => requestWithLoginRetry(() => dungeonRunRequest(adSessionToken))),
+      }
+    );
+  }
+  setMessage("던전 탐험을 시작했어요.");
+  await runAdventureAction("dungeon", () => requestWithLoginRetry(() => dungeonRunRequest()));
+}
+
+async function challengeBossRaid() {
+  setMessage("보스 토벌을 시작했어요.");
+  await runAdventureAction("boss", () => requestWithLoginRetry(() => api("/api/player/boss/raid", { method: "POST" })));
 }
 
 function showRewardClaimConfirmModal() {
@@ -3455,7 +4072,7 @@ function scheduleLeaderboardEntryScoreSubmit(delayMs = 2000) {
   if (!canAutoSubmitLeaderboardScore()) {
     return;
   }
-  const score = leaderboardGoldScore(state.player);
+  const score = leaderboardCombatPowerScore(state.player);
   if (state.lastLeaderboardScoreSubmitted !== null && score <= state.lastLeaderboardScoreSubmitted) {
     return;
   }
@@ -3476,7 +4093,7 @@ async function submitLeaderboardScore({ silent = false, force = false, ensurePro
       return profileResult;
     }
   }
-  const scoreValue = leaderboardGoldScore(state.player);
+  const scoreValue = leaderboardCombatPowerScore(state.player);
   if (!force && state.lastLeaderboardScoreSubmitted !== null && scoreValue <= state.lastLeaderboardScoreSubmitted) {
     return;
   }
@@ -3507,8 +4124,8 @@ async function submitLeaderboardScore({ silent = false, force = false, ensurePro
   }
 }
 
-function leaderboardGoldScore(player = state.player) {
-  return Math.max(0, Math.floor(Number(player?.cumulativeGoldEarned ?? player?.gold ?? 0)));
+function leaderboardCombatPowerScore(player = state.player) {
+  return combatPower(player);
 }
 
 async function openGameLeaderboard() {
@@ -3605,6 +4222,10 @@ async function finishDummyAd() {
   const action = state.adAction;
   state.adAction = null;
   $("adModal").classList.add("hidden");
+  if (typeof action.afterAd === "function") {
+    await action.afterAd(null);
+    return;
+  }
   await run(action.request, action.message);
 }
 
@@ -3630,7 +4251,7 @@ async function finishDummyPayment() {
   await run(action.request, action.message);
 }
 
-async function run(request, message) {
+async function run(request, message, options = {}) {
   try {
     setMessage("처리 중...");
     const result = await requestWithLoginRetry(request);
@@ -3638,7 +4259,7 @@ async function run(request, message) {
       setServerPlayer(result.state, { resetDisplayGold: true });
       setMessage(rewardClaimResultMessage(result));
     } else {
-      setServerPlayer(result);
+      setServerPlayer(result, { resetDisplayGold: Boolean(options.resetDisplayGold) });
       setMessage(message);
     }
     if (state.player.job) {
@@ -3694,7 +4315,8 @@ async function purchasePetSkin(skinKey) {
   const skin = petSkinByKey(skinKey);
   await run(
     () => api(`/api/player/shop/pet-skins/${encodeURIComponent(skinKey)}/purchase`, { method: "POST" }),
-    `${skin.name} 스킨을 해금했어요.`
+    `${skin.name} 스킨을 해금했어요.`,
+    { resetDisplayGold: true }
   );
 }
 
@@ -3816,8 +4438,6 @@ async function battlePresetForTest() {
   next = await buyAllPetsForTest(next);
   setServerPlayer(next);
   next = await api("/api/player/test/auto-hunt", { method: "POST" });
-  setServerPlayer(next);
-  next = await api("/api/player/test/boost", { method: "POST" });
   return next;
 }
 
@@ -4020,7 +4640,7 @@ document.querySelectorAll(".job-select").forEach((button) => {
       state.selectedJob = job;
       applyJob(job);
       await run(request, firstPick
-        ? `${jobMeta[job].pick} 선택했어요. 자동사냥 1시간과 공속버프 1시간이 지급됐어요.`
+        ? `${jobMeta[job].pick} 선택했어요. 자동사냥 30분이 지급됐어요.`
         : `${jobMeta[job].pick} 선택했어요.`);
     };
 
@@ -4087,6 +4707,7 @@ $("tutorialSkip").addEventListener("click", () => finishFeatureTutorial());
 window.addEventListener("resize", () => positionFeatureTutorial());
 
 $("showSkillPanel").addEventListener("click", () => showContentPanel("skill"));
+$("showAdventurePanel").addEventListener("click", () => showContentPanel("adventure"));
 $("showRewardPanel").addEventListener("click", () => showContentPanel("reward"));
 $("showShopPanel").addEventListener("click", () => showContentPanel("shop"));
 
@@ -4128,73 +4749,6 @@ $("autoHuntAd").addEventListener("click", () => {
   startAd();
 });
 
-$("boostAd").addEventListener("click", () => {
-  if (!timeRewardAdCooldownReady("BOOST")) {
-    setMessage(`공속버프 광고 보상은 ${remain(nextTimeRewardAdAvailableAt("BOOST"))} 후 다시 받을 수 있어요.`);
-    return;
-  }
-  const availability = timeRewardAvailability(
-    state.player?.boostEndsAt,
-    state.player?.boostAdSeconds,
-    state.player?.maxAdSeconds,
-  );
-  const grantLabel = timeRewardGrantLabel(availability, state.player?.boostAdSeconds);
-  const startAd = () => runRewardFlow(
-      "공속버프 광고",
-      isOneStoreTarget()
-        ? `게임 내 보상으로 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`
-        : `완료하면 공격 모션과 골드 획득 속도가 ${grantLabel}까지 유지돼요.`,
-      {
-        adGroupKey: "boost",
-        adEventType: "BOOST",
-        requiresReward: true,
-        request: (adSessionToken) => api(isOneStoreTarget()
-          ? "/api/player/onestore/boost/claim"
-          : "/api/player/ads/boost/complete", {
-          method: "POST",
-          body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
-        }),
-        message: availability.grantedSeconds > 0
-          ? `공격 속도 부스터가 ${grantLabel} 충전됐어요.`
-          : "공격 속도 부스터 시간이 최대치로 유지돼요.",
-      }
-    );
-  if (availability.capped) {
-    showTimeRewardOverflowModal("공속버프", availability, startAd);
-    return;
-  }
-  startAd();
-});
-
-$("skillAd").addEventListener("click", () => {
-  if (!skillPointRewardsAvailable()) {
-    setMessage("모든 스킬 강화가 완료되어 SP를 더 받을 수 없어요.");
-    return;
-  }
-  if (!skillPointAdCooldownReady()) {
-    setMessage(`SP 광고 보상은 ${remain(state.player?.nextSkillPointAdAvailableAt)} 후 다시 받을 수 있어요.`);
-    return;
-  }
-  runRewardFlow(
-    "스킬포인트 광고",
-    isOneStoreTarget()
-      ? "게임 내 보상으로 헌터와 동료 펫 강화에 쓰는 SP를 받아요."
-      : "완료하면 헌터와 동료 펫 강화에 쓰는 SP를 받아요.",
-    {
-      adGroupKey: "skillPoint",
-      adEventType: "SKILL_POINT",
-      requiresReward: true,
-      request: (adSessionToken) => api(isOneStoreTarget()
-        ? "/api/player/onestore/skill-point/claim"
-        : "/api/player/ads/skill-point/complete", {
-        method: "POST",
-        body: isOneStoreTarget() ? undefined : JSON.stringify({ adSessionToken }),
-      }),
-      message: "스킬 포인트를 받았어요.",
-    }
-  );
-});
-
 document.querySelectorAll(".upgrade-skill").forEach((button) => {
   button.addEventListener("click", () => {
     const type = button.dataset.skill;
@@ -4223,6 +4777,25 @@ $("claimFriendInviteReward").addEventListener("click", () => run(
   `친구 초대 보상으로 SP ${(state.player?.friendInviteRewardSkillPoints || friendInviteRewardSkillPoints).toLocaleString("ko-KR")}개를 받았어요.`
 ));
 
+$("useDungeonCoupon").addEventListener("click", useDungeonCoupon);
+$("challengeBossRaid").addEventListener("click", challengeBossRaid);
+$("openAdventureInfo").addEventListener("click", openAdventureInfoModal);
+$("closeAdventureInfoModal").addEventListener("click", closeAdventureInfoModal);
+$("adventureInfoModal").addEventListener("click", (event) => {
+  if (event.target === $("adventureInfoModal")) {
+    closeAdventureInfoModal();
+  }
+});
+$("openDungeonRewardList").addEventListener("click", () => openAdventureRewardModal("dungeon"));
+$("openBossRewardList").addEventListener("click", () => openAdventureRewardModal("boss"));
+$("closeAdventureRewardModal").addEventListener("click", closeAdventureRewardModal);
+$("adventureRewardModal").addEventListener("click", (event) => {
+  if (event.target === $("adventureRewardModal")) {
+    closeAdventureRewardModal();
+  }
+});
+$("closeAdventureActionModal").addEventListener("click", closeAdventureActionModal);
+
 $("openLeaderboard").addEventListener("click", async () => {
   try {
     setMessage("랭킹을 여는 중...");
@@ -4245,8 +4818,38 @@ $("petSkinList").addEventListener("click", (event) => {
   equipPetSkin(skinKey, Number(state.petSkinModalSlot || 1));
 });
 
-$("changePetOneSkin").addEventListener("click", () => openPetSkinModal(1));
-$("changePetTwoSkin").addEventListener("click", () => openPetSkinModal(2));
+function runCompanionPurchaseFlow() {
+  return runPurchaseFlow({
+    title: "동료 펫 입양",
+    description: isOneStoreTarget()
+      ? "심사용 게임 내 보상으로 동료 펫이 1마리 추가돼요."
+      : "결제를 완료하면 동료 펫이 1마리 추가돼요.",
+    amountText: isOneStoreTarget()
+      ? "심사용 잠금 해제"
+      : iapDisplayAmount(unlockedPetCount() === 0 ? "flarePet" : "aquaPet", state.player?.companionPriceWon || companionPriceWon),
+    productId: () => {
+      const pets = unlockedPetCount();
+      return pets === 0 ? iapProductId("flarePet") : iapProductId("aquaPet");
+    },
+    request: () => api(isOneStoreTarget()
+      ? "/api/player/onestore/shop/companions/unlock"
+      : "/api/player/shop/companions/purchase", { method: "POST" }),
+    message: "동료 펫을 데려왔어요.",
+  });
+}
+
+function handlePetShopAction(slot) {
+  const button = $(slot === 1 ? "changePetOneSkin" : "changePetTwoSkin");
+  if (button.dataset.petShopAction === "purchase") {
+    return runCompanionPurchaseFlow();
+  }
+  if (button.dataset.petShopAction === "skin") {
+    openPetSkinModal(slot);
+  }
+}
+
+$("changePetOneSkin").addEventListener("click", () => handlePetShopAction(1));
+$("changePetTwoSkin").addEventListener("click", () => handlePetShopAction(2));
 $("closePetSkinModal").addEventListener("click", closePetSkinModal);
 $("petSkinModal").addEventListener("click", (event) => {
   if (event.target.id === "petSkinModal") {
@@ -4307,23 +4910,6 @@ $("petEasterPasswordInput").addEventListener("keydown", (event) => {
 });
 
 $("adSkip").addEventListener("click", () => finishDummyAd());
-$("buyCompanion").addEventListener("click", () => runPurchaseFlow({
-  title: "동료 펫 입양",
-  description: isOneStoreTarget()
-    ? "심사용 게임 내 보상으로 동료 펫이 1마리 추가돼요."
-    : "결제를 완료하면 동료 펫이 1마리 추가돼요.",
-  amountText: isOneStoreTarget()
-    ? "심사용 잠금 해제"
-    : iapDisplayAmount(unlockedPetCount() === 0 ? "flarePet" : "aquaPet", state.player?.companionPriceWon || companionPriceWon),
-  productId: () => {
-    const pets = unlockedPetCount();
-    return pets === 0 ? iapProductId("flarePet") : iapProductId("aquaPet");
-  },
-  request: () => api(isOneStoreTarget()
-    ? "/api/player/onestore/shop/companions/unlock"
-    : "/api/player/shop/companions/purchase", { method: "POST" }),
-  message: "동료 펫을 데려왔어요.",
-}));
 $("buySkillPointPack").addEventListener("click", () => {
   if (!skillPointRewardsAvailable()) {
     setMessage("모든 스킬 강화가 완료되어 SP 구매가 비활성화됐어요.");
@@ -4371,7 +4957,7 @@ function initializeDevPanel() {
 
   $("devBattlePreset").addEventListener("click", () => runDevAction(
     () => battlePresetForTest(),
-    "전사, 동료 펫 2마리, 자동사냥, 공속버프를 세팅했어요."
+    "전사, 동료 펫 2마리, 자동사냥을 세팅했어요."
   ));
 
   $("devAutoHunt").addEventListener("click", () => runDevAction(
@@ -4379,15 +4965,7 @@ function initializeDevPanel() {
       await ensureJobForTest();
       return api("/api/player/test/auto-hunt", { method: "POST" });
     },
-    "자동사냥 시간이 1시간 충전됐어요."
-  ));
-
-  $("devBoost").addEventListener("click", () => runDevAction(
-    async () => {
-      await ensureJobForTest();
-      return api("/api/player/test/boost", { method: "POST" });
-    },
-    "공격 속도 부스터가 1시간 충전됐어요."
+    "자동사냥 시간이 30분 충전됐어요."
   ));
 
   $("devSkillPoint").addEventListener("click", () => runDevAction(
@@ -4398,7 +4976,47 @@ function initializeDevPanel() {
     "SP 1개를 지급했어요."
   ));
 
-  $("devBuyPets").addEventListener("click", () => runDevAction(
+  $("devLevelUp").addEventListener("click", () => runDevAction(
+    async () => {
+      await ensureJobForTest();
+      return api("/api/player/test/level/up", { method: "POST" });
+    },
+    "레벨을 1 올렸어요."
+  ));
+
+  $("devLevelDown").addEventListener("click", () => runDevAction(
+    async () => {
+      await ensureJobForTest();
+      return api("/api/player/test/level/down", { method: "POST" });
+    },
+    "레벨을 1 낮췄어요."
+  ));
+
+  $("devDungeonCoupon").addEventListener("click", () => runDevAction(
+    async () => {
+      await ensureJobForTest();
+      return api("/api/player/test/boss-ticket", { method: "POST" });
+    },
+    "보스 입장권 1장을 지급했어요."
+  ));
+
+	$("devDungeonReentryReset").addEventListener("click", () => runDevAction(
+		async () => {
+			await ensureJobForTest();
+			return api("/api/player/test/dungeon-reentry-reset", { method: "POST" });
+		},
+		"던전 재입장 시간을 초기화했어요."
+	));
+
+	$("devDungeonDailyLimitReset").addEventListener("click", () => runDevAction(
+		async () => {
+			await ensureJobForTest();
+			return api("/api/player/test/dungeon-daily-limit-reset", { method: "POST" });
+		},
+		"던전 하루 입장 제한을 초기화했어요."
+	));
+
+	$("devBuyPets").addEventListener("click", () => runDevAction(
     async () => {
       const player = await ensureJobForTest();
       return buyAllPetsForTest(player);
@@ -4486,5 +5104,6 @@ loadAppConfig()
   .then(async () => {
     await refresh();
     restorePendingIapOrders();
+    scheduleRealFullScreenAdPreloads();
   })
   .catch((error) => setMessage(error.message));
