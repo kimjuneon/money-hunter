@@ -36,7 +36,8 @@ import org.springframework.test.web.servlet.MockMvc;
 		"money-hunter.app.real-smart-message-enabled=true",
 		"money-hunter.app.real-share-reward-enabled=true",
 		"money-hunter.ads.mode=test",
-		"money-hunter.promotion.reward-claim-code=TEST_01KSVZ6RCWTKKRY077JQ056WTA"
+		"money-hunter.promotion.reward-claim-code=TEST_REWARD_CLAIM_PROMOTION",
+		"money-hunter.promotion.benefit-tab-new-user-code=TEST_BENEFIT_TAB_NEW_USER_PROMOTION"
 })
 @AutoConfigureMockMvc
 @SpringBootTest
@@ -68,7 +69,7 @@ class AdminRuntimeModeStatusTest {
 				List.of("TEST"),
 				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'point-rewards')].mode"));
 		assertEquals(
-				List.of("테스트 프로모션 코드"),
+				List.of("보상 수령, 혜택 탭 테스트 프로모션 코드"),
 				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'point-rewards')].detail"));
 	}
 
@@ -100,6 +101,22 @@ class AdminRuntimeModeStatusTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.rookieEvent.completedDays").value(0))
 				.andExpect(jsonPath("$.rookieEvent.rewardClaimed").value(false));
+	}
+
+	@Test
+	void prodAdminPromotionTestToolCanPrepareTargetUserWithoutMockLogClient() throws Exception {
+		String token = loginToken();
+
+		mockMvc.perform(post("/api/admin/test-tools/promotion/prod-admin-promotion-user/prepare")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"reason\":\"promotion prepare\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.player.userKey").value("prod-admin-promotion-user"))
+				.andExpect(jsonPath("$.player.job").value("WARRIOR"))
+				.andExpect(jsonPath("$.mockExecutionLogAvailable").value(false))
+				.andExpect(jsonPath("$.executions").isArray())
+				.andExpect(jsonPath("$.executions").isEmpty());
 	}
 
 	@Test

@@ -1258,6 +1258,10 @@ nav {
 	align-items: end;
 }
 
+.promotion-test-grid {
+	grid-template-columns: minmax(240px, 420px);
+}
+
 .test-tool-check {
 	display: flex;
 	min-height: 42px;
@@ -1352,6 +1356,33 @@ nav {
 .test-tool-day strong {
 	font-size: 13px;
 	line-height: 1.35;
+}
+
+.promotion-execution-list {
+	display: grid;
+	gap: 8px;
+}
+
+.promotion-execution-row {
+	display: grid;
+	gap: 4px;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: #f8fafc;
+}
+
+.promotion-execution-row strong,
+.promotion-execution-row span,
+.promotion-execution-row small {
+	word-break: break-word;
+}
+
+.promotion-execution-row span,
+.promotion-execution-row small {
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 900;
 }
 
 .audit-row {

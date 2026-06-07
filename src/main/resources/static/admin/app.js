@@ -21,6 +21,7 @@ const state = {
   loadingTimer: null,
   rookieEventSettings: null,
   rookieEventTestState: null,
+  promotionTestState: null,
 };
 
 const maxGoldPerHour = 6000;
@@ -74,6 +75,11 @@ function bindEvents() {
   $("rookieEventTestCompleteDayButton").addEventListener("click", (event) => runRookieEventTestAction("complete-next-day", event.currentTarget));
   $("rookieEventTestAdvanceDayButton").addEventListener("click", (event) => runRookieEventTestAction("advance-day", event.currentTarget));
   $("rookieEventTestApplyButton").addEventListener("click", (event) => runRookieEventTestAction("state", event.currentTarget));
+  $("promotionTestLoadButton").addEventListener("click", () => loadPromotionTestState({ notify: true }));
+  $("promotionTestPrepareButton").addEventListener("click", (event) => runPromotionTestAction("prepare", event.currentTarget));
+  $("promotionTestBenefitEntryButton").addEventListener("click", (event) => runPromotionTestAction("benefit-tab-entry", event.currentTarget));
+  $("promotionTestClaimRewardButton").addEventListener("click", (event) => runPromotionTestAction("claim-reward", event.currentTarget));
+  $("promotionTestClearLogButton").addEventListener("click", (event) => runPromotionTestAction("executions/clear", event.currentTarget));
   $("logoutButton").addEventListener("click", logout);
   $("refreshButton").addEventListener("click", () => refreshCurrentView({ notify: true }));
   $("prevAuditButton").addEventListener("click", () => {
@@ -561,6 +567,111 @@ function rookieEventTestRewardState(day) {
     return "이전 보상 먼저 수령";
   }
   return "미션 완료 후 가능";
+}
+
+async function loadPromotionTestState(options = {}) {
+  const userKey = promotionTestUserKey();
+  const result = $("promotionTestResult");
+  result.textContent = "";
+  result.classList.remove("error-text");
+  if (!userKey) {
+    state.promotionTestState = null;
+    renderPromotionTestState(null);
+    return;
+  }
+  try {
+    const data = await request(`/api/admin/test-tools/promotion/${encodeURIComponent(userKey)}`);
+    state.promotionTestState = data;
+    renderPromotionTestState(data);
+    if (options.notify) {
+      result.textContent = "프로모션 테스트 상태를 불러왔어요.";
+      showToast("프로모션 상태 조회 완료");
+    }
+  } catch (error) {
+    state.promotionTestState = null;
+    renderPromotionTestState(null);
+    result.textContent = error.message;
+    result.classList.add("error-text");
+    showToast(error.message, "error");
+  }
+}
+
+async function runPromotionTestAction(action, button) {
+  const userKey = promotionTestUserKey();
+  const result = $("promotionTestResult");
+  result.textContent = "";
+  result.classList.remove("error-text");
+  if (!userKey) {
+    result.textContent = "대상 유저 키를 입력해 주세요.";
+    result.classList.add("error-text");
+    return;
+  }
+  if (action === "prepare" && !confirm(`${userKey} 유저를 초기화하고 전사로 설정할까요?`)) {
+    return;
+  }
+  const payload = { reason: $("promotionTestReason").value.trim() };
+  setButtonBusy(button, true);
+  try {
+    const data = await request(`/api/admin/test-tools/promotion/${encodeURIComponent(userKey)}/${action}`, {
+      method: "POST",
+      body: payload,
+    });
+    state.promotionTestState = data;
+    renderPromotionTestState(data);
+    const message = {
+      prepare: "프로모션 테스트 준비를 완료했어요.",
+      "benefit-tab-entry": "혜택 탭 신규 유저로 표시했어요.",
+      "claim-reward": "보상 수령을 실행했어요.",
+      "executions/clear": "프로모션 로그를 초기화했어요.",
+    }[action] || "프로모션 테스트 작업을 완료했어요.";
+    result.textContent = message;
+    showToast(message);
+  } catch (error) {
+    result.textContent = error.message;
+    result.classList.add("error-text");
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+function promotionTestUserKey() {
+  return $("promotionTestUserKey")?.value?.trim() || "";
+}
+
+function renderPromotionTestState(data) {
+  const target = $("promotionTestSummary");
+  if (!data?.player) {
+    target.innerHTML = `
+      <div class="empty test-tool-empty">
+        대상 유저 키를 입력하고 상태 조회를 누르면 프로모션 기록이 표시돼요.
+      </div>
+    `;
+    return;
+  }
+  const player = data.player;
+  const rewardClaim = data.rewardClaim;
+  const executions = Array.isArray(data.executions) ? data.executions : [];
+  const mockExecutionLogAvailable = Boolean(data.mockExecutionLogAvailable);
+  target.innerHTML = `
+    <div class="test-tool-metrics">
+      ${testMetric("유저", player.userKey)}
+      ${testMetric("직업", jobLabel(player.job || "미선택"))}
+      ${testMetric("골드", `${formatNumber(player.gold)}G`)}
+      ${testMetric("SP", formatNumber(player.skillPoints))}
+      ${testMetric("최근 수령", rewardClaim ? `${formatNumber(rewardClaim.pointAmount)}P · ${rewardClaim.status}` : "-")}
+      ${testMetric("지급 기록", mockExecutionLogAvailable ? `${formatNumber(executions.length)}건` : "실제 호출")}
+    </div>
+    <div class="promotion-execution-list">
+      ${executions.map((execution, index) => `
+        <article class="promotion-execution-row">
+          <strong>${formatNumber(index + 1)}. ${escapeHtml(execution.promotionCode || "-")}</strong>
+          <span>${formatNumber(execution.amount || 0)}P · ${escapeHtml(execution.result || "-")} · ${formatDate(execution.executedAt)}</span>
+          <small>${escapeHtml(execution.executionKey || "-")}</small>
+        </article>
+      `).join("") || `<p class="empty test-tool-empty">${mockExecutionLogAvailable ? "아직 기록된 mock 프로모션이 없어요." : "prod에서는 실제 토스 프로모션 API를 호출하고, mock 로그는 남기지 않아요."}</p>`}
+    </div>
+  `;
 }
 
 async function loadOverview() {

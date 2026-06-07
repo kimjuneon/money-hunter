@@ -456,12 +456,20 @@ public class AdminMonitoringService {
 		if (!appProperties.realTossPointRewardsEnabled()) {
 			return new OperationalStatus(false, "비활성", MODE_OFF);
 		}
-		String code = promotionProperties.normalizedRewardClaimCode();
-		if (code.isBlank()) {
+		String rewardClaimCode = promotionProperties.normalizedRewardClaimCode();
+		String benefitTabNewUserCode = promotionProperties.normalizedBenefitTabNewUserCode();
+		if (rewardClaimCode.isBlank()) {
 			return new OperationalStatus(false, "프로모션 코드 없음", MODE_CHECK);
 		}
-		if (code.startsWith("TEST_")) {
-			return new OperationalStatus(false, "테스트 프로모션 코드", MODE_TEST);
+		if (rewardClaimCode.startsWith("TEST_") || benefitTabNewUserCode.startsWith("TEST_")) {
+			List<String> testTargets = new ArrayList<>();
+			if (rewardClaimCode.startsWith("TEST_")) {
+				testTargets.add("보상 수령");
+			}
+			if (benefitTabNewUserCode.startsWith("TEST_")) {
+				testTargets.add("혜택 탭");
+			}
+			return new OperationalStatus(false, String.join(", ", testTargets) + " 테스트 프로모션 코드", MODE_TEST);
 		}
 		return new OperationalStatus(true, "운영 프로모션 코드", MODE_LIVE);
 	}

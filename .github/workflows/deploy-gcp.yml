@@ -172,6 +172,7 @@ jobs:
 
           if is_true "$TOSS_POINT_REWARDS_ENABLED"; then
             require_value TOSS_PROMOTION_REWARD_CLAIM_CODE
+            require_value TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_CODE
           fi
 
           if is_true "$TOSS_SHARE_REWARD_ENABLED"; then

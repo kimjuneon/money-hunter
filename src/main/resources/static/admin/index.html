@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260605-03" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260608-01" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -275,11 +275,38 @@
 	              <p id="rookieEventTestResult" class="feedback"></p>
 	              <div id="rookieEventTestSummary" class="test-tool-summary"></div>
 	            </div>
+	            <div class="test-tool-card">
+	              <div class="test-tool-head">
+	                <div>
+	                  <strong>혜택 탭 프로모션</strong>
+	                  <span>대상 유저를 혜택 탭 진입 상태로 만들고 보상 수령 프로모션을 검증해요.</span>
+	                </div>
+	              </div>
+	              <div class="test-tool-grid promotion-test-grid">
+	                <label>
+	                  <span>대상 유저 키</span>
+	                  <input id="promotionTestUserKey" type="text" placeholder="userKey 입력" autocomplete="off" />
+	                </label>
+	              </div>
+	              <label class="test-tool-reason">
+	                <span>운영 메모</span>
+	                <input id="promotionTestReason" type="text" maxlength="500" placeholder="감사 로그에 남길 사유" />
+	              </label>
+	              <div class="test-tool-actions">
+	                <button id="promotionTestLoadButton" class="ghost" type="button">상태 조회</button>
+	                <button id="promotionTestPrepareButton" class="secondary" type="button">테스트 준비</button>
+	                <button id="promotionTestBenefitEntryButton" class="secondary" type="button">혜택 탭 유저 표시</button>
+	                <button id="promotionTestClaimRewardButton" class="secondary" type="button">보상 수령 실행</button>
+	                <button id="promotionTestClearLogButton" class="ghost danger-ghost" type="button">프로모션 로그 초기화</button>
+	              </div>
+	              <p id="promotionTestResult" class="feedback"></p>
+	              <div id="promotionTestSummary" class="test-tool-summary"></div>
+	            </div>
 	          </section>
 	        </section>
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260605-03"></script>
+    <script src="/admin/app.js?v=20260608-01"></script>
   </body>
 </html>

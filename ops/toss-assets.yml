@@ -77,8 +77,8 @@ promotions:
   benefit_tab_new_user:
     secret: TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_CODE
     amount_env: TOSS_PROMOTION_BENEFIT_TAB_NEW_USER_AMOUNT
-    required_when: promotion_approved_and_ready_to_activate
-    status: waiting_approval
+    required_when: TOSS_POINT_REWARDS_ENABLED=true and benefit_tab_new_user_promotion_active
+    status: testing_with_test_code
 
 smart_messages:
   auto_hunt_ended:
