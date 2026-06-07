@@ -2698,10 +2698,7 @@ public class PlayerService {
 	}
 
 	private long combatPower(Player player) {
-		long totalSkillLevels = Arrays.stream(SkillType.values())
-				.map(player::getOrCreateSkill)
-				.mapToLong(PlayerSkill::getLevel)
-				.sum();
+		long totalSkillLevels = combatPowerSkillLevelTotal(player);
 		long totalSp = Math.max(0, totalSkillLevels + rookieEventPetCombatPowerSkillBonus(player, clock.instant()));
 		double levelRatio = Math.min(1.0, Math.max(0.0, player.getLevel() / COMBAT_POWER_LEVEL_SCALE));
 		double spRatio = Math.min(1.0, Math.max(0.0, totalSp / COMBAT_POWER_SKILL_SCALE));
@@ -2709,6 +2706,16 @@ public class PlayerService {
 				* Math.pow(levelRatio, 0.5)
 				* Math.pow(spRatio, 1.5);
 		return Math.min(MAX_COMBAT_POWER, Math.max(0L, (long) Math.floor(power)));
+	}
+
+	private long combatPowerSkillLevelTotal(Player player) {
+		long sharedStatSkillLevel = sharedStatLevel(player);
+		long nonStatSkillLevels = Arrays.stream(SkillType.values())
+				.filter(type -> !isStatSkill(type))
+				.map(player::getOrCreateSkill)
+				.mapToLong(PlayerSkill::getLevel)
+				.sum();
+		return Math.max(0L, sharedStatSkillLevel + nonStatSkillLevels);
 	}
 
 	private int rookieEventPetCombatPowerSkillBonus(Player player, Instant now) {

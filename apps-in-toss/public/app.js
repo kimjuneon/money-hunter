@@ -253,6 +253,7 @@ const adventureSceneSpecs = {
 };
 const adventureActionStepDurationMs = 1750;
 const adventureActionTotalDurationMs = 8800;
+const adventureImagePreloads = new Map();
 const monsterKeys = ["BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"];
 const monsterBaseHp = {
   BOSS_ROCK: 120,
@@ -1499,9 +1500,7 @@ function combatPower(player = state.player) {
   if (!player) {
     return 0;
   }
-  const totalSkillLevels = Array.isArray(player.skills)
-    ? player.skills.reduce((sum, skill) => sum + Number(skill?.level || 0), 0)
-    : 0;
+  const totalSkillLevels = combatPowerSkillLevelTotal(player);
   const eventPetSkillBonus = rookieEventRewardActive(player)
     ? Number(player.rookieEvent?.eventPetSkillLevel || 15)
     : 0;
@@ -1510,6 +1509,20 @@ function combatPower(player = state.player) {
   const spRatio = Math.min(1, Math.max(0, totalSp / combatPowerSkillScale));
   const power = maxCombatPower * Math.pow(levelRatio, 0.5) * Math.pow(spRatio, 1.5);
   return Math.min(maxCombatPower, Math.max(0, Math.floor(power)));
+}
+
+function combatPowerSkillLevelTotal(player = state.player) {
+  if (!Array.isArray(player?.skills)) {
+    return 0;
+  }
+  const statSkillTypes = new Set(Object.values(statSkillByJob));
+  const sharedStatLevel = player.skills
+    .filter((skill) => statSkillTypes.has(skill?.type))
+    .reduce((maxLevel, skill) => Math.max(maxLevel, Number(skill?.level || 0)), 0);
+  const nonStatSkillLevels = player.skills
+    .filter((skill) => !statSkillTypes.has(skill?.type))
+    .reduce((sum, skill) => sum + Number(skill?.level || 0), 0);
+  return Math.max(0, sharedStatLevel + nonStatSkillLevels);
 }
 
 function formatCombatPower(power) {
@@ -1970,6 +1983,57 @@ function adventureActionScene(kind, phase = "success") {
 	return adventureSceneSpecs[kind]?.[phase] || adventureSceneSpecs.dungeon[phase];
 }
 
+function adventureSceneImages(kind) {
+	const spec = adventureSceneSpecs[kind] || adventureSceneSpecs.dungeon;
+	return [
+		spec.fallback,
+		...spec.running.map((scene) => scene.image),
+		spec.success.image,
+		spec.failure.image,
+	].filter(Boolean);
+}
+
+function preloadImage(src) {
+	if (!src) {
+		return Promise.resolve();
+	}
+	if (adventureImagePreloads.has(src)) {
+		return adventureImagePreloads.get(src);
+	}
+	const promise = new Promise((resolve) => {
+		const image = new Image();
+		let resolved = false;
+		const finish = () => {
+			if (resolved) {
+				return;
+			}
+			resolved = true;
+			resolve(image);
+		};
+		image.onload = finish;
+		image.onerror = finish;
+		image.src = src;
+		if (image.decode) {
+			image.decode().then(finish).catch(finish);
+		}
+	});
+	adventureImagePreloads.set(src, promise);
+	return promise;
+}
+
+function preloadAdventureImages(kind) {
+	return Promise.all([...new Set(adventureSceneImages(kind))].map(preloadImage));
+}
+
+function scheduleAdventureImagePreloads() {
+	const preload = () => Object.keys(adventureSceneSpecs).forEach((kind) => preloadAdventureImages(kind));
+	if ("requestIdleCallback" in window) {
+		window.requestIdleCallback(preload, { timeout: 2500 });
+		return;
+	}
+	setTimeout(preload, 900);
+}
+
 function setAdventureActionScene(kind, scene) {
 	const fallback = adventureSceneSpecs[kind]?.fallback || adventureAssets.dungeon;
 	const image = scene?.image || fallback;
@@ -2062,8 +2126,9 @@ async function runAdventureAction(kind, request) {
     return;
   }
   state.adventureActionInFlight = true;
-  openAdventureActionModal(kind);
   try {
+    await preloadAdventureImages(kind);
+    openAdventureActionModal(kind);
     await adventureActionDelay();
     const result = await request();
     if (result.state) {
@@ -5260,5 +5325,6 @@ loadAppConfig()
     await refresh();
     restorePendingIapOrders();
     scheduleRealFullScreenAdPreloads();
+    scheduleAdventureImagePreloads();
   })
   .catch((error) => setMessage(error.message));

@@ -649,6 +649,33 @@ class ReviewProfileApiExposureTest {
 	}
 
 	@Test
+	void combatPowerCountsSharedStatSkillsOnlyOnce() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+			for (int i = 1; i < 10; i++) {
+				player.levelUpForTest();
+			}
+			player.getOrCreateSkill(SkillType.STRENGTH).setLevel(20);
+			player.getOrCreateSkill(SkillType.DEXTERITY).setLevel(20);
+			player.getOrCreateSkill(SkillType.INTELLIGENCE).setLevel(20);
+			player.getOrCreateSkill(SkillType.LUCK).setLevel(20);
+			player.getOrCreateSkill(SkillType.MINING_MASTERY).setLevel(20);
+			player.setSkillPoints(0);
+		});
+
+		AdminPlayerResponse response = adminPlayerService.get("test-player");
+
+		assertEquals(5_237_827, response.combatPower());
+	}
+
+	@Test
 	void adminAnomalyReportFlagsExcessiveAdRewardEvents() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());

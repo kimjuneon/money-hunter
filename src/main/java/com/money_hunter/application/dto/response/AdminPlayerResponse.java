@@ -1,11 +1,13 @@
 package com.money_hunter.application.dto.response;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.Set;
 
 import com.money_hunter.domain.JobType;
 import com.money_hunter.domain.Player;
 import com.money_hunter.domain.PlayerSkill;
+import com.money_hunter.domain.SkillType;
 
 public record AdminPlayerResponse(
 		String userKey,
@@ -54,6 +56,12 @@ public record AdminPlayerResponse(
 	private static final double COMBAT_POWER_SKILL_SCALE = 180.0;
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
 	private static final long ROOKIE_EVENT_REWARD_DURATION_DAYS = 30;
+	private static final Set<SkillType> STAT_SKILLS = EnumSet.of(
+			SkillType.STRENGTH,
+			SkillType.DEXTERITY,
+			SkillType.INTELLIGENCE,
+			SkillType.LUCK
+	);
 
 	public static AdminPlayerResponse from(Player player, int goldPerTossPoint) {
 		return from(player, goldPerTossPoint, Instant.now());
@@ -109,9 +117,7 @@ public record AdminPlayerResponse(
 	}
 
 	private static long combatPower(Player player, Instant now) {
-		long totalSkillLevels = player.getSkills().stream()
-				.mapToLong(PlayerSkill::getLevel)
-				.sum();
+		long totalSkillLevels = combatPowerSkillLevelTotal(player);
 		totalSkillLevels += rookieEventPetCombatPowerSkillBonus(player, now);
 		double levelRatio = Math.min(1.0, Math.max(0.0, player.getLevel() / COMBAT_POWER_LEVEL_SCALE));
 		double spRatio = Math.min(1.0, Math.max(0.0, totalSkillLevels / COMBAT_POWER_SKILL_SCALE));
@@ -119,6 +125,19 @@ public record AdminPlayerResponse(
 				* Math.pow(levelRatio, 0.5)
 				* Math.pow(spRatio, 1.5);
 		return Math.min(MAX_COMBAT_POWER, Math.max(0L, (long) Math.floor(power)));
+	}
+
+	private static long combatPowerSkillLevelTotal(Player player) {
+		long sharedStatSkillLevel = player.getSkills().stream()
+				.filter(skill -> STAT_SKILLS.contains(skill.getType()))
+				.mapToLong(PlayerSkill::getLevel)
+				.max()
+				.orElse(0L);
+		long nonStatSkillLevels = player.getSkills().stream()
+				.filter(skill -> !STAT_SKILLS.contains(skill.getType()))
+				.mapToLong(PlayerSkill::getLevel)
+				.sum();
+		return Math.max(0L, sharedStatSkillLevel + nonStatSkillLevels);
 	}
 
 	private static int rookieEventPetCombatPowerSkillBonus(Player player, Instant now) {
