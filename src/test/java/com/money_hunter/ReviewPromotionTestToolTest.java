@@ -99,6 +99,21 @@ class ReviewPromotionTestToolTest {
 				.andExpect(jsonPath("$.executions[0].promotionCode", is("REVIEW_MAIN_PROMOTION")))
 				.andExpect(jsonPath("$.executions[1].promotionCode", is("REVIEW_BENEFIT_NEW_USER_PROMOTION")));
 
+		mockMvc.perform(post("/api/admin/test-tools/promotion/" + userKey + "/benefit-tab-entry")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"reason\":\"promotion retest\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/admin/test-tools/promotion/" + userKey + "/claim-reward")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"reason\":\"promotion retest\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rewardClaim.status", is("GRANTED")))
+				.andExpect(jsonPath("$.executions", hasSize(4)))
+				.andExpect(jsonPath("$.executions[3].promotionCode", is("REVIEW_BENEFIT_NEW_USER_PROMOTION")));
+
 		mockMvc.perform(post("/api/admin/test-tools/promotion/" + userKey + "/executions/clear")
 						.header("Authorization", "Bearer " + token)
 						.contentType(APPLICATION_JSON)

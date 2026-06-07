@@ -74,13 +74,13 @@ public class AdminPromotionTestController {
 			HttpServletRequest request
 	) {
 		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
-		PlayerStateResponse player = playerService.markBenefitTabNewUserEntryForTest(userKey);
+		PlayerStateResponse player = playerService.resetBenefitTabNewUserPromotionForTest(userKey);
 		adminAuditService.record(
 				admin,
 				"PROMOTION_TEST_BENEFIT_TAB_ENTRY",
 				player.userKey(),
 				null,
-				"benefitTabNewUserEntry=true",
+				"benefitTabNewUserEligible=true",
 				optionalReason(requestBody),
 				request);
 		return response(player, null);

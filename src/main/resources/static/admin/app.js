@@ -620,7 +620,7 @@ async function runPromotionTestAction(action, button) {
     renderPromotionTestState(data);
     const message = {
       prepare: "프로모션 테스트 준비를 완료했어요.",
-      "benefit-tab-entry": "혜택 탭 신규 유저로 표시했어요.",
+      "benefit-tab-entry": "혜택 탭 프로모션 조건을 충족시켰어요.",
       "claim-reward": "보상 수령을 실행했어요.",
       "executions/clear": "프로모션 로그를 초기화했어요.",
     }[action] || "프로모션 테스트 작업을 완료했어요.";

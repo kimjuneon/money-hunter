@@ -457,6 +457,14 @@ public class Player {
 		}
 	}
 
+	public void resetBenefitTabNewUserPromotionForTest(Instant now) {
+		this.benefitTabNewUserEnteredAt = now;
+		this.benefitTabNewUserPromotionExecutionKey = null;
+		this.benefitTabNewUserPromotionResultCheckedAt = null;
+		this.benefitTabNewUserPromotionGrantedAt = null;
+		touch();
+	}
+
 	public boolean isBenefitTabNewUserPromotionEligible() {
 		return benefitTabNewUserEnteredAt != null && benefitTabNewUserPromotionGrantedAt == null;
 	}

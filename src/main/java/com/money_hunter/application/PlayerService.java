@@ -1162,6 +1162,13 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse resetBenefitTabNewUserPromotionForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		player.resetBenefitTabNewUserPromotionForTest(clock.instant());
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse resetForTest(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		Instant now = clock.instant();
