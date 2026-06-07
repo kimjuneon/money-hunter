@@ -457,6 +457,22 @@ public class Player {
 		}
 	}
 
+	public Instant getBenefitTabNewUserEnteredAt() {
+		return benefitTabNewUserEnteredAt;
+	}
+
+	public String getBenefitTabNewUserPromotionExecutionKey() {
+		return benefitTabNewUserPromotionExecutionKey;
+	}
+
+	public Instant getBenefitTabNewUserPromotionResultCheckedAt() {
+		return benefitTabNewUserPromotionResultCheckedAt;
+	}
+
+	public Instant getBenefitTabNewUserPromotionGrantedAt() {
+		return benefitTabNewUserPromotionGrantedAt;
+	}
+
 	public void resetBenefitTabNewUserPromotionForTest(Instant now) {
 		this.benefitTabNewUserEnteredAt = now;
 		this.benefitTabNewUserPromotionExecutionKey = null;

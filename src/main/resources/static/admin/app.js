@@ -1414,11 +1414,22 @@ function renderSelectedPlayerDetail() {
   const statusClass = player.suspended ? "suspended" : "active";
   const progress = player.onboardingRequired ? "직업 미선택" : "게임 시작";
   const displayName = playerDisplayName(player);
+  const benefitTabStatus = player.benefitTabNewUserEnteredAt
+    ? player.benefitTabNewUserPromotionGrantedAt
+      ? "지급 완료"
+      : player.benefitTabNewUserPromotionRequested
+        ? "지급 요청/확인 중"
+        : player.benefitTabNewUserPromotionEligible
+          ? "수령 조건 충족"
+          : "진입 기록 있음"
+    : "해당 없음";
   const basicDetails = [
     ["유저 식별 ID", player.userKey],
     ["관리자 별명", player.adminNickname || "미설정"],
     ["가입", formatDate(player.createdAt)],
     ["마지막 접속", formatDate(player.lastAccessedAt)],
+    ["혜택 탭 진입", player.benefitTabNewUserEnteredAt ? "예" : "아니오"],
+    ["혜택 탭 프로모션", benefitTabStatus],
     ["전투력", formatCombatPower(player.combatPower)],
     ["자동사냥 종료", formatDate(player.autoHuntEndsAt)],
     ["최근 정산 시간", formatDate(player.lastSettledAt)],
@@ -1439,6 +1450,9 @@ function renderSelectedPlayerDetail() {
     ["현재 몬스터", `${player.currentMonsterKey || "-"} · HP ${formatNumber(player.currentMonsterHp)}`],
     ["튜토리얼 보상", player.tutorialRewardClaimed ? "완료" : "미수령"],
     ["기능 튜토리얼", player.featureTutorialCompleted ? "완료" : "미완료"],
+    ["혜택 탭 진입 시간", formatDate(player.benefitTabNewUserEnteredAt)],
+    ["혜택 탭 결과 확인", formatDate(player.benefitTabNewUserPromotionResultCheckedAt)],
+    ["혜택 탭 지급 완료", formatDate(player.benefitTabNewUserPromotionGrantedAt)],
     ["최근 SP 광고", formatDate(player.lastSkillPointAdClaimedAt)],
     ["게임 프로필 갱신", formatDate(player.gameProfileUpdatedAt)],
     ["즐겨찾기", player.adminFavorite ? "예" : "아니오"],

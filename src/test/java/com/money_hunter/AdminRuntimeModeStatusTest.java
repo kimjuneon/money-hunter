@@ -120,6 +120,33 @@ class AdminRuntimeModeStatusTest {
 	}
 
 	@Test
+	void adminPlayerDetailExposesBenefitTabPromotionStatus() throws Exception {
+		String token = loginToken();
+		String userKey = "benefit-tab-admin-visible";
+
+		mockMvc.perform(post("/api/admin/test-tools/promotion/" + userKey + "/prepare")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"reason\":\"promotion prepare\"}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/admin/test-tools/promotion/" + userKey + "/benefit-tab-entry")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"reason\":\"promotion entry\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/admin/players")
+						.header("Authorization", "Bearer " + token)
+						.param("query", userKey))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content[0].userKey").value(userKey))
+				.andExpect(jsonPath("$.content[0].benefitTabNewUserEnteredAt").exists())
+				.andExpect(jsonPath("$.content[0].benefitTabNewUserPromotionEligible").value(true))
+				.andExpect(jsonPath("$.content[0].benefitTabNewUserPromotionRequested").value(false))
+				.andExpect(jsonPath("$.content[0].benefitTabNewUserPromotionGrantedAt").doesNotExist());
+	}
+
+	@Test
 	void adminRookieEventSettingsToggleControlsNewEventStarts() throws Exception {
 		String token = loginToken();
 		String userKey = "rookie-event-settings-toggle";
