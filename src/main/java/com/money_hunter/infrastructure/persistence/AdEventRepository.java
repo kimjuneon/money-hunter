@@ -7,6 +7,7 @@ import com.money_hunter.domain.AdEvent;
 import com.money_hunter.domain.AdEventType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,7 +16,14 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 
 	long countByTypeAndOccurredAtAfter(AdEventType type, Instant occurredAt);
 
-	long deleteByPlayerUserKey(String userKey);
+	@Modifying
+	@Query(value = """
+			delete from ad_events
+			where player_id in (
+				select id from players where user_key = :userKey
+			)
+			""", nativeQuery = true)
+	int deleteByPlayerUserKey(@Param("userKey") String userKey);
 
 	@Query("""
 			select a.player.userKey as userKey,

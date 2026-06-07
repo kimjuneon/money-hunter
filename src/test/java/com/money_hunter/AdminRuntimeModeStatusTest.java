@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,6 +45,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class AdminRuntimeModeStatusTest {
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
 	@Test
 	void adminOverviewShowsTestModesForTestAdsAndPromotionCode() throws Exception {
@@ -144,6 +148,34 @@ class AdminRuntimeModeStatusTest {
 				.andExpect(jsonPath("$.content[0].benefitTabNewUserPromotionEligible").value(true))
 				.andExpect(jsonPath("$.content[0].benefitTabNewUserPromotionRequested").value(false))
 				.andExpect(jsonPath("$.content[0].benefitTabNewUserPromotionGrantedAt").doesNotExist());
+	}
+
+	@Test
+	void adminResetDeletesLegacyBoostAdRowsWithoutEnumConversion() throws Exception {
+		String token = loginToken();
+		String userKey = "legacy-boost-reset-user";
+		mockMvc.perform(post("/api/player/job")
+						.with(user(userKey))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+		jdbcTemplate.update("""
+				insert into ad_events(player_id, type, reward_value, occurred_at)
+				select id, 'BOOST', 1, now() from players where user_key = ?
+				""", userKey);
+		jdbcTemplate.update("""
+				insert into ad_reward_sessions(player_id, type, session_token, created_at, expires_at)
+				select id, 'BOOST', ?, now(), now() + interval '10 minutes' from players where user_key = ?
+				""", "legacy-boost-session-" + userKey, userKey);
+
+		mockMvc.perform(post("/api/admin/players/" + userKey + "/reset")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("{\"reason\":\"legacy boost reset\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.playerDeleted").value(true))
+				.andExpect(jsonPath("$.adEventsDeleted").value(1))
+				.andExpect(jsonPath("$.adRewardSessionsDeleted").value(1));
 	}
 
 	@Test
