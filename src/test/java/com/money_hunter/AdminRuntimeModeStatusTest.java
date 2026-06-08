@@ -179,6 +179,15 @@ class AdminRuntimeModeStatusTest {
 	}
 
 	@Test
+	void legacyBoostColumnsAreRemovedByMigration() {
+		assertEquals(0, columnCount("players", "boost_ends_at"));
+		assertEquals(0, columnCount("players", "last_boost_ad_claimed_at"));
+		assertEquals(0, columnCount("players", "rookie_event_daily_boost_monsters"));
+		assertEquals(0, columnCount("game_economy_policy", "boost_ad_seconds"));
+		assertEquals(0, columnCount("game_economy_policy", "boost_ad_cooldown_seconds"));
+	}
+
+	@Test
 	void adminRookieEventSettingsToggleControlsNewEventStarts() throws Exception {
 		String token = loginToken();
 		String userKey = "rookie-event-settings-toggle";
@@ -262,5 +271,15 @@ class AdminRuntimeModeStatusTest {
 				.getResponse()
 				.getContentAsString();
 		return JsonPath.read(response, "$.accessToken");
+	}
+
+	private Integer columnCount(String tableName, String columnName) {
+		return jdbcTemplate.queryForObject("""
+				select count(*)
+				from information_schema.columns
+				where table_schema = 'public'
+					and table_name = ?
+					and column_name = ?
+				""", Integer.class, tableName, columnName);
 	}
 }

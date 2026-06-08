@@ -40,12 +40,6 @@ ads:
     type: banner
     required_when: TOSS_BANNER_ADS_ENABLED=true
     status: live
-  boost:
-    secret: TOSS_AD_GROUP_BOOST_ID
-    type: unknown
-    required_when: never
-    status: unused
-
 iap_products:
   flare_pet:
     secret: TOSS_IAP_FLARE_PET_PRODUCT_ID
