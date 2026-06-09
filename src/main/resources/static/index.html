@@ -75,10 +75,10 @@
             <span>시간당 골드</span>
             <b id="goldRateTop">0/시간</b>
           </div>
-          <button id="autoHuntAd" type="button">
-            <span>자동사냥</span>
-            <b id="huntTime">보상 · 30분</b>
-          </button>
+	          <button id="autoHuntAd" type="button">
+	            <span>자동사냥</span>
+	            <b id="huntTime">보상 준비 중</b>
+	          </button>
         </section>
 
         <div class="content-scroll">
@@ -236,16 +236,30 @@
               </div>
             </article>
 
-            <article id="weeklyBossCard" class="weekly-boss-card locked" aria-label="주간 보스">
-              <div class="weekly-boss-visual" aria-hidden="true">W</div>
-              <div class="weekly-boss-copy">
-                <strong>주간 보스</strong>
-                <p>추후 구현 예정</p>
-                <small>강력한 보스와 주간 보상을 준비 중이에요</small>
+            <article id="miniGameCard" class="mini-game-card" aria-label="점프 훈련장">
+              <div class="mini-game-visual" aria-hidden="true">J</div>
+              <div class="mini-game-copy">
+                <strong>점프 훈련장</strong>
+                <p id="miniGameTitle">100G 입장 · 2분 버티기</p>
+                <small id="miniGameStatus">클리어 시 SP 1개</small>
               </div>
               <div class="adventure-card-actions">
-                <button class="weekly-boss-button" type="button" disabled>
-                  <span>추후 구현 예정</span>
+                <button id="startMiniGame" class="mini-game-button" type="button">
+                  <span>입장</span>
+                </button>
+              </div>
+            </article>
+
+            <article id="weeklyPunchKingCard" class="weekly-punch-card" aria-label="주간 펀치킹">
+              <div class="weekly-punch-visual" aria-hidden="true">P</div>
+              <div class="weekly-punch-copy">
+                <strong>주간 펀치킹</strong>
+                <p id="weeklyPunchKingTitle">90초 동안 최고 점수 도전</p>
+                <small id="weeklyPunchKingStatus">월요일마다 기록 초기화</small>
+              </div>
+              <div class="adventure-card-actions">
+                <button id="openWeeklyPunchKing" class="weekly-punch-button" type="button">
+                  <span>도전</span>
                 </button>
               </div>
             </article>
@@ -342,6 +356,18 @@
               <span>구매하기</span>
             </button>
           </article>
+          <div class="shop-section-title">멤버십</div>
+          <article id="vipMembershipShop" class="shop-item vip-membership-shop-item">
+            <div class="vip-shop-icon" aria-hidden="true">V</div>
+            <div class="shop-copy">
+              <strong>VIP 멤버십</strong>
+              <p id="vipMembershipCopy">매일 SP, 던전권, 보스권, 자동사냥권, 스킵권 지급</p>
+              <small id="vipMembershipStatus">월간 구독 준비 중</small>
+            </div>
+            <button id="buyVipMembership" class="vip-membership-button shop-buy-button" type="button">
+              <span>구독하기</span>
+            </button>
+          </article>
           <div class="shop-section-title">헌터 변경</div>
             <article class="shop-item job-change-shop-item">
               <div class="job-change-shop-icon" aria-hidden="true"></div>
@@ -414,10 +440,10 @@
           <p class="app-subtitle">캐릭터를 키우고, 돈을 벌어보세요</p>
           <h1 id="jobTitle">첫 헌터를 선택하세요</h1>
           <p id="jobCopy" class="modal-copy">능력치는 동일해요. 마음에 드는 공격 모션을 고르세요.</p>
-          <div id="tutorialReward" class="tutorial-reward">
-            <strong>시작 보상</strong>
-            <span>선택 즉시 자동사냥 30분이 지급돼요. 튜토리얼 완료 시 SP 1개도 받아요.</span>
-          </div>
+	          <div id="tutorialReward" class="tutorial-reward">
+	            <strong>시작 보상</strong>
+	            <span>선택 즉시 자동사냥 <b id="tutorialRewardTime">확인 중</b>이 지급돼요. 튜토리얼 완료 시 SP 1개도 받아요.</span>
+	          </div>
           <div class="job-select-grid">
             <button class="job-select warrior" type="button" data-job="WARRIOR">
               <span class="mini-sprite"></span>
@@ -576,6 +602,31 @@
         </div>
       </section>
 
+      <section id="eventHubModal" class="rookie-event-modal event-hub-modal hidden" role="dialog" aria-modal="true" aria-labelledby="eventHubTitle">
+        <div class="rookie-event-card event-hub-card">
+          <button id="closeEventHubModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <div class="event-hub-heading">
+            <div>
+              <p class="modal-kicker">EVENT</p>
+              <h2 id="eventHubTitle">이벤트</h2>
+              <p id="eventHubSummary">진행 중인 이벤트와 받을 보상을 확인해요.</p>
+            </div>
+            <span id="eventHubRewardBadge">0개</span>
+          </div>
+          <div class="event-hub-tabs" role="tablist" aria-label="이벤트 보기">
+            <button id="eventHubListTab" class="active" type="button">이벤트 목록</button>
+            <button id="eventHubRewardTab" type="button">수령함</button>
+          </div>
+          <div id="eventHubListView" class="event-hub-view">
+            <div id="eventHubList" class="event-hub-list"></div>
+            <div id="eventHubDetail" class="event-hub-detail hidden"></div>
+          </div>
+          <div id="eventHubRewardView" class="event-hub-view hidden">
+            <div id="eventRewardInbox" class="event-reward-inbox"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="rookieEventModal" class="rookie-event-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rookieEventTitle">
         <div class="rookie-event-card">
           <button id="closeRookieEventModal" class="modal-close" type="button" aria-label="닫기">×</button>
@@ -609,6 +660,87 @@
               <button id="rookieEventFinalClaimButton" class="rookie-event-claim hidden" type="button">보상 받기</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="dailyMissionModal" class="rookie-event-modal daily-mission-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dailyMissionTitle">
+        <div class="rookie-event-card daily-mission-card">
+          <button id="closeDailyMissionModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <div class="daily-mission-hero">
+            <div class="daily-mission-badge" aria-hidden="true">D</div>
+            <div>
+              <p class="modal-kicker">DAILY EVENT</p>
+              <h2 id="dailyMissionTitle">일일 미션</h2>
+              <p id="dailyMissionSummary">매일 자동사냥과 던전 탐험을 완료하고 보상을 받아요.</p>
+            </div>
+          </div>
+          <div class="rookie-event-meta">
+            <span id="dailyMissionCycle">1회차 진행 중</span>
+            <strong id="dailyMissionProgress">0 / 7일 완료</strong>
+          </div>
+          <div id="dailyMissionDayTabs" class="rookie-event-day-tabs" aria-label="일일 미션 일차 선택"></div>
+          <div class="rookie-event-missions">
+            <div class="rookie-event-mission-heading">
+              <strong id="dailyMissionSelectedDayTitle">1일차</strong>
+              <span id="dailyMissionSelectedDayState">진행 중</span>
+            </div>
+            <div id="dailyMissionList" class="rookie-event-mission-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="miniGameScreen" class="adventure-fullscreen mini-game-screen hidden" aria-label="점프 훈련장">
+        <div class="adventure-fullscreen-top">
+          <button id="exitMiniGame" type="button" aria-label="나가기">×</button>
+          <div>
+            <strong>점프 훈련장</strong>
+            <span id="miniGameTimer">02:00</span>
+          </div>
+          <b id="miniGameReward">SP 1</b>
+        </div>
+        <div id="miniGameStage" class="mini-game-stage">
+          <div class="mini-game-skyline" aria-hidden="true"></div>
+          <img id="miniGameHero" class="mini-game-hero" src="/assets/body-warrior.png?v=20260525-03" alt="" />
+          <div id="miniGameObstacle" class="mini-game-obstacle" aria-hidden="true"></div>
+          <div class="mini-game-ground" aria-hidden="true"></div>
+        </div>
+        <div class="mini-game-hud">
+          <strong id="miniGameMessage">화면을 눌러 점프</strong>
+          <button id="miniGameJump" type="button">점프</button>
+        </div>
+      </section>
+
+      <section id="weeklyPunchKingScreen" class="adventure-fullscreen punch-king-screen hidden" aria-label="주간 펀치킹">
+        <div class="adventure-fullscreen-top punch-king-top">
+          <button id="exitWeeklyPunchKing" type="button" aria-label="나가기">×</button>
+          <div>
+            <strong>주간 펀치킹</strong>
+            <span id="punchKingTimer">01:30</span>
+          </div>
+          <b id="punchKingScore">0</b>
+        </div>
+        <div class="punch-king-arena">
+          <div class="punch-king-statline">
+            <span id="punchKingBest">최고 0</span>
+            <span id="punchKingReward">보상 0G · SP 0</span>
+          </div>
+          <div class="punch-king-health">
+            <strong>초거대 훈련 골렘</strong>
+            <span id="punchKingHpText">HP ∞</span>
+            <i id="punchKingHpBar"></i>
+          </div>
+          <button id="punchKingTarget" class="punch-king-target" type="button" aria-label="펀치">
+            <img id="punchKingHero" class="punch-king-hero" src="/assets/body-warrior.png?v=20260525-03" alt="" />
+            <div class="punch-king-boss" aria-hidden="true"></div>
+            <video id="punchKingUltimateVideo" class="punch-king-ultimate-video" muted playsinline preload="auto"></video>
+          </button>
+        </div>
+        <div class="punch-king-actions">
+          <button id="punchKingUltimate" type="button" disabled>
+            <span>궁극기</span>
+            <small id="punchKingUltimateCooldown">30초</small>
+          </button>
+          <button id="punchKingStart" type="button">시작</button>
         </div>
       </section>
 
@@ -651,7 +783,7 @@
         </div>
 
         <div class="dev-section-title">상태 세팅</div>
-        <div class="dev-grid">
+	        <div class="dev-grid">
           <button id="devBattlePreset" class="dev-primary" type="button">전투 테스트 세팅</button>
           <button id="devAutoHunt" type="button">자동사냥 +1h</button>
           <button id="devSkillPoint" type="button">SP +1</button>
@@ -665,11 +797,20 @@
           <button id="devFillReward" type="button">게이지 채우기</button>
           <button id="devClaimReward" type="button">리워드 수령</button>
           <button id="devBenefitTabEntry" type="button">혜택탭 유저</button>
-          <button id="devPromotionLog" type="button">프로모션 로그</button>
-          <button id="devToggleBanner" type="button">배너 숨기기</button>
-          <button id="devReset" class="dev-danger" type="button">초기화</button>
-        </div>
-        <p id="devStatus" class="dev-status">테스트 기능은 실제 광고/결제를 호출하지 않아요.</p>
+	          <button id="devPromotionLog" type="button">프로모션 로그</button>
+	          <button id="devToggleBanner" type="button">배너 숨기기</button>
+	          <button id="devReset" class="dev-danger" type="button">초기화</button>
+	        </div>
+	        <div class="dev-section-title">이벤트 테스트</div>
+	        <div class="dev-grid dev-grid-compact">
+	          <button id="devEventPreset" class="dev-primary" type="button">이벤트 테스트 준비</button>
+	          <button id="devRookieStart" type="button">7일 미션 시작</button>
+	          <button id="devRookieCompleteDay" type="button">7일 미션 하루 완료</button>
+	          <button id="devDailyMissionComplete" type="button">일일 미션 완료</button>
+	          <button id="devDailyMissionCycle" type="button">일일 미션 7일 완료</button>
+	          <button id="devVipActivate" type="button">VIP 활성화</button>
+	        </div>
+	        <p id="devStatus" class="dev-status">테스트 기능은 실제 광고/결제를 호출하지 않아요.</p>
       </div>
     </aside>
 

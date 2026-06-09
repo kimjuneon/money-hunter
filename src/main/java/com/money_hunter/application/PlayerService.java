@@ -19,6 +19,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import com.money_hunter.domain.AdEvent;
 import com.money_hunter.domain.AdEventType;
 import com.money_hunter.domain.AdRewardSession;
+import com.money_hunter.domain.EventReward;
+import com.money_hunter.domain.EventRewardGrant;
 import com.money_hunter.domain.IapOrder;
 import com.money_hunter.domain.JobType;
 import com.money_hunter.domain.NotificationEvent;
@@ -29,6 +31,7 @@ import com.money_hunter.domain.RewardClaim;
 import com.money_hunter.domain.SkillType;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.AdRewardSessionRepository;
+import com.money_hunter.infrastructure.persistence.EventRewardRepository;
 import com.money_hunter.infrastructure.persistence.IapOrderRepository;
 import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
@@ -38,10 +41,15 @@ import com.money_hunter.infrastructure.config.IapProperties;
 import com.money_hunter.infrastructure.config.PromotionProperties;
 import com.money_hunter.infrastructure.config.SmartMessageProperties;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
+import com.money_hunter.application.dto.response.AdventureMiniGameResponse;
 import com.money_hunter.application.dto.response.AdventureRewardPoolItemResponse;
 import com.money_hunter.application.dto.response.BossRaidRewardResponse;
 import com.money_hunter.application.dto.response.DungeonCouponRewardResponse;
 import com.money_hunter.application.dto.response.DungeonCouponStateResponse;
+import com.money_hunter.application.dto.response.DailyMissionEventResponse;
+import com.money_hunter.application.dto.response.EventHubResponse;
+import com.money_hunter.application.dto.response.EventRewardResponse;
+import com.money_hunter.application.dto.response.EventSummaryResponse;
 import com.money_hunter.application.dto.response.NotificationResponse;
 import com.money_hunter.application.dto.response.PlayerStateResponse;
 import com.money_hunter.application.dto.response.MonsterResponse;
@@ -50,6 +58,8 @@ import com.money_hunter.application.dto.response.RookieEventDayResponse;
 import com.money_hunter.application.dto.response.RookieEventMissionResponse;
 import com.money_hunter.application.dto.response.RookieEventResponse;
 import com.money_hunter.application.dto.response.SkillResponse;
+import com.money_hunter.application.dto.response.VipMembershipResponse;
+import com.money_hunter.application.dto.response.WeeklyPunchKingResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -86,6 +96,27 @@ public class PlayerService {
 	private static final Duration ROOKIE_EVENT_REWARD_DURATION = Duration.ofDays(30);
 	private static final int ROOKIE_EVENT_DAYS = 7;
 	private static final int ROOKIE_EVENT_PET_SKILL_LEVEL = 15;
+	private static final Duration EVENT_REWARD_RETENTION = Duration.ofDays(7);
+	private static final int DAILY_MISSION_DAYS = 7;
+	private static final long DAILY_MISSION_HUNT_REQUIRED_MILLIS = HOUR_MILLIS;
+	private static final int DAILY_MISSION_DUNGEON_RUNS_REQUIRED = 2;
+	private static final int DAILY_MISSION_GOLD_REWARD = 300;
+	private static final int VIP_MONTHLY_PRICE_WON = 9_900;
+	private static final Duration VIP_MONTHLY_DURATION = Duration.ofDays(30);
+	private static final int ADVENTURE_MINI_GAME_ENTRY_COST_GOLD = 100;
+	private static final int ADVENTURE_MINI_GAME_CLEAR_REWARD_SP = 1;
+	private static final int ADVENTURE_MINI_GAME_CLEAR_SECONDS = 120;
+	private static final Duration ADVENTURE_MINI_GAME_ENTRY_TTL = Duration.ofMinutes(8);
+	private static final int WEEKLY_PUNCH_KING_DURATION_SECONDS = 90;
+	private static final int WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS = 30;
+	private static final long WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR = 1_000L;
+	private static final List<PunchKingSkillPointTier> WEEKLY_PUNCH_KING_SP_TIERS = List.of(
+			new PunchKingSkillPointTier(100_000, 1),
+			new PunchKingSkillPointTier(400_000, 2),
+			new PunchKingSkillPointTier(1_000_000, 3),
+			new PunchKingSkillPointTier(2_500_000, 5),
+			new PunchKingSkillPointTier(5_000_000, 8)
+	);
 	private static final int SKILL_UPGRADE_COST_INCREASE_LEVEL = 20;
 	private static final int BASE_SKILL_UPGRADE_COST = 1;
 	private static final int HIGH_LEVEL_SKILL_UPGRADE_COST = 2;
@@ -296,6 +327,7 @@ public class PlayerService {
 	private final AdRewardSessionRepository adRewardSessionRepository;
 	private final NotificationEventRepository notificationEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
+	private final EventRewardRepository eventRewardRepository;
 	private final IapOrderRepository iapOrderRepository;
 	private final RuntimeEconomyService economy;
 	private final AppProperties appProperties;
@@ -311,10 +343,11 @@ public class PlayerService {
 	public PlayerService(
 			PlayerRepository playerRepository,
 			AdEventRepository adEventRepository,
-			AdRewardSessionRepository adRewardSessionRepository,
-			NotificationEventRepository notificationEventRepository,
-			RewardClaimRepository rewardClaimRepository,
-			IapOrderRepository iapOrderRepository,
+				AdRewardSessionRepository adRewardSessionRepository,
+				NotificationEventRepository notificationEventRepository,
+				RewardClaimRepository rewardClaimRepository,
+				EventRewardRepository eventRewardRepository,
+				IapOrderRepository iapOrderRepository,
 			RuntimeEconomyService economy,
 			AppProperties appProperties,
 			IapProperties iapProperties,
@@ -330,6 +363,7 @@ public class PlayerService {
 		this.adRewardSessionRepository = adRewardSessionRepository;
 		this.notificationEventRepository = notificationEventRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
+		this.eventRewardRepository = eventRewardRepository;
 		this.iapOrderRepository = iapOrderRepository;
 		this.economy = economy;
 		this.appProperties = appProperties;
@@ -615,16 +649,22 @@ public class PlayerService {
 		Instant now = clock.instant();
 			LocalDate today = todayInSeoul();
 			player.resetDungeonRunCountIfNewDay(today);
-		requireDungeonEntryAvailable(player, now, additionalEntry);
+		DungeonEntryMode entryMode = dungeonEntryMode(player, additionalEntry);
+		requireDungeonEntryAvailable(player, now, entryMode);
 		if (additionalEntry) {
 			completeRewardAdSessionIfRequired(player, AdEventType.DUNGEON_ADDITIONAL_ENTRY, adSessionToken, requireAdSession, now);
 			adEventRepository.save(new AdEvent(player, AdEventType.DUNGEON_ADDITIONAL_ENTRY, 1, now));
-		}
-		DungeonCouponTier tier = dungeonCouponTier(player);
-		DungeonCouponReward reward = rollDungeonCouponReward(tier);
-		player.enterDungeon(now, today, dungeonDailyLimit(), dungeonReentryCooldown());
-		grantDungeonCouponReward(player, reward, now);
-		adEventRepository.save(new AdEvent(
+			}
+			DungeonCouponTier tier = dungeonCouponTier(player);
+			DungeonCouponReward reward = rollDungeonCouponReward(tier);
+			if (entryMode == DungeonEntryMode.TICKET) {
+				player.spendDungeonCoupon();
+			} else {
+				player.enterDungeon(now, today, dungeonDailyLimit(), dungeonReentryCooldown());
+			}
+			grantDungeonCouponReward(player, reward, now);
+			recordDailyMissionDungeonRun(player, today);
+			adEventRepository.save(new AdEvent(
 				player,
 				AdEventType.DUNGEON_RUN,
 				(int) Math.min(Integer.MAX_VALUE, reward.amount()),
@@ -645,6 +685,72 @@ public class PlayerService {
 				tier.name(),
 				reward.type() == DungeonCouponRewardType.BOSS_TICKET,
 				toState(player));
+	}
+
+	@Transactional
+	public PlayerStateResponse startAdventureMiniGame(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		LocalDate today = todayInSeoul();
+		if (player.adventureMiniGameCompletedToday(today)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 미니게임 보상은 이미 받았어요.");
+		}
+		if (player.getGold() < ADVENTURE_MINI_GAME_ENTRY_COST_GOLD) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "미니게임 입장에는 100G가 필요해요.");
+		}
+		player.startAdventureMiniGame(clock.instant(), today, ADVENTURE_MINI_GAME_ENTRY_COST_GOLD);
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse clearAdventureMiniGame(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		Instant now = clock.instant();
+		LocalDate today = todayInSeoul();
+		if (player.adventureMiniGameCompletedToday(today)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 미니게임 보상은 이미 받았어요.");
+		}
+		if (!player.adventureMiniGameEntryActive(today, now, ADVENTURE_MINI_GAME_ENTRY_TTL)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "미니게임 입장 기록이 만료됐어요. 다시 입장해 주세요.");
+		}
+		player.addSkillPoints(ADVENTURE_MINI_GAME_CLEAR_REWARD_SP);
+		player.completeAdventureMiniGame(today);
+		adEventRepository.save(new AdEvent(player, AdEventType.SKILL_POINT, ADVENTURE_MINI_GAME_CLEAR_REWARD_SP, now));
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse submitWeeklyPunchKingScore(String userKey, long score) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		LocalDate weekStartDate = currentWeekStartDate();
+		player.ensureWeeklyPunchKingWeek(weekStartDate);
+		long safeScore = Math.max(0, score);
+		long previousBest = Math.max(0, player.getWeeklyPunchKingBestScore());
+		long bestScore = Math.max(previousBest, safeScore);
+		long totalGoldReward = weeklyPunchKingGoldReward(bestScore);
+		int totalSkillPointReward = weeklyPunchKingSkillPointReward(bestScore);
+		long goldDelta = Math.max(0, totalGoldReward - player.getWeeklyPunchKingRewardedGold());
+		int skillPointDelta = Math.max(0, totalSkillPointReward - player.getWeeklyPunchKingRewardedSkillPoints());
+		if (goldDelta > 0) {
+			player.addGold(goldDelta);
+		}
+		if (skillPointDelta > 0) {
+			player.addSkillPoints(skillPointDelta);
+		}
+		player.recordWeeklyPunchKingReward(bestScore, totalGoldReward, totalSkillPointReward);
+		log.info(
+				"주간 펀치킹 점수 제출: userKey={}, score={}, bestScore={}, goldDelta={}, spDelta={}",
+				mask(userKey),
+				safeScore,
+				bestScore,
+				goldDelta,
+				skillPointDelta);
+		return toState(player);
 	}
 
 	@Transactional
@@ -755,14 +861,15 @@ public class PlayerService {
 			return toState(player);
 		}
 
-		switch (productType) {
-			case "FLARE_PET", "AQUA_PET" -> player.purchaseCharacterSlot(economy.maxCharacterSlots());
-			case "SKILL_POINT_PACK" -> {
-				requireSkillPointRewardAvailable(player);
-				player.addSkillPoints(economy.skillPointPackAmount());
+			switch (productType) {
+				case "FLARE_PET", "AQUA_PET" -> player.purchaseCharacterSlot(economy.maxCharacterSlots());
+				case "SKILL_POINT_PACK" -> {
+					requireSkillPointRewardAvailable(player);
+					player.addSkillPoints(economy.skillPointPackAmount());
+				}
+				case "VIP_MONTHLY" -> activateVip(player, now);
+				default -> throw new IllegalArgumentException("지원하지 않는 인앱 상품이에요.");
 			}
-			default -> throw new IllegalArgumentException("지원하지 않는 인앱 상품이에요.");
-		}
 		order.markGranted(now);
 		log.info(
 				"인앱 결제 상품 지급 완료: userKey={}, orderId={}, productType={}, productId={}",
@@ -950,7 +1057,7 @@ public class PlayerService {
 			if (!rookieEventStartAvailable(now)) {
 				throw new ResponseStatusException(HttpStatus.CONFLICT, "이벤트 시작 가능 기간이 아니에요.");
 			}
-			player.startRookieEvent(now, LocalDate.now(clock));
+				player.startRookieEvent(now, todayInSeoul());
 		}
 		prepareRookieEvent(player);
 		return toState(player);
@@ -1022,6 +1129,47 @@ public class PlayerService {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "7일 미션을 모두 완료해야 받을 수 있어요.");
 		}
 		player.claimRookieEventReward(clock.instant());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse claimEventReward(String userKey, Long rewardId) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		syncEventRewards(player);
+		Instant now = clock.instant();
+		EventReward reward = eventRewardRepository.findByIdAndPlayerUserKey(rewardId, userKey)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "수령할 보상을 찾을 수 없어요."));
+		if (reward.isExpired(now)) {
+			eventRewardRepository.delete(reward);
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "보상 수령 기간이 지났어요.");
+		}
+		if (reward.isClaimed()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 수령한 보상이에요.");
+		}
+		grantEventReward(player, reward, now);
+		reward.markClaimed(now);
+		log.info("이벤트 수령함 보상 지급: userKey={}, rewardKey={}, label={}",
+				mask(userKey),
+				reward.getRewardKey(),
+				reward.getRewardLabel());
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse skipDailyMission(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		settle(player);
+		LocalDate today = todayInSeoul();
+		prepareDailyMission(player);
+		if (player.completedDailyMissionToday(today)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 일일 미션은 이미 완료했어요.");
+		}
+		player.spendDailyMissionSkipTicket();
+		int completedDay = player.completeDailyMission(today, DAILY_MISSION_DAYS);
+		createDailyMissionRewards(player, completedDay);
 		return toState(player);
 	}
 
@@ -1169,10 +1317,77 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public PlayerStateResponse activateVipForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		activateVip(player, clock.instant());
+		syncEventRewards(player);
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeDailyMissionForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		LocalDate today = todayInSeoul();
+		prepareDailyMission(player);
+		if (!player.completedDailyMissionToday(today)) {
+			player.addDailyMissionHuntProgress(DAILY_MISSION_HUNT_REQUIRED_MILLIS, DAILY_MISSION_HUNT_REQUIRED_MILLIS);
+			for (int index = player.getDailyMissionDailyDungeonRuns(); index < DAILY_MISSION_DUNGEON_RUNS_REQUIRED; index++) {
+				player.addDailyMissionDungeonRun(today, DAILY_MISSION_DUNGEON_RUNS_REQUIRED);
+			}
+			completeDailyMissionIfReady(player);
+		}
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeDailyMissionCycleForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		LocalDate today = todayInSeoul();
+		prepareDailyMission(player);
+		while (player.getDailyMissionCompletedDays() < DAILY_MISSION_DAYS) {
+			int completedDay = player.completeDailyMission(today.minusDays(DAILY_MISSION_DAYS - player.getDailyMissionCompletedDays()), DAILY_MISSION_DAYS);
+			createDailyMissionRewards(player, completedDay);
+		}
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse startRookieEventForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		if (player.getRookieEventStartedAt() == null) {
+			player.startRookieEvent(clock.instant(), todayInSeoul());
+		}
+		return toState(player);
+	}
+
+	@Transactional
+	public PlayerStateResponse completeRookieEventDayForTest(String userKey) {
+		Player player = getOrCreatePlayer(userKey);
+		requireOnboarded(player);
+		if (player.getRookieEventStartedAt() == null) {
+			player.startRookieEvent(clock.instant(), todayInSeoul());
+		}
+		int nextDay = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventCompletedDays()) + 1);
+		player.overrideRookieEventForTest(
+				clock.instant(),
+				todayInSeoul(),
+				nextDay,
+				Math.min(player.getRookieEventRewardedDays(), nextDay),
+				player.isRookieEventRewardClaimed(),
+				ROOKIE_EVENT_DAYS);
+		return toState(player);
+	}
+
+	@Transactional
 	public PlayerStateResponse resetForTest(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		Instant now = clock.instant();
 		player.resetForTest(now);
+		eventRewardRepository.deleteByPlayer(player);
 		notificationEventRepository.findByPlayerAndReadAtIsNull(player)
 				.forEach(notification -> notification.markRead(now));
 		return toState(player);
@@ -1222,10 +1437,10 @@ public class PlayerService {
 				|| !smartMessageProperties.rookieEventMissionArrivedEnabled()
 				|| templateSetCode.isBlank()) {
 			return 0;
-		}
-		Instant now = clock.instant();
-		LocalDate today = LocalDate.now(clock);
-		Instant startedAfter = today.minusDays(ROOKIE_EVENT_PLAYER_DAYS).atStartOfDay(clock.getZone()).toInstant();
+			}
+			Instant now = clock.instant();
+			LocalDate today = todayInSeoul();
+			Instant startedAfter = today.minusDays(ROOKIE_EVENT_PLAYER_DAYS).atStartOfDay(SEOUL_ZONE).toInstant();
 		List<Player> players = playerRepository.findRookieEventMissionNotificationTargets(
 				today,
 				startedAfter,
@@ -1429,6 +1644,7 @@ public class PlayerService {
 
 	private long settle(Player player) {
 		prepareRookieEvent(player);
+		prepareDailyMission(player);
 		Instant now = clock.instant();
 		Instant huntEnd = player.getAutoHuntEndsAt();
 		if (huntEnd == null || !huntEnd.isAfter(player.getLastSettledAt())) {
@@ -1476,10 +1692,11 @@ public class PlayerService {
 				resolveAggregateDamage(player, attackCounts);
 				long goldDelta = Math.max(0, player.getGold() - goldBefore);
 				int monsterDelta = Math.max(0, player.getDefeatedMonsters() - monstersBefore);
-				recordRookieEventCombatProgress(player, millis, goldDelta, monsterDelta);
-				recordDungeonHuntProgress(player, settlementStart, settlementEnd);
-				player.setLastSettledAt(settlementEnd);
-			}
+					recordRookieEventCombatProgress(player, millis, goldDelta, monsterDelta);
+					recordDungeonHuntProgress(player, settlementStart, settlementEnd);
+					recordDailyMissionHuntProgress(player, settlementStart, settlementEnd);
+					player.setLastSettledAt(settlementEnd);
+				}
 
 		private void resolveAggregateDamage(Player player, AttackCounts attackCounts) {
 			long totalDamage = attackCounts.total() * damage(player);
@@ -1544,6 +1761,260 @@ public class PlayerService {
 
 	private LocalDate todayInSeoul() {
 		return LocalDate.ofInstant(clock.instant(), SEOUL_ZONE);
+	}
+
+	private void prepareDailyMission(Player player) {
+		if (!player.hasChosenJob()) {
+			return;
+		}
+		player.ensureDailyMissionDay(todayInSeoul());
+		completeDailyMissionIfReady(player);
+	}
+
+	private void recordDailyMissionHuntProgress(Player player, Instant from, Instant to) {
+		if (!player.hasChosenJob() || from == null || to == null || !to.isAfter(from)) {
+			return;
+		}
+		LocalDate today = todayInSeoul();
+		player.ensureDailyMissionDay(today);
+		if (player.completedDailyMissionToday(today)) {
+			return;
+		}
+		Instant todayStart = today.atStartOfDay(SEOUL_ZONE).toInstant();
+		Instant progressStart = from.isAfter(todayStart) ? from : todayStart;
+		if (!to.isAfter(progressStart)) {
+			return;
+		}
+		player.addDailyMissionHuntProgress(
+				Duration.between(progressStart, to).toMillis(),
+				DAILY_MISSION_HUNT_REQUIRED_MILLIS);
+		completeDailyMissionIfReady(player);
+	}
+
+	private void recordDailyMissionDungeonRun(Player player, LocalDate today) {
+		if (!player.hasChosenJob()) {
+			return;
+		}
+		player.ensureDailyMissionDay(today);
+		if (player.completedDailyMissionToday(today)) {
+			return;
+		}
+		player.addDailyMissionDungeonRun(today, DAILY_MISSION_DUNGEON_RUNS_REQUIRED);
+		completeDailyMissionIfReady(player);
+	}
+
+	private void completeDailyMissionIfReady(Player player) {
+		LocalDate today = todayInSeoul();
+		player.ensureDailyMissionDay(today);
+		if (player.completedDailyMissionToday(today)
+				|| !player.dailyMissionReady(DAILY_MISSION_HUNT_REQUIRED_MILLIS, DAILY_MISSION_DUNGEON_RUNS_REQUIRED)) {
+			return;
+		}
+		int completedDay = player.completeDailyMission(today, DAILY_MISSION_DAYS);
+		createDailyMissionRewards(player, completedDay);
+	}
+
+	private void syncEventRewards(Player player) {
+		Instant now = clock.instant();
+		eventRewardRepository.deleteByPlayerAndExpiresAtLessThanEqual(player, now);
+		prepareRookieEvent(player);
+		prepareDailyMission(player);
+		ensureRookieEventRewards(player);
+		ensureVipBenefits(player);
+	}
+
+	private void ensureRookieEventRewards(Player player) {
+		if (player.getRookieEventStartedAt() == null) {
+			return;
+		}
+		int completedDays = Math.min(ROOKIE_EVENT_DAYS, Math.max(0, player.getRookieEventCompletedDays()));
+		for (int day = Math.max(1, player.getRookieEventRewardedDays() + 1); day <= completedDays; day++) {
+			RookieEventDayPlan plan = rookieEventPlan(day);
+			EventRewardGrant grant = switch (plan.dailyReward().type()) {
+				case SKILL_POINT -> EventRewardGrant.skillPoint((int) plan.dailyReward().amount());
+				case AUTO_HUNT_SECONDS -> EventRewardGrant.autoHunt(plan.dailyReward().amount());
+			};
+			createEventRewardIfAbsent(
+					player,
+					rookieDailyRewardKey(day),
+					"rookie_7day",
+					"7일 사냥 동행",
+					day + "일차 일일 보상",
+					plan.title() + " 완료 보상",
+					plan.dailyReward().label(),
+					grant);
+		}
+		if (completedDays >= ROOKIE_EVENT_DAYS && !player.isRookieEventRewardClaimed()) {
+			createEventRewardIfAbsent(
+					player,
+					"rookie-7day:final",
+					"rookie_7day",
+					"7일 사냥 동행",
+					"별빛토 동행 보상",
+					"7일 미션 최종 완료 보상",
+					"별빛토 30일 동행",
+					EventRewardGrant.rookieEventPet());
+		}
+	}
+
+	private void createDailyMissionRewards(Player player, int completedDay) {
+		int safeDay = Math.max(1, Math.min(DAILY_MISSION_DAYS, completedDay));
+		createEventRewardIfAbsent(
+				player,
+				dailyMissionRewardKey(player.getDailyMissionCycle(), safeDay),
+				"daily_mission",
+				"일일 미션",
+				safeDay + "일차 일일 미션 보상",
+				"자동사냥 1시간과 던전 2회 탐험 완료",
+				"골드 " + DAILY_MISSION_GOLD_REWARD + "G",
+				EventRewardGrant.gold(DAILY_MISSION_GOLD_REWARD));
+		if (safeDay >= DAILY_MISSION_DAYS) {
+			createEventRewardIfAbsent(
+					player,
+					dailyMissionFinalRewardKey(player.getDailyMissionCycle()),
+					"daily_mission",
+					"일일 미션",
+					"7일 완료 추가 보상",
+					"일일 미션 7일 완료",
+					"골드 1,000G · SP 1개",
+					EventRewardGrant.dailyMissionFinal());
+		}
+	}
+
+	private void ensureVipBenefits(Player player) {
+		Instant now = clock.instant();
+		if (!player.isVipActive(now)) {
+			return;
+		}
+		player.unlockEasterEggPetSkins(PET_SKIN_KEYS);
+		LocalDate today = todayInSeoul();
+		if (!player.canClaimVipDailyReward(today, now)) {
+			return;
+		}
+		createEventRewardIfAbsent(
+				player,
+				vipDailyRewardKey(today),
+				"vip_monthly",
+				"VIP 멤버십",
+				"VIP 오늘의 혜택",
+				"월간 정기 구독 일일 혜택",
+				"SP 1개 · 던전권 3장 · 보스권 1장 · 자동사냥 1시간 · 스킵권 1장",
+				EventRewardGrant.vipDaily());
+	}
+
+	private void createEventRewardIfAbsent(
+			Player player,
+			String rewardKey,
+			String sourceEventKey,
+			String sourceEventName,
+			String title,
+			String description,
+			String rewardLabel,
+			EventRewardGrant grant
+	) {
+		if (eventRewardRepository.existsByPlayerAndRewardKey(player, rewardKey)) {
+			return;
+		}
+		Instant now = clock.instant();
+		eventRewardRepository.save(new EventReward(
+				player,
+				rewardKey,
+				sourceEventKey,
+				sourceEventName,
+				title,
+				description,
+				rewardLabel,
+				grant,
+				now,
+				now.plus(EVENT_REWARD_RETENTION)));
+	}
+
+	private void grantEventReward(Player player, EventReward reward, Instant now) {
+		if (reward.getGoldAmount() > 0) {
+			player.addGold(reward.getGoldAmount());
+		}
+		if (reward.getSkillPointAmount() > 0) {
+			player.addSkillPoints(reward.getSkillPointAmount());
+		}
+		if (reward.getAutoHuntSeconds() > 0) {
+			player.setAutoHuntEndsAt(addUncappedTime(player.getAutoHuntEndsAt(), reward.getAutoHuntSeconds(), now));
+			player.clearAutoHuntEndNotification();
+			clearUnreadAutoHuntEndNotifications(player, now);
+		}
+		if (reward.getDungeonCouponAmount() > 0) {
+			player.addDungeonCoupons(reward.getDungeonCouponAmount());
+		}
+		if (reward.getBossRaidTicketAmount() > 0) {
+			player.addBossRaidTickets(reward.getBossRaidTicketAmount());
+		}
+		if (reward.getDailyMissionSkipTicketAmount() > 0) {
+			player.addDailyMissionSkipTickets(reward.getDailyMissionSkipTicketAmount());
+		}
+		if (reward.isPetSkinUnlockReward()) {
+			player.unlockEasterEggPetSkins(PET_SKIN_KEYS);
+		}
+		if (reward.isRookieEventPetReward()) {
+			player.claimRookieEventReward(now);
+		}
+		markSourceRewardClaimed(player, reward, now);
+	}
+
+	private void markSourceRewardClaimed(Player player, EventReward reward, Instant now) {
+		String rewardKey = reward.getRewardKey();
+		if (rewardKey.startsWith("rookie-7day:day:")) {
+			player.markRookieEventDailyRewarded(parseRewardKeyNumber(rewardKey));
+			return;
+		}
+		if (rewardKey.equals("rookie-7day:final")) {
+			player.claimRookieEventReward(now);
+			return;
+		}
+		if (rewardKey.startsWith("daily-mission:cycle:") && rewardKey.endsWith(":final")) {
+			player.startNextDailyMissionCycle(todayInSeoul());
+			return;
+		}
+		if (rewardKey.startsWith("vip:daily:")) {
+			player.markVipDailyRewardClaimed(parseVipDailyRewardDate(rewardKey));
+		}
+	}
+
+	private int parseRewardKeyNumber(String rewardKey) {
+		String value = rewardKey.substring(rewardKey.lastIndexOf(':') + 1);
+		try {
+			return Integer.parseInt(value);
+		} catch (NumberFormatException exception) {
+			return 0;
+		}
+	}
+
+	private LocalDate parseVipDailyRewardDate(String rewardKey) {
+		String value = rewardKey.substring(rewardKey.lastIndexOf(':') + 1);
+		try {
+			return LocalDate.parse(value);
+		} catch (RuntimeException exception) {
+			return todayInSeoul();
+		}
+	}
+
+	private void activateVip(Player player, Instant now) {
+		player.activateVip(now, VIP_MONTHLY_DURATION);
+		player.unlockEasterEggPetSkins(PET_SKIN_KEYS);
+	}
+
+	private String rookieDailyRewardKey(int day) {
+		return "rookie-7day:day:" + day;
+	}
+
+	private String dailyMissionRewardKey(int cycle, int day) {
+		return "daily-mission:cycle:" + Math.max(1, cycle) + ":day:" + Math.max(1, day);
+	}
+
+	private String dailyMissionFinalRewardKey(int cycle) {
+		return "daily-mission:cycle:" + Math.max(1, cycle) + ":final";
+	}
+
+	private String vipDailyRewardKey(LocalDate today) {
+		return "vip:daily:" + today;
 	}
 
 	private void claimTutorialStarterReward(Player player, Instant now) {
@@ -1714,7 +2185,49 @@ public class PlayerService {
 		return base.plusSeconds(secondsToAdd);
 	}
 
+	private LocalDate currentWeekStartDate() {
+		LocalDate today = todayInSeoul();
+		return today.minusDays(today.getDayOfWeek().getValue() - 1L);
+	}
+
+	private long weeklyPunchKingGoldReward(long score) {
+		return Math.max(0, score) / WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR;
+	}
+
+	private int weeklyPunchKingSkillPointReward(long score) {
+		int reward = 0;
+		for (PunchKingSkillPointTier tier : WEEKLY_PUNCH_KING_SP_TIERS) {
+			if (score >= tier.score()) {
+				reward = Math.max(reward, tier.skillPoints());
+			}
+		}
+		return reward;
+	}
+
+	private long nextWeeklyPunchKingGoldRewardScore(long bestScore) {
+		return (Math.max(0, bestScore) / WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR + 1)
+				* WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR;
+	}
+
+	private int nextWeeklyPunchKingSkillPointScore(long bestScore) {
+		for (PunchKingSkillPointTier tier : WEEKLY_PUNCH_KING_SP_TIERS) {
+			if (bestScore < tier.score()) {
+				return tier.score();
+			}
+		}
+		return 0;
+	}
+
 	private record RewardTimeGrant(Instant endsAt, long grantedSeconds) {
+	}
+
+	private enum DungeonEntryMode {
+		TICKET,
+		FREE,
+		AD
+	}
+
+	private record PunchKingSkillPointTier(int score, int skillPoints) {
 	}
 
 	private PlayerStateResponse toState(Player player) {
@@ -1722,6 +2235,7 @@ public class PlayerService {
 		syncStatSkills(player);
 		prepareRookieEvent(player);
 		completeRookieEventDayIfReady(player);
+		syncEventRewards(player);
 		List<SkillResponse> skills = Arrays.stream(SkillType.values())
 				.map(player::getOrCreateSkill)
 				.map(skill -> new SkillResponse(skill.getType(), skill.getLevel(), effectTier(skill), skillUpgradeCost(skill.getLevel())))
@@ -1770,11 +2284,16 @@ public class PlayerService {
 						normalAttackIntervalMillis(player),
 						player.getAutoHuntEndsAt(),
 						monsterResponse(player),
-					skills,
-					dungeonCouponResponse(player),
-					rookieEventResponse(player),
-					latestNotification(player));
-		}
+						skills,
+						dungeonCouponResponse(player),
+						adventureMiniGameResponse(player),
+						weeklyPunchKingResponse(player),
+						eventHubResponse(player),
+						dailyMissionResponse(player),
+						vipMembershipResponse(player),
+						rookieEventResponse(player),
+						latestNotification(player));
+			}
 
 	private DungeonCouponStateResponse dungeonCouponResponse(Player player) {
 		if (!appProperties.dungeonCouponEnabled()) {
@@ -1810,7 +2329,8 @@ public class PlayerService {
 		int runsToday = Math.max(0, player.getDungeonRunCount());
 		int freeDailyLimit = dungeonFreeDailyLimit();
 		int additionalDailyLimit = dungeonAdditionalDailyLimit();
-		int dailyLimit = dungeonDailyLimit(freeDailyLimit, additionalDailyLimit);
+			int ticketCount = Math.max(0, player.getDungeonCouponCount());
+			int dailyLimit = dungeonDailyLimit(freeDailyLimit, additionalDailyLimit);
 		int remainingRuns = Math.max(0, dailyLimit - runsToday);
 		long dungeonHuntProgressMillis = player.dungeonEntryHuntProgressMillis(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS);
 		boolean dungeonHuntCompleted = player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS);
@@ -1818,19 +2338,19 @@ public class PlayerService {
 		long cooldownSeconds = nextAvailableAt == null || !nextAvailableAt.isAfter(now)
 				? 0
 				: Math.max(0, Duration.between(now, nextAvailableAt).toSeconds());
-		boolean dungeonAvailable = dungeonHuntCompleted && remainingRuns > 0 && cooldownSeconds <= 0;
+		boolean dungeonAvailable = dungeonHuntCompleted && (ticketCount > 0 || (remainingRuns > 0 && cooldownSeconds <= 0));
 		String unavailableReason = "";
 		if (!dungeonHuntCompleted) {
 			unavailableReason = "사냥 1시간 필요";
-		} else if (remainingRuns <= 0) {
+		} else if (ticketCount < 1 && remainingRuns <= 0) {
 			unavailableReason = "오늘 입장 완료";
-		} else if (cooldownSeconds > 0) {
+		} else if (ticketCount < 1 && cooldownSeconds > 0) {
 			unavailableReason = "재입장 대기중";
 		}
 		return new DungeonCouponStateResponse(
 				true,
-				player.getBossRaidTicketCount(),
-				player.getBossRaidTicketCount(),
+					player.getDungeonCouponCount(),
+					player.getBossRaidTicketCount(),
 				runsToday,
 				dailyLimit,
 				freeDailyLimit,
@@ -1848,8 +2368,238 @@ public class PlayerService {
 				bossTier.bossName(),
 				bossTier.difficultyName(),
 				bossTier.rewardPreview(),
-				rewardPoolResponse(tier.rewards()),
-				rewardPoolResponse(bossTier.rewards()));
+					rewardPoolResponse(tier.rewards()),
+					rewardPoolResponse(bossTier.rewards()));
+	}
+
+	private EventHubResponse eventHubResponse(Player player) {
+		Instant now = clock.instant();
+		List<EventReward> rewards = eventRewardRepository.findByPlayerAndExpiresAtAfterOrderByClaimedAtAscCreatedAtDesc(player, now);
+		List<EventRewardResponse> rewardResponses = rewards.stream()
+				.map(reward -> eventRewardResponse(reward, now))
+				.toList();
+		int claimableCount = (int) rewardResponses.stream().filter(EventRewardResponse::claimable).count();
+		List<EventSummaryResponse> eventResponses = List.of(
+						rookieEventSummary(player, rewardResponses),
+						dailyMissionSummary(player, rewardResponses)
+				).stream().filter(EventSummaryResponse::visible).toList();
+		int participableCount = (int) eventResponses.stream()
+				.filter(event -> event.active() && !event.completed())
+				.count();
+		return new EventHubResponse(
+				eventResponses,
+				rewardResponses,
+				participableCount,
+				claimableCount);
+	}
+
+	private EventRewardResponse eventRewardResponse(EventReward reward, Instant now) {
+		boolean claimed = reward.isClaimed();
+		boolean expired = reward.isExpired(now);
+		return new EventRewardResponse(
+				reward.getId(),
+				reward.getRewardKey(),
+				reward.getSourceEventKey(),
+				reward.getSourceEventName(),
+				reward.getTitle(),
+				reward.getDescription(),
+				reward.getRewardLabel(),
+				!claimed && !expired,
+				claimed,
+				reward.getCreatedAt(),
+				reward.getExpiresAt(),
+				reward.getClaimedAt(),
+				retentionDaysRemaining(now, reward.getExpiresAt()));
+	}
+
+	private EventSummaryResponse rookieEventSummary(Player player, List<EventRewardResponse> rewards) {
+		RookieEventResponse event = rookieEventResponse(player);
+		if (!event.visible()) {
+			return new EventSummaryResponse(
+					"rookie_7day",
+					"7일 사냥 동행",
+					"신규 헌터를 위한 7일 미션",
+					"숨김",
+					"",
+					"별빛토 · SP · 자동사냥",
+					false,
+					false,
+					false,
+					false);
+		}
+		return new EventSummaryResponse(
+				"rookie_7day",
+				"7일 사냥 동행",
+				event.started() ? rookieEventSummaryText(event) : "시작 후 10일 안에 7일 미션을 완료해요.",
+				event.rewardClaimed() ? "보상 수령 완료" : event.expired() ? "종료" : event.started() ? "진행 중" : "시작 가능",
+				event.started() ? event.completedDays() + " / 7일 완료" : "시작 전",
+				"별빛토 · SP · 자동사냥",
+				true,
+				event.active() || event.startable(),
+				event.completed(),
+				rewards.stream().anyMatch(reward -> reward.claimable() && "rookie_7day".equals(reward.sourceEventKey())));
+	}
+
+	private String rookieEventSummaryText(RookieEventResponse event) {
+		if (event.rewardActive()) {
+			return "별빛토 동행 보너스가 적용 중이에요.";
+		}
+		if (event.lockedUntilTomorrow()) {
+			return "오늘 미션을 완료했어요. 다음 일차는 내일 열려요.";
+		}
+		if (event.completed()) {
+			return "최종 보상은 수령함에서 받을 수 있어요.";
+		}
+		return "매일 미션을 완료하고 일차 보상을 모아요.";
+	}
+
+	private EventSummaryResponse dailyMissionSummary(Player player, List<EventRewardResponse> rewards) {
+		if (!player.hasChosenJob()) {
+			return new EventSummaryResponse(
+					"daily_mission",
+					"일일 미션",
+					"직업 선택 후 열려요.",
+					"대기",
+					"",
+					"매일 300G · 7일 추가 보상",
+					false,
+					false,
+					false,
+					false);
+		}
+		DailyMissionEventResponse event = dailyMissionResponse(player);
+		boolean claimable = rewards.stream()
+				.anyMatch(reward -> reward.claimable() && "daily_mission".equals(reward.sourceEventKey()));
+		return new EventSummaryResponse(
+				"daily_mission",
+				"일일 미션",
+				"자동사냥 1시간, 던전 2회 완료 시 매일 300G",
+				event.completedToday() ? "오늘 완료" : "진행 중",
+				event.completedDays() + " / 7일 · 사냥 "
+						+ formatDurationSeconds(event.autoHuntProgressSeconds()) + " / 1시간 · 던전 "
+						+ event.dungeonRuns() + " / " + event.dungeonRunsRequired(),
+				"300G · 7일 완료 시 1,000G + SP 1",
+				true,
+				true,
+				event.completedDays() >= DAILY_MISSION_DAYS,
+				claimable);
+	}
+
+	private DailyMissionEventResponse dailyMissionResponse(Player player) {
+		if (!player.hasChosenJob()) {
+			return new DailyMissionEventResponse(
+					false,
+					false,
+					Math.max(1, player.getDailyMissionCycle()),
+					0,
+					1,
+					null,
+					0,
+					DAILY_MISSION_HUNT_REQUIRED_MILLIS / 1_000,
+					0,
+					DAILY_MISSION_DUNGEON_RUNS_REQUIRED,
+					0,
+					false,
+					false);
+			}
+			LocalDate today = todayInSeoul();
+			player.ensureDailyMissionDay(today);
+			int completedDays = Math.min(DAILY_MISSION_DAYS, Math.max(0, player.getDailyMissionCompletedDays()));
+			Instant now = clock.instant();
+			boolean dailyPending = eventRewardPending(
+					player,
+					dailyMissionRewardKey(player.getDailyMissionCycle(), Math.max(1, completedDays)),
+					now);
+			boolean finalPending = eventRewardPending(
+					player,
+					dailyMissionFinalRewardKey(player.getDailyMissionCycle()),
+					now);
+		return new DailyMissionEventResponse(
+				true,
+				player.completedDailyMissionToday(today),
+				Math.max(1, player.getDailyMissionCycle()),
+				completedDays,
+				Math.min(DAILY_MISSION_DAYS, completedDays + 1),
+				today,
+				Math.max(0, player.getDailyMissionDailyHuntMillis() / 1_000),
+				DAILY_MISSION_HUNT_REQUIRED_MILLIS / 1_000,
+				Math.max(0, player.getDailyMissionDailyDungeonRuns()),
+					DAILY_MISSION_DUNGEON_RUNS_REQUIRED,
+					Math.max(0, player.getDailyMissionSkipTicketCount()),
+					dailyPending,
+					finalPending);
+	}
+
+	private boolean eventRewardPending(Player player, String rewardKey, Instant now) {
+		return eventRewardRepository.findByPlayerAndRewardKey(player, rewardKey)
+				.filter(reward -> !reward.isClaimed())
+				.filter(reward -> !reward.isExpired(now))
+				.isPresent();
+	}
+
+	private VipMembershipResponse vipMembershipResponse(Player player) {
+		Instant now = clock.instant();
+		LocalDate today = todayInSeoul();
+		return new VipMembershipResponse(
+				player.isVipActive(now),
+				player.getVipExpiresAt(),
+				player.getVipLastDailyRewardDate(),
+				player.canClaimVipDailyReward(today, now),
+				Math.max(0, player.getDailyMissionSkipTicketCount()),
+				VIP_MONTHLY_PRICE_WON);
+	}
+
+	private AdventureMiniGameResponse adventureMiniGameResponse(Player player) {
+		if (!player.hasChosenJob()) {
+			return new AdventureMiniGameResponse(
+					false,
+					false,
+					false,
+					ADVENTURE_MINI_GAME_ENTRY_COST_GOLD,
+					ADVENTURE_MINI_GAME_CLEAR_REWARD_SP,
+					ADVENTURE_MINI_GAME_CLEAR_SECONDS,
+					null);
+		}
+		LocalDate today = todayInSeoul();
+		boolean completedToday = player.adventureMiniGameCompletedToday(today);
+		return new AdventureMiniGameResponse(
+				true,
+				completedToday,
+				!completedToday && player.getGold() >= ADVENTURE_MINI_GAME_ENTRY_COST_GOLD,
+				ADVENTURE_MINI_GAME_ENTRY_COST_GOLD,
+				ADVENTURE_MINI_GAME_CLEAR_REWARD_SP,
+				ADVENTURE_MINI_GAME_CLEAR_SECONDS,
+				player.getAdventureMiniGameCompletedDate());
+	}
+
+	private WeeklyPunchKingResponse weeklyPunchKingResponse(Player player) {
+		if (!player.hasChosenJob()) {
+			return new WeeklyPunchKingResponse(
+					false,
+					currentWeekStartDate(),
+					0,
+					0,
+					0,
+					WEEKLY_PUNCH_KING_DURATION_SECONDS,
+					WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS,
+					WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR,
+					WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR,
+					nextWeeklyPunchKingSkillPointScore(0));
+		}
+		LocalDate weekStartDate = currentWeekStartDate();
+		player.ensureWeeklyPunchKingWeek(weekStartDate);
+		long bestScore = Math.max(0, player.getWeeklyPunchKingBestScore());
+		return new WeeklyPunchKingResponse(
+				true,
+				weekStartDate,
+				bestScore,
+				Math.max(0, player.getWeeklyPunchKingRewardedGold()),
+				Math.max(0, player.getWeeklyPunchKingRewardedSkillPoints()),
+				WEEKLY_PUNCH_KING_DURATION_SECONDS,
+				WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS,
+				WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR,
+				nextWeeklyPunchKingGoldRewardScore(bestScore),
+				nextWeeklyPunchKingSkillPointScore(bestScore));
 	}
 
 	private NotificationResponse latestNotification(Player player) {
@@ -1872,7 +2622,7 @@ public class PlayerService {
 			return;
 		}
 		Instant now = clock.instant();
-		LocalDate today = LocalDate.now(clock);
+			LocalDate today = todayInSeoul();
 		if (player.getRookieEventStartedAt() == null) {
 			return;
 		}
@@ -1915,7 +2665,7 @@ public class PlayerService {
 	private boolean canProgressRookieEvent(Player player) {
 		prepareRookieEvent(player);
 		Instant now = clock.instant();
-		LocalDate today = LocalDate.now(clock);
+			LocalDate today = todayInSeoul();
 		return player.getRookieEventStartedAt() != null
 				&& !player.isRookieEventRewardClaimed()
 				&& player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS
@@ -1931,13 +2681,13 @@ public class PlayerService {
 		boolean completed = plan.missions().stream()
 				.allMatch(mission -> rookieMissionValue(player, mission) >= mission.target());
 		if (completed) {
-			player.completeRookieEventDay(LocalDate.now(clock), clock.instant(), ROOKIE_EVENT_DAYS);
+				player.completeRookieEventDay(todayInSeoul(), clock.instant(), ROOKIE_EVENT_DAYS);
 		}
 	}
 
 	private boolean canEvaluateRookieEventDay(Player player) {
 		Instant now = clock.instant();
-		LocalDate today = LocalDate.now(clock);
+			LocalDate today = todayInSeoul();
 		return player.getRookieEventStartedAt() != null
 				&& !player.isRookieEventRewardClaimed()
 				&& player.getRookieEventCompletedDays() < ROOKIE_EVENT_DAYS
@@ -2028,19 +2778,35 @@ public class PlayerService {
 		return selected;
 	}
 
-	private void requireDungeonEntryAvailable(Player player, Instant now, boolean additionalEntry) {
+	private DungeonEntryMode dungeonEntryMode(Player player, boolean additionalEntry) {
+		if (additionalEntry) {
+			return DungeonEntryMode.AD;
+		}
+		if (player.getDungeonCouponCount() > 0) {
+			return DungeonEntryMode.TICKET;
+		}
+		return DungeonEntryMode.FREE;
+	}
+
+	private void requireDungeonEntryAvailable(Player player, Instant now, DungeonEntryMode entryMode) {
 		int runsToday = Math.max(0, player.getDungeonRunCount());
 		int freeDailyLimit = dungeonFreeDailyLimit();
-		int dailyLimit = dungeonDailyLimit(freeDailyLimit, dungeonAdditionalDailyLimit());
-		if (!player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS)) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 자동사냥 1시간을 완료해야 던전에 입장할 수 있어요.");
-		}
-		if (!additionalEntry && runsToday >= freeDailyLimit) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장을 모두 사용했어요. 광고를 보고 추가 입장해 주세요.");
-		}
-		if (additionalEntry && runsToday < freeDailyLimit) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장이 남아 있어요.");
-		}
+			int dailyLimit = dungeonDailyLimit();
+			if (!player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS)) {
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 자동사냥 1시간을 완료해야 던전에 입장할 수 있어요.");
+			}
+			if (entryMode == DungeonEntryMode.TICKET) {
+				return;
+			}
+			if (entryMode == DungeonEntryMode.FREE && runsToday >= freeDailyLimit) {
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장을 모두 사용했어요. 광고를 보고 추가 입장해 주세요.");
+			}
+			if (entryMode == DungeonEntryMode.AD && player.getDungeonCouponCount() > 0) {
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "던전 입장권이 남아 있어요.");
+			}
+			if (entryMode == DungeonEntryMode.AD && runsToday < freeDailyLimit) {
+				throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장이 남아 있어요.");
+			}
 		if (runsToday >= dailyLimit) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 던전 입장을 모두 사용했어요.");
 		}
@@ -2113,6 +2879,18 @@ public class PlayerService {
 			return hours + "시간";
 		}
 		return minutes + "분";
+	}
+
+	private String formatDurationSeconds(long seconds) {
+		return durationLabel(seconds);
+	}
+
+	private int retentionDaysRemaining(Instant now, Instant expiresAt) {
+		if (expiresAt == null || !expiresAt.isAfter(now)) {
+			return 0;
+		}
+		long seconds = Math.max(1, Duration.between(now, expiresAt).toSeconds());
+		return (int) Math.max(1, (seconds + 86_399) / 86_400);
 	}
 
 	private void grantDungeonCouponReward(Player player, DungeonCouponReward reward, Instant now) {
@@ -2188,7 +2966,7 @@ public class PlayerService {
 		boolean completed = rewardClaimed || completedDays >= ROOKIE_EVENT_DAYS;
 		boolean lockedUntilTomorrow = !completed
 				&& !expired
-				&& player.completedRookieEventDayToday(LocalDate.now(clock));
+					&& player.completedRookieEventDayToday(todayInSeoul());
 		int currentDay = Math.min(ROOKIE_EVENT_DAYS, completedDays + 1);
 		List<RookieEventDayResponse> days = ROOKIE_EVENT_PLANS.stream()
 				.map(plan -> rookieEventDayResponse(player, plan, currentDay, completedDays, expired, rewardClaimed, lockedUntilTomorrow))
@@ -2355,10 +3133,10 @@ public class PlayerService {
 		if (startedAt == null) {
 			return null;
 		}
-		return LocalDate.ofInstant(startedAt, clock.getZone())
-				.plusDays(ROOKIE_EVENT_PLAYER_DAYS)
-				.atStartOfDay(clock.getZone())
-				.toInstant();
+			return LocalDate.ofInstant(startedAt, SEOUL_ZONE)
+					.plusDays(ROOKIE_EVENT_PLAYER_DAYS)
+					.atStartOfDay(SEOUL_ZONE)
+					.toInstant();
 	}
 
 	private Instant rookieEventRewardExpiresAt(Player player) {
@@ -2379,8 +3157,8 @@ public class PlayerService {
 		if (endsAt == null || !endsAt.isAfter(now)) {
 			return 0;
 		}
-		LocalDate today = LocalDate.ofInstant(now, clock.getZone());
-		LocalDate endDate = LocalDate.ofInstant(endsAt, clock.getZone());
+			LocalDate today = LocalDate.ofInstant(now, SEOUL_ZONE);
+			LocalDate endDate = LocalDate.ofInstant(endsAt, SEOUL_ZONE);
 		return (int) Math.max(0, ChronoUnit.DAYS.between(today, endDate));
 	}
 

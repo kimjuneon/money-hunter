@@ -13,6 +13,7 @@ import com.money_hunter.presentation.dto.request.GameProfileRequest;
 import com.money_hunter.presentation.dto.request.GameProfileSyncEventRequest;
 import com.money_hunter.presentation.dto.request.IapGrantRequest;
 import com.money_hunter.presentation.dto.request.PetSkinEquipRequest;
+import com.money_hunter.presentation.dto.request.PunchKingScoreRequest;
 import com.money_hunter.presentation.dto.request.StartAdRewardSessionRequest;
 import com.money_hunter.application.dto.response.AdRewardSessionResponse;
 import com.money_hunter.application.dto.response.DungeonCouponRewardResponse;
@@ -236,6 +237,24 @@ public class PlayerController {
 		return playerService.raidBoss(userKey(principal));
 	}
 
+	@PostMapping("/adventures/mini-game/start")
+	public PlayerStateResponse startAdventureMiniGame(Principal principal) {
+		return playerService.startAdventureMiniGame(userKey(principal));
+	}
+
+	@PostMapping("/adventures/mini-game/clear")
+	public PlayerStateResponse clearAdventureMiniGame(Principal principal) {
+		return playerService.clearAdventureMiniGame(userKey(principal));
+	}
+
+	@PostMapping("/adventures/punch-king/submit")
+	public PlayerStateResponse submitWeeklyPunchKingScore(
+			Principal principal,
+			@Valid @RequestBody PunchKingScoreRequest request
+	) {
+		return playerService.submitWeeklyPunchKingScore(userKey(principal), request.score());
+	}
+
 	@PostMapping("/rookie-event/days/{day}/reward/claim")
 	public PlayerStateResponse claimRookieEventDailyReward(Principal principal, @PathVariable int day) {
 		return playerService.claimRookieEventDailyReward(userKey(principal), day);
@@ -244,6 +263,16 @@ public class PlayerController {
 	@PostMapping("/rookie-event/final-reward/claim")
 	public PlayerStateResponse claimRookieEventFinalReward(Principal principal) {
 		return playerService.claimRookieEventFinalReward(userKey(principal));
+	}
+
+	@PostMapping("/event-rewards/{rewardId}/claim")
+	public PlayerStateResponse claimEventReward(Principal principal, @PathVariable Long rewardId) {
+		return playerService.claimEventReward(userKey(principal), rewardId);
+	}
+
+	@PostMapping("/events/daily-mission/skip")
+	public PlayerStateResponse skipDailyMission(Principal principal) {
+		return playerService.skipDailyMission(userKey(principal));
 	}
 
 	@PostMapping("/onestore/auto-hunt/claim")

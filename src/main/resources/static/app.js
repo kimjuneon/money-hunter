@@ -121,9 +121,38 @@ const state = {
   petEasterEggTapStartedAt: 0,
   petEasterEggPasswordOpen: false,
   petEasterEggSkinsHidden: storedValue(hiddenPetSkinsStorageKey) === "true",
-  petSkinModalSlot: 1,
-  rookieEventSelectedDay: 1,
-  rookieHomeShortcutReturnHandled: false,
+	  petSkinModalSlot: 1,
+	  rookieEventSelectedDay: 1,
+	  dailyMissionSelectedDay: 1,
+	  eventHubTab: "events",
+	  eventHubSelectedEventKey: "",
+	  miniGame: {
+	    active: false,
+	    started: false,
+	    startedAt: 0,
+	    remainingMs: 0,
+	    heroY: 0,
+	    velocityY: 0,
+	    obstacleX: 0,
+	    obstacleSpeed: 0,
+	    lastFrameAt: 0,
+	    rafId: 0,
+	    clearing: false,
+	  },
+	  punchKing: {
+	    active: false,
+	    started: false,
+	    startedAt: 0,
+	    remainingMs: 0,
+	    cooldownMs: 0,
+	    score: 0,
+	    lastFrameAt: 0,
+	    lastAttackAt: 0,
+	    ultimateActive: false,
+	    submitting: false,
+	    rafId: 0,
+	  },
+	  rookieHomeShortcutReturnHandled: false,
   homeShortcutGuideIndex: 0,
   distributionTarget: String(distributionTargetOverride || "").trim().toUpperCase() === "ONESTORE" ? "ONESTORE" : "TOSS",
 };
@@ -299,6 +328,7 @@ const goldPerTossPoint = 100;
 const companionPriceWon = 4900;
 const skillPointPackPriceWon = 999;
 const skillPointPackAmount = 10;
+const vipMonthlyPriceWon = 9900;
 const friendInviteRewardSkillPoints = 1;
 const friendInviteLimit = 5;
 const battleBackgrounds = [
@@ -316,6 +346,22 @@ const authTokenStorageKey = "moneyHunterAuthToken";
 const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationAgreementStatus";
 const rookieEventMissionNotificationAgreementStatusStorageKey = "moneyHunter.rookieEventMissionNotificationAgreementStatus";
 const rookieEventButtonSeenDateStoragePrefix = "moneyHunter.rookieEventButtonSeenDate";
+const eventHubSeenDateStoragePrefix = "moneyHunter.eventHubSeenDate";
+const punchKingAssetVersion = "20260609-01";
+const punchKingUltimateVideos = {
+  WARRIOR: `/assets/punchking/warrior-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
+  ARCHER: `/assets/punchking/archer-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
+  MAGE: `/assets/punchking/wizard-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
+  ROGUE: `/assets/punchking/thief-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
+};
+const miniGameGravity = 0.00215;
+const miniGameJumpVelocity = 1.25;
+const miniGameBaseObstacleSpeed = 0.34;
+const miniGameMaxObstacleSpeed = 0.88;
+const miniGameHeroX = 72;
+const punchKingMinAttackIntervalMs = 100;
+const punchKingBossMaxHp = 9_999_999_999;
+const punchKingUltimateFadeMs = 1000;
 const gameProfileWebviewUrl = "servicetoss://game-center/profile";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
@@ -1456,11 +1502,12 @@ function render() {
   $("closeJobModal").classList.toggle("hidden", onboard);
   $("tutorialReward").classList.toggle("hidden", !onboard);
   $("jobTitle").textContent = onboard ? "첫 헌터를 선택하세요" : "변경할 헌터를 선택하세요";
-  $("jobCopy").textContent = onboard
-    ? "능력치는 동일해요. 마음에 드는 공격 모션을 고르세요."
-    : isOneStoreTarget()
-      ? "캐릭터 변경은 게임 내 보상으로 바로 적용돼요. 직업별 성장 차이는 없어요."
-      : "캐릭터 변경은 광고 시청 후 적용돼요. 직업별 성장 차이는 없어요.";
+	  $("jobCopy").textContent = onboard
+	    ? "능력치는 동일해요. 마음에 드는 공격 모션을 고르세요."
+	    : isOneStoreTarget()
+	      ? "캐릭터 변경은 게임 내 보상으로 바로 적용돼요. 직업별 성장 차이는 없어요."
+	      : "캐릭터 변경은 광고 시청 후 적용돼요. 직업별 성장 차이는 없어요.";
+	  $("tutorialRewardTime").textContent = tutorialAutoHuntRewardLabel(player);
   applyJob(state.selectedJob);
   applyEffectTier(player);
 
@@ -1475,8 +1522,9 @@ function render() {
   renderAdventurePanel(player);
   renderRewardPanel(player);
   renderShopPanel(player);
-  renderPets(player);
-  renderRookieEvent(player);
+	  renderPets(player);
+	  renderRookieEvent(player);
+	  renderEventHub(player);
   const autoHuntCooldownReady = timeRewardAdCooldownReady("AUTO_HUNT", player);
   $("autoHuntAd").disabled = !autoHuntCooldownReady;
   $("huntTime").textContent = !autoHuntCooldownReady
@@ -1533,6 +1581,14 @@ function formatCombatPower(power) {
     return String(value);
   }
   return rest > 0 ? `${man}만${rest}` : `${man}만`;
+}
+
+function formatCompactNumber(value) {
+  const number = Math.max(0, Math.floor(Number(value) || 0));
+  if (number >= 10_000) {
+    return formatCombatPower(number);
+  }
+  return number.toLocaleString("ko-KR");
 }
 
 function renderDummyBanner() {
@@ -1837,8 +1893,11 @@ function bossRaidTier(player = state.player) {
 
 function renderAdventurePanel(player) {
   const dungeonCoupon = player.dungeonCoupon || {};
+  const miniGame = player.adventureMiniGame || {};
+  const punchKing = player.weeklyPunchKing || {};
   const dungeonCouponEnabled = Boolean(dungeonCoupon.enabled);
-  const bossTicketCount = dungeonCoupon.bossTicketCount ?? dungeonCoupon.count ?? 0;
+  const dungeonTicketCount = Math.max(0, Number(dungeonCoupon.count || 0));
+  const bossTicketCount = Math.max(0, Number(dungeonCoupon.bossTicketCount || 0));
 	  const dungeonDailyLimit = dungeonCoupon.dungeonDailyLimit ?? 5;
 	  const dungeonFreeLimit = dungeonCoupon.dungeonFreeDailyLimit ?? dungeonFreeDailyLimit;
 	  const dungeonAdditionalLimit = dungeonCoupon.dungeonAdditionalDailyLimit ?? Math.max(0, dungeonDailyLimit - dungeonFreeLimit);
@@ -1850,10 +1909,10 @@ function renderAdventurePanel(player) {
   const dungeonHuntProgressSeconds = Math.max(0, dungeonCoupon.dungeonHuntProgressSeconds || 0);
   const dungeonHuntRequiredSeconds = Math.max(1, dungeonCoupon.dungeonHuntRequiredSeconds || 3600);
 	  const dungeonHuntCompleted = dungeonCoupon.dungeonHuntRequirementCompleted ?? dungeonHuntProgressSeconds >= dungeonHuntRequiredSeconds;
-	  const dungeonAvailable = dungeonCoupon.dungeonAvailable ?? (dungeonHuntCompleted && dungeonRemainingRuns > 0 && dungeonCooldownSeconds <= 0);
+	  const dungeonAvailable = dungeonCoupon.dungeonAvailable ?? (dungeonHuntCompleted && (dungeonTicketCount > 0 || (dungeonRemainingRuns > 0 && dungeonCooldownSeconds <= 0)));
 	  const adventureEntryPolicyCopy = document.getElementById("adventureEntryPolicyCopy");
 	  if (adventureEntryPolicyCopy) {
-	    adventureEntryPolicyCopy.textContent = `던전은 기본 ${dungeonFreeLimit}번과 광고 추가 ${dungeonAdditionalLimit}번, 보스는 입장권으로 도전해요`;
+	    adventureEntryPolicyCopy.textContent = `던전은 입장권, 기본 ${dungeonFreeLimit}번, 광고 추가 ${dungeonAdditionalLimit}번 순서로 도전해요`;
 	  }
   const fallbackBossTier = bossRaidTier(player);
   const bossTier = {
@@ -1861,7 +1920,8 @@ function renderAdventurePanel(player) {
     bossName: dungeonCoupon.bossName || fallbackBossTier.bossName,
     difficultyName: dungeonCoupon.bossDifficultyName || fallbackBossTier.difficultyName,
   };
-  const dungeonRequiresAd = dungeonRunsToday >= dungeonFreeLimit;
+  const dungeonUsesTicket = dungeonTicketCount > 0;
+  const dungeonRequiresAd = !dungeonUsesTicket && dungeonRunsToday >= dungeonFreeLimit;
   $("dungeonCouponCard").hidden = !dungeonCouponEnabled;
   $("dungeonCouponCard").classList.toggle("has-coupon", dungeonAvailable);
   $("bossRaidCard").classList.toggle("locked", !dungeonCouponEnabled || bossTicketCount < 1);
@@ -1878,10 +1938,15 @@ function renderAdventurePanel(player) {
     : `<span class="boss-ticket-button-label"><img src="${adventureAssets.bossTicket}" alt="" />입장권 필요</span>`;
   if (dungeonCouponEnabled) {
     $("dungeonCouponCopy").textContent = `${dungeonCoupon.tierName || "초급 던전"} · ${dungeonRunsToday}/${dungeonDailyLimit}`;
-    $("dungeonHuntProgress").textContent = `사냥 진행도 ${timeRewardModalDurationLabel(dungeonHuntProgressSeconds)}/${timeRewardModalDurationLabel(dungeonHuntRequiredSeconds)}`;
+    $("dungeonHuntProgress").textContent = dungeonTicketCount > 0
+      ? `던전 입장권 ${dungeonTicketCount.toLocaleString("ko-KR")}장 보유`
+      : `사냥 진행도 ${timeRewardModalDurationLabel(dungeonHuntProgressSeconds)}/${timeRewardModalDurationLabel(dungeonHuntRequiredSeconds)}`;
     $("dungeonHuntProgress").classList.toggle("is-complete", dungeonHuntCompleted);
-    $("dungeonCouponStatus").hidden = dungeonCooldownSeconds <= 0;
-    if (dungeonRemainingRuns <= 0) {
+    $("dungeonCouponStatus").hidden = dungeonCooldownSeconds <= 0 || dungeonUsesTicket;
+    if (dungeonUsesTicket) {
+      $("dungeonCouponStatus").hidden = true;
+      $("dungeonCouponStatus").textContent = "";
+    } else if (dungeonRemainingRuns <= 0) {
       $("dungeonCouponStatus").hidden = true;
       $("dungeonCouponStatus").textContent = "";
     } else if (dungeonCooldownSeconds > 0) {
@@ -1893,11 +1958,29 @@ function renderAdventurePanel(player) {
     }
     $("useDungeonCoupon").disabled = !dungeonAvailable;
     $("useDungeonCoupon").innerHTML = dungeonAvailable
-      ? dungeonRequiresAd
+      ? dungeonUsesTicket
+        ? `<span>입장권 ${dungeonTicketCount.toLocaleString("ko-KR")}장 · 던전 입장</span>`
+        : dungeonRequiresAd
         ? "<span>광고 보고 추가 입장</span>"
         : "<span>던전 입장</span>"
       : `<span>${dungeonCoupon.dungeonUnavailableReason || "입장 대기"}</span>`;
   }
+  $("miniGameCard").classList.toggle("is-completed", Boolean(miniGame.completedToday));
+  $("miniGameTitle").textContent = miniGame.completedToday
+    ? "오늘 훈련 완료"
+    : `${Number(miniGame.entryCostGold || 100).toLocaleString("ko-KR")}G 입장 · ${preciseDurationLabel(miniGame.clearSeconds || 120)} 버티기`;
+  $("miniGameStatus").textContent = miniGame.completedToday
+    ? "내일 다시 도전할 수 있어요"
+    : `클리어 시 SP ${Number(miniGame.clearRewardSkillPoints || 1).toLocaleString("ko-KR")}개`;
+  $("startMiniGame").disabled = !miniGame.visible || miniGame.completedToday || player.gold < Number(miniGame.entryCostGold || 100);
+  $("startMiniGame").innerHTML = miniGame.completedToday
+    ? "<span>완료</span>"
+    : player.gold < Number(miniGame.entryCostGold || 100)
+      ? "<span>골드 부족</span>"
+      : "<span>입장</span>";
+  $("weeklyPunchKingTitle").textContent = `${preciseDurationLabel(punchKing.durationSeconds || 90)} 동안 최고 점수 도전`;
+  $("weeklyPunchKingStatus").textContent = `최고 ${formatCompactNumber(punchKing.bestScore || 0)} · 지급 ${Number(punchKing.rewardedGold || 0).toLocaleString("ko-KR")}G / SP ${Number(punchKing.rewardedSkillPoints || 0).toLocaleString("ko-KR")}`;
+  $("openWeeklyPunchKing").disabled = !punchKing.visible;
 }
 
 function openAdventureInfoModal() {
@@ -2149,6 +2232,333 @@ async function runAdventureAction(kind, request) {
   }
 }
 
+async function startMiniGameFlow() {
+  const miniGame = state.player?.adventureMiniGame || {};
+  if (miniGame.completedToday) {
+    setMessage("오늘 점프 훈련장 보상은 이미 받았어요.");
+    return;
+  }
+  try {
+    setMessage("점프 훈련장에 입장하는 중이에요.");
+    const player = await requestWithLoginRetry(() => api("/api/player/adventures/mini-game/start", { method: "POST" }));
+    setServerPlayer(player, { resetDisplayGold: true });
+    render();
+    openMiniGameScreen();
+  } catch (error) {
+    setMessage(error.message || "점프 훈련장 입장에 실패했어요.");
+  }
+}
+
+function openMiniGameScreen() {
+  stopMiniGameLoop();
+  const miniGame = state.player?.adventureMiniGame || {};
+  const hero = jobMeta[state.player?.job || state.selectedJob || "WARRIOR"] || jobMeta.WARRIOR;
+  $("miniGameHero").src = hero.image;
+  $("miniGameScreen").classList.remove("hidden");
+  state.miniGame = {
+    active: true,
+    started: true,
+    startedAt: performance.now(),
+    remainingMs: Math.max(1, Number(miniGame.clearSeconds || 120)) * 1000,
+    heroY: 0,
+    velocityY: 0,
+    obstacleX: Math.max(280, $("miniGameStage").clientWidth || 360),
+    obstacleSpeed: miniGameBaseObstacleSpeed,
+    lastFrameAt: performance.now(),
+    rafId: 0,
+    clearing: false,
+  };
+  $("miniGameMessage").textContent = "화면을 눌러 점프";
+  tickMiniGame(performance.now());
+}
+
+function stopMiniGameLoop() {
+  if (state.miniGame?.rafId) {
+    cancelAnimationFrame(state.miniGame.rafId);
+  }
+  state.miniGame.rafId = 0;
+  state.miniGame.active = false;
+}
+
+function closeMiniGameScreen() {
+  stopMiniGameLoop();
+  $("miniGameScreen").classList.add("hidden");
+}
+
+function miniGameJump() {
+  const game = state.miniGame;
+  if (!game?.active || game.clearing || game.heroY > 2) {
+    return;
+  }
+  game.velocityY = miniGameJumpVelocity;
+  $("miniGameMessage").textContent = "좋아요";
+}
+
+function tickMiniGame(now) {
+  const game = state.miniGame;
+  if (!game?.active) {
+    return;
+  }
+  const delta = Math.min(40, Math.max(0, now - game.lastFrameAt));
+  game.lastFrameAt = now;
+  game.remainingMs = Math.max(0, game.remainingMs - delta);
+  const elapsedRatio = 1 - game.remainingMs / Math.max(1, Number(state.player?.adventureMiniGame?.clearSeconds || 120) * 1000);
+  game.obstacleSpeed = miniGameBaseObstacleSpeed + (miniGameMaxObstacleSpeed - miniGameBaseObstacleSpeed) * Math.max(0, Math.min(1, elapsedRatio));
+  game.obstacleX -= game.obstacleSpeed * delta;
+  if (game.obstacleX < -52) {
+    game.obstacleX = Math.max(280, $("miniGameStage").clientWidth || 360) + 80 + Math.random() * 140;
+  }
+  game.velocityY -= miniGameGravity * delta;
+  game.heroY = Math.max(0, game.heroY + game.velocityY * delta);
+  if (game.heroY <= 0) {
+    game.heroY = 0;
+    game.velocityY = 0;
+  }
+  $("miniGameHero").style.transform = `translateY(${-game.heroY}px)`;
+  $("miniGameObstacle").style.transform = `translateX(${game.obstacleX}px)`;
+  $("miniGameTimer").textContent = stopwatchLabel(Math.ceil(game.remainingMs / 1000));
+  if (miniGameCollided()) {
+    failMiniGame("장애물에 부딪혔어요. 다시 입장하면 재도전할 수 있어요.");
+    return;
+  }
+  if (game.remainingMs <= 0) {
+    clearMiniGame();
+    return;
+  }
+  game.rafId = requestAnimationFrame(tickMiniGame);
+}
+
+function miniGameCollided() {
+  const hero = $("miniGameHero").getBoundingClientRect();
+  const obstacle = $("miniGameObstacle").getBoundingClientRect();
+  return hero.left + 10 < obstacle.right
+    && hero.right - 10 > obstacle.left
+    && hero.bottom - 8 > obstacle.top
+    && hero.top + 12 < obstacle.bottom;
+}
+
+function failMiniGame(message) {
+  stopMiniGameLoop();
+  setMessage(message);
+  closeMiniGameScreen();
+}
+
+async function clearMiniGame() {
+  const game = state.miniGame;
+  if (game.clearing) {
+    return;
+  }
+  game.clearing = true;
+  stopMiniGameLoop();
+  try {
+    const player = await requestWithLoginRetry(() => api("/api/player/adventures/mini-game/clear", { method: "POST" }));
+    setServerPlayer(player, { resetDisplayGold: true });
+    render();
+    setMessage("점프 훈련장을 클리어했어요. SP 1개를 받았어요.");
+  } catch (error) {
+    setMessage(error.message || "미니게임 보상 지급에 실패했어요.");
+  } finally {
+    closeMiniGameScreen();
+  }
+}
+
+function openWeeklyPunchKingScreen() {
+  const punchKing = state.player?.weeklyPunchKing || {};
+  if (!punchKing.visible) {
+    setMessage("직업 선택 후 주간 펀치킹에 도전할 수 있어요.");
+    return;
+  }
+  preloadPunchKingVideos();
+  resetPunchKingUi();
+  $("weeklyPunchKingScreen").classList.remove("hidden");
+}
+
+function closeWeeklyPunchKingScreen() {
+  stopPunchKingLoop();
+  $("weeklyPunchKingScreen").classList.add("hidden");
+}
+
+function resetPunchKingUi() {
+  const punchKing = state.player?.weeklyPunchKing || {};
+  const hero = jobMeta[state.player?.job || state.selectedJob || "WARRIOR"] || jobMeta.WARRIOR;
+  $("punchKingHero").src = hero.image;
+  $("punchKingTimer").textContent = stopwatchLabel(punchKing.durationSeconds || 90);
+  $("punchKingScore").textContent = "0";
+  $("punchKingBest").textContent = `최고 ${formatCompactNumber(punchKing.bestScore || 0)}`;
+  $("punchKingReward").textContent = `지급 ${Number(punchKing.rewardedGold || 0).toLocaleString("ko-KR")}G · SP ${Number(punchKing.rewardedSkillPoints || 0).toLocaleString("ko-KR")}`;
+  $("punchKingHpBar").style.width = "100%";
+  $("punchKingUltimate").disabled = true;
+  $("punchKingUltimateCooldown").textContent = `${punchKing.ultimateCooldownSeconds || 30}초`;
+  $("punchKingStart").disabled = false;
+  $("punchKingStart").textContent = "시작";
+}
+
+function startPunchKingRun() {
+  const punchKing = state.player?.weeklyPunchKing || {};
+  state.punchKing = {
+    active: true,
+    started: true,
+    startedAt: performance.now(),
+    remainingMs: Math.max(1, Number(punchKing.durationSeconds || 90)) * 1000,
+    cooldownMs: Math.max(1, Number(punchKing.ultimateCooldownSeconds || 30)) * 1000,
+    score: 0,
+    lastFrameAt: performance.now(),
+    lastAttackAt: 0,
+    ultimateActive: false,
+    submitting: false,
+    rafId: 0,
+  };
+  $("punchKingStart").disabled = true;
+  $("punchKingStart").textContent = "도전 중";
+  $("punchKingUltimate").disabled = true;
+  tickPunchKing(performance.now());
+}
+
+function stopPunchKingLoop() {
+  if (state.punchKing?.rafId) {
+    cancelAnimationFrame(state.punchKing.rafId);
+  }
+  state.punchKing.rafId = 0;
+  state.punchKing.active = false;
+  state.punchKing.ultimateActive = false;
+  const video = $("punchKingUltimateVideo");
+  video.pause?.();
+  video.classList.remove("is-playing", "is-fading");
+}
+
+function tickPunchKing(now) {
+  const run = state.punchKing;
+  if (!run?.active) {
+    return;
+  }
+  const delta = Math.min(50, Math.max(0, now - run.lastFrameAt));
+  run.lastFrameAt = now;
+  run.remainingMs = Math.max(0, run.remainingMs - delta);
+  if (!run.ultimateActive) {
+    run.cooldownMs = Math.max(0, run.cooldownMs - delta);
+  }
+  $("punchKingTimer").textContent = stopwatchLabel(Math.ceil(run.remainingMs / 1000));
+  $("punchKingScore").textContent = formatCompactNumber(run.score);
+  $("punchKingUltimate").disabled = run.cooldownMs > 0 || run.ultimateActive;
+  $("punchKingUltimateCooldown").textContent = run.cooldownMs > 0
+    ? `${Math.ceil(run.cooldownMs / 1000)}초`
+    : "사용 가능";
+  const hpPercent = Math.max(8, 100 - run.score * 100 / punchKingBossMaxHp);
+  $("punchKingHpBar").style.width = `${hpPercent}%`;
+  $("punchKingHpText").textContent = `${Math.max(0, Math.ceil((punchKingBossMaxHp - run.score) / 1_000_000)).toLocaleString("ko-KR")}M`;
+  if (run.remainingMs <= 0) {
+    finishPunchKingRun();
+    return;
+  }
+  run.rafId = requestAnimationFrame(tickPunchKing);
+}
+
+function punchKingClickDamage() {
+  const power = combatPower(state.player);
+  const base = Math.max(15, Math.floor(power / 28_000) + displayLevel(state.player) * 3);
+  const petBonus = Math.floor(base * 0.35 * unlockedPetCount(state.player));
+  return base + petBonus;
+}
+
+function attackPunchKing() {
+  const run = state.punchKing;
+  if (!run?.active || run.ultimateActive) {
+    return;
+  }
+  const now = performance.now();
+  if (now - run.lastAttackAt < punchKingMinAttackIntervalMs) {
+    return;
+  }
+  run.lastAttackAt = now;
+  run.score += punchKingClickDamage();
+  $("punchKingTarget").classList.remove("is-hit");
+  void $("punchKingTarget").offsetWidth;
+  $("punchKingTarget").classList.add("is-hit");
+}
+
+function punchKingUltimateDamage() {
+  const power = combatPower(state.player);
+  const base = Math.max(2_000, Math.floor(power / 180) + displayLevel(state.player) * 900);
+  return base + Math.floor(base * 0.45 * unlockedPetCount(state.player));
+}
+
+function usePunchKingUltimate() {
+  const run = state.punchKing;
+  if (!run?.active || run.cooldownMs > 0 || run.ultimateActive) {
+    return;
+  }
+  run.ultimateActive = true;
+  run.cooldownMs = Math.max(1, Number(state.player?.weeklyPunchKing?.ultimateCooldownSeconds || 30)) * 1000;
+  run.score += punchKingUltimateDamage();
+  const video = $("punchKingUltimateVideo");
+  const src = punchKingUltimateVideoSrc();
+  video.classList.remove("is-fading");
+  video.src = src;
+  video.currentTime = 0;
+  video.classList.add("is-playing");
+  let settled = false;
+  const finish = () => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    video.classList.add("is-fading");
+    window.setTimeout(() => {
+      video.classList.remove("is-playing", "is-fading");
+      if (state.punchKing === run) {
+        run.ultimateActive = false;
+      }
+    }, punchKingUltimateFadeMs);
+  };
+  video.onended = finish;
+  video.onerror = finish;
+  const playPromise = video.play?.();
+  if (playPromise?.catch) {
+    playPromise.catch(finish);
+  }
+}
+
+function punchKingUltimateVideoSrc() {
+  return punchKingUltimateVideos[state.player?.job || state.selectedJob || "WARRIOR"] || punchKingUltimateVideos.WARRIOR;
+}
+
+function preloadPunchKingVideos() {
+  Object.values(punchKingUltimateVideos).forEach((src) => {
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+    video.src = src;
+    video.load();
+  });
+}
+
+async function finishPunchKingRun() {
+  const run = state.punchKing;
+  if (run.submitting) {
+    return;
+  }
+  run.submitting = true;
+  stopPunchKingLoop();
+  const score = Math.max(0, Math.floor(run.score));
+  try {
+    const previousGold = Number(state.player?.gold || 0);
+    const previousSp = Number(state.player?.skillPoints || 0);
+    const player = await requestWithLoginRetry(() => api("/api/player/adventures/punch-king/submit", {
+      method: "POST",
+      body: JSON.stringify({ score }),
+    }));
+    setServerPlayer(player, { resetDisplayGold: true });
+    render();
+    resetPunchKingUi();
+    const goldGain = Math.max(0, Number(player.gold || 0) - previousGold);
+    const spGain = Math.max(0, Number(player.skillPoints || 0) - previousSp);
+    setMessage(`펀치킹 점수 ${formatCompactNumber(score)}점 · 추가 보상 ${goldGain.toLocaleString("ko-KR")}G / SP ${spGain.toLocaleString("ko-KR")}`);
+  } catch (error) {
+    setMessage(error.message || "펀치킹 점수 제출에 실패했어요.");
+  }
+}
+
 function renderRewardPanel(player) {
   const pointGoldRate = player.goldPerTossPoint || goldPerTossPoint;
   const minimumClaimPointAmount = player.rewardPointAmount || Math.floor(player.rewardGoldThreshold / pointGoldRate);
@@ -2208,6 +2618,18 @@ function durationProgressLabel(milliseconds) {
   return `${minutes}분`;
 }
 
+function progressPercent(current, target) {
+  const safeTarget = Number(target || 0);
+  if (safeTarget <= 0) {
+    return 100;
+  }
+  return Math.max(0, Math.min(100, Number(current || 0) * 100 / safeTarget));
+}
+
+function tutorialAutoHuntRewardLabel(player = state.player) {
+  return secondsLabel(player?.autoHuntAdSeconds ?? 1800);
+}
+
 function renderShopPanel(player) {
   const maxSlots = player.maxCharacterSlots || 3;
   const pets = unlockedPetCount(player);
@@ -2254,7 +2676,25 @@ function renderShopPanel(player) {
   $("buySkillPointPack").innerHTML = spAvailable
     ? "<span>구매하기</span>"
     : "<span>MAX</span><small>완료</small>";
+  renderVipShopItem(player);
   renderPetSkinShop(player);
+}
+
+function renderVipShopItem(player) {
+  const vip = player?.vipMembership || {};
+  const active = Boolean(vip.active);
+  const price = iapDisplayAmount("vipMonthly", vip.priceWon || vipMonthlyPriceWon);
+  $("vipMembershipShop").classList.toggle("is-active", active);
+  $("vipMembershipCopy").textContent = active
+    ? "매일 혜택과 펫 스킨 해금이 적용 중이에요"
+    : "매일 SP, 던전권, 보스권, 자동사냥권, 스킵권 지급";
+  $("vipMembershipStatus").textContent = active
+    ? `활성 · ${vip.expiresAt ? remain(vip.expiresAt) : "기간 확인 중"}`
+    : `${price} · 월간 멤버십`;
+  $("buyVipMembership").disabled = active && !state.reviewToolsEnabled;
+  $("buyVipMembership").innerHTML = active
+    ? "<span>활성 상태</span>"
+    : `<span>구독하기</span><small>${price}</small>`;
 }
 
 function renderPetSkinShop(player) {
@@ -2417,7 +2857,8 @@ function renderPets(player) {
 
 function renderRookieEvent(player) {
   const event = player?.rookieEvent;
-  const visible = Boolean(event?.visible);
+  const hub = player?.eventHub;
+  const visible = eventHubAvailable(player);
   const button = $("rookieEventButton");
   const callout = button.querySelector(".rookie-event-callout");
   button.classList.toggle("hidden", !visible);
@@ -2425,16 +2866,456 @@ function renderRookieEvent(player) {
   if (!visible) {
     callout?.classList.add("hidden");
     closeRookieEventModal();
+    closeEventHubModal();
     return;
   }
-  $("rookieEventButtonProgress").textContent = event.started ? `${event.completedDays || 0}/7` : "시작";
-  callout?.classList.toggle("hidden", !shouldShowRookieEventCallout(event, player));
+  const claimableCount = Number(hub?.claimableRewardCount || 0);
+  $("rookieEventButtonProgress").textContent = "";
+  $("rookieEventButtonProgress").classList.add("hidden");
+  callout.textContent = claimableCount > 0 ? "보상 수령 가능" : "이벤트 참여 가능";
+  callout?.classList.toggle("hidden", !shouldShowEventHubCallout(player));
   if (!$("rookieEventModal").classList.contains("hidden")) {
     renderRookieEventModal(event);
   }
 }
 
+function eventHubAvailable(player = state.player) {
+  const events = player?.eventHub?.events || [];
+  const rewards = player?.eventHub?.rewards || [];
+  return events.length > 0 || rewards.length > 0 || Boolean(player?.rookieEvent?.visible);
+}
+
 async function openRookieEventModal() {
+  openEventHubModal("events");
+}
+
+function openEventHubModal(tab = state.eventHubTab || "events") {
+  if (!eventHubAvailable(state.player)) {
+    return;
+  }
+  if (tab !== "rewards") {
+    markEventHubSeenToday();
+  }
+  state.eventHubTab = tab;
+  $("eventHubModal").classList.remove("hidden");
+  renderRookieEvent(state.player);
+  renderEventHubModal(state.player);
+}
+
+function closeEventHubModal() {
+  const modal = $("eventHubModal");
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+function renderEventHub(player = state.player) {
+  if (!$("eventHubModal").classList.contains("hidden")) {
+    renderEventHubModal(player);
+  }
+}
+
+function renderEventHubModal(player = state.player) {
+  const hub = player?.eventHub || {};
+  const rewards = Array.isArray(hub.rewards) ? hub.rewards : [];
+  const events = Array.isArray(hub.events) ? hub.events : [];
+  const participableCount = Number(hub.participableEventCount || events.filter((event) => event.active && !event.completed).length || 0);
+  const claimableCount = Number(hub.claimableRewardCount || rewards.filter((reward) => reward.claimable).length || 0);
+  const hasUncheckedEvents = participableCount > 0 && !eventHubSeenToday(player);
+  const hasClaimableRewards = claimableCount > 0;
+  $("eventHubRewardBadge").textContent = hasClaimableRewards ? "수령 가능" : "수령함";
+  $("eventHubListTab").textContent = "이벤트 목록";
+  $("eventHubRewardTab").textContent = "수령함";
+  $("eventHubListTab").classList.toggle("has-new", hasUncheckedEvents);
+  $("eventHubRewardTab").classList.toggle("has-new", hasClaimableRewards);
+  $("eventHubListTab").setAttribute("aria-label", hasUncheckedEvents ? "이벤트 목록, 새 이벤트 있음" : "이벤트 목록");
+  $("eventHubRewardTab").setAttribute("aria-label", hasClaimableRewards ? "수령함, 받을 보상 있음" : "수령함");
+  $("eventHubListTab").classList.toggle("active", state.eventHubTab !== "rewards");
+  $("eventHubRewardTab").classList.toggle("active", state.eventHubTab === "rewards");
+  $("eventHubListView").classList.toggle("hidden", state.eventHubTab === "rewards");
+  $("eventHubRewardView").classList.toggle("hidden", state.eventHubTab !== "rewards");
+  renderEventHubList(events);
+  renderEventRewardInbox(rewards);
+}
+
+function renderEventHubList(events) {
+  const list = $("eventHubList");
+  const visibleEvents = Array.isArray(events) ? events.filter((event) => event.visible !== false) : [];
+  if (visibleEvents.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "event-hub-empty";
+    empty.textContent = "진행 중인 이벤트가 없어요.";
+    list.replaceChildren(empty);
+    return;
+  }
+  list.replaceChildren(...visibleEvents.map((event) => eventSummaryElement(event)));
+}
+
+function eventSummaryElement(event) {
+  const card = document.createElement("article");
+  card.className = `event-summary-card event-${event.key || "default"}`;
+  card.classList.toggle("is-claimable", Boolean(event.claimable));
+  card.classList.toggle("needs-attention", eventNeedsAttention(event));
+  card.dataset.eventKey = event.key || "";
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  const copy = document.createElement("div");
+  copy.className = "event-summary-copy";
+  const title = document.createElement("strong");
+  title.textContent = event.title || "이벤트";
+  const description = document.createElement("p");
+  description.textContent = event.description || "";
+  const progress = document.createElement("small");
+  progress.textContent = event.progressText || event.rewardText || "";
+  copy.append(title, description, progress);
+  const meta = document.createElement("div");
+  meta.className = "event-summary-meta";
+  const status = document.createElement("span");
+  status.textContent = event.claimable ? "수령 가능" : event.status || "진행 중";
+  meta.append(status);
+  card.append(copy, meta);
+  card.addEventListener("click", () => openEventSummary(event.key));
+  card.addEventListener("keydown", (keyboardEvent) => {
+    if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+      keyboardEvent.preventDefault();
+      openEventSummary(event.key);
+    }
+  });
+  return card;
+}
+
+function eventNeedsAttention(event) {
+  return Boolean(event?.active && !event.completed && !eventHubSeenToday());
+}
+
+function openEventSummary(eventKey) {
+  if (eventKey === "rookie_7day") {
+    openRookieEventDetailFromHub();
+    return;
+  }
+  state.eventHubSelectedEventKey = eventKey || "";
+  if (eventKey === "daily_mission") {
+    openDailyMissionModal();
+    return;
+  }
+  showEventRewardInbox();
+}
+
+function renderDailyMissionDetail() {
+  const mission = state.player?.dailyMission;
+  const detail = $("eventHubDetail");
+  if (!mission?.visible) {
+    detail.classList.add("hidden");
+    detail.replaceChildren();
+    return;
+  }
+  const huntPercent = progressPercent(mission.autoHuntProgressSeconds, mission.autoHuntRequiredSeconds);
+  const dungeonPercent = progressPercent(mission.dungeonRuns, mission.dungeonRunsRequired);
+  detail.classList.remove("hidden");
+  detail.replaceChildren(
+    eventDetailHeading("일일 미션", mission.completedToday ? "오늘 완료" : `${mission.currentDay || 1}일차 진행 중`),
+    eventProgressRow("자동사냥", `${secondsLabel(mission.autoHuntProgressSeconds)} / ${secondsLabel(mission.autoHuntRequiredSeconds)}`, huntPercent),
+    eventProgressRow("던전 탐험", `${mission.dungeonRuns || 0} / ${mission.dungeonRunsRequired || 2}회`, dungeonPercent),
+    eventDetailReward("오늘 보상", "골드 300G", mission.rewardPending ? "수령함에 준비됨" : mission.completedToday ? "수령함에서 받아요" : "미션 완료 후 수령함에 생성"),
+    eventDetailReward("7일 추가 보상", "골드 1,000G · SP 1개", `${mission.completedDays || 0} / 7일 완료`),
+    dailyMissionSkipButton(mission),
+  );
+}
+
+function openDailyMissionModal() {
+  const mission = state.player?.dailyMission;
+  if (!mission?.visible) {
+    setMessage("직업 선택 후 일일 미션을 확인할 수 있어요.");
+    return;
+  }
+  closeEventHubModal();
+  state.dailyMissionSelectedDay = mission.currentDay || Math.max(1, mission.completedDays || 1);
+  $("dailyMissionModal").classList.remove("hidden");
+  renderDailyMissionModal(mission);
+}
+
+function closeDailyMissionModal() {
+  $("dailyMissionModal").classList.add("hidden");
+}
+
+function dailyMissionDays(mission = state.player?.dailyMission) {
+  const completedDays = Math.max(0, Math.min(7, Number(mission?.completedDays || 0)));
+  const currentDay = Math.max(1, Math.min(7, Number(mission?.currentDay || completedDays + 1)));
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = index + 1;
+    return {
+      day,
+      completed: day <= completedDays,
+      current: day === currentDay && completedDays < 7,
+      locked: day > currentDay,
+    };
+  });
+}
+
+function renderDailyMissionModal(mission = state.player?.dailyMission) {
+  if (!mission?.visible) {
+    return;
+  }
+  const days = dailyMissionDays(mission);
+  const selectedDay = days.find((day) => day.day === state.dailyMissionSelectedDay)
+    || days.find((day) => day.current)
+    || days[0];
+  state.dailyMissionSelectedDay = selectedDay.day;
+  $("dailyMissionCycle").textContent = `${Number(mission.cycle || 1).toLocaleString("ko-KR")}회차`;
+  $("dailyMissionProgress").textContent = `${Number(mission.completedDays || 0)} / 7일 완료`;
+  $("dailyMissionSummary").textContent = mission.completedToday
+    ? "오늘 일일 미션을 완료했어요. 보상은 수령함에서 받을 수 있어요."
+    : "자동사냥 1시간과 던전 탐험 2회를 완료하면 오늘 보상이 열려요.";
+  renderDailyMissionDayTabs(days);
+  renderDailyMissionSelectedDay(selectedDay, mission);
+}
+
+function renderDailyMissionDayTabs(days) {
+  $("dailyMissionDayTabs").replaceChildren(...days.map((day) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `${day.day}일`;
+    button.classList.toggle("is-current", day.current || day.day === state.dailyMissionSelectedDay);
+    button.classList.toggle("is-completed", day.completed);
+    button.classList.toggle("is-locked", day.locked);
+    button.addEventListener("click", () => {
+      state.dailyMissionSelectedDay = day.day;
+      renderDailyMissionModal(state.player?.dailyMission);
+    });
+    return button;
+  }));
+}
+
+function renderDailyMissionSelectedDay(day, mission) {
+  $("dailyMissionSelectedDayTitle").textContent = `${day.day}일차`;
+  $("dailyMissionSelectedDayState").textContent = day.completed
+    ? "완료"
+    : day.current
+      ? mission.completedToday ? "오늘 완료" : "진행 중"
+      : "잠김";
+  const list = $("dailyMissionList");
+  if (day.completed && !day.current) {
+    list.replaceChildren(dailyMissionRewardRow("일일 미션 완료", "골드 300G", "수령함에서 확인"));
+    return;
+  }
+  if (day.locked) {
+    list.replaceChildren(dailyMissionRewardRow("아직 열리지 않음", "이전 일차를 완료하면 열려요", `${day.day}일차 대기`));
+    return;
+  }
+  const huntPercent = progressPercent(mission.autoHuntProgressSeconds, mission.autoHuntRequiredSeconds);
+  const dungeonPercent = progressPercent(mission.dungeonRuns, mission.dungeonRunsRequired);
+  const rows = [
+    dailyMissionProgressMissionRow("자동사냥 1시간", `${secondsLabel(mission.autoHuntProgressSeconds)} / ${secondsLabel(mission.autoHuntRequiredSeconds)}`, huntPercent, mission.completedToday),
+    dailyMissionProgressMissionRow("던전 탐험 2회", `${mission.dungeonRuns || 0} / ${mission.dungeonRunsRequired || 2}회`, dungeonPercent, mission.completedToday),
+    dailyMissionRewardRow("오늘 보상", "골드 300G", mission.rewardPending ? "수령함에 준비됨" : mission.completedToday ? "수령함에서 받아요" : "완료 후 수령함 생성"),
+    dailyMissionRewardRow("7일 완료 추가 보상", "골드 1,000G · SP 1개", mission.finalRewardPending ? "수령함에 준비됨" : `${mission.completedDays || 0} / 7일 완료`),
+  ];
+  if (!mission.completedToday) {
+    rows.push(dailyMissionSkipButton(mission));
+  }
+  list.replaceChildren(...rows);
+}
+
+function dailyMissionProgressMissionRow(title, progressText, percent, completed) {
+  const row = document.createElement("div");
+  row.className = "rookie-event-mission";
+  row.classList.toggle("is-completed", completed || percent >= 100);
+  const label = document.createElement("strong");
+  label.textContent = title;
+  const progress = document.createElement("span");
+  progress.textContent = completed || percent >= 100 ? "완료" : progressText;
+  const bar = document.createElement("i");
+  bar.style.setProperty("--progress", `${Math.max(0, Math.min(100, percent || 0))}%`);
+  row.append(label, progress, bar);
+  return row;
+}
+
+function dailyMissionRewardRow(title, reward, status) {
+  const row = document.createElement("div");
+  row.className = "rookie-event-day-reward daily-mission-reward-row";
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const span = document.createElement("span");
+  span.textContent = reward;
+  const small = document.createElement("small");
+  small.textContent = status;
+  row.append(strong, span, small);
+  return row;
+}
+
+function eventDetailHeading(title, status) {
+  const heading = document.createElement("div");
+  heading.className = "event-detail-heading";
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const span = document.createElement("span");
+  span.textContent = status;
+  heading.append(strong, span);
+  return heading;
+}
+
+function eventProgressRow(title, value, percent) {
+  const row = document.createElement("div");
+  row.className = "event-progress-row";
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const span = document.createElement("span");
+  span.textContent = value;
+  const bar = document.createElement("i");
+  bar.style.setProperty("--progress", `${Math.max(0, Math.min(100, percent || 0))}%`);
+  row.append(strong, span, bar);
+  return row;
+}
+
+function eventDetailReward(title, reward, status) {
+  const row = document.createElement("div");
+  row.className = "event-detail-reward";
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const span = document.createElement("span");
+  span.textContent = reward;
+  const small = document.createElement("small");
+  small.textContent = status;
+  row.append(strong, span, small);
+  return row;
+}
+
+function dailyMissionSkipButton(mission) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "event-detail-action";
+  button.disabled = mission.completedToday || Number(mission.dailyMissionSkipTickets || 0) < 1;
+  button.textContent = mission.completedToday
+    ? "오늘 미션 완료"
+    : Number(mission.dailyMissionSkipTickets || 0) > 0
+      ? `오늘 미션 스킵 · ${mission.dailyMissionSkipTickets}장 보유`
+      : "스킵권 없음";
+  button.addEventListener("click", () => skipDailyMission(button));
+  return button;
+}
+
+async function skipDailyMission(button) {
+  button.disabled = true;
+  try {
+    const player = await requestWithLoginRetry(() => api("/api/player/events/daily-mission/skip", { method: "POST" }));
+    setServerPlayer(player, { resetDisplayGold: true });
+    setMessage("일일 미션을 스킵했어요. 보상은 수령함에서 받을 수 있어요.");
+    render();
+    renderDailyMissionModal(state.player?.dailyMission);
+  } catch (error) {
+    setMessage(error.message || "일일 미션 스킵에 실패했어요.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderVipEventDetail() {
+  const vip = state.player?.vipMembership || {};
+  const detail = $("eventHubDetail");
+  detail.classList.remove("hidden");
+  const price = iapDisplayAmount("vipMonthly", vip.priceWon || vipMonthlyPriceWon);
+  detail.replaceChildren(
+    eventDetailHeading("VIP 멤버십", vip.active ? `활성 · ${vip.expiresAt ? remain(vip.expiresAt) : "기간 확인 중"}` : "구독 준비"),
+    eventDetailReward("일일 혜택", "SP 1 · 던전권 3 · 보스권 1 · 자동사냥 1시간 · 스킵권 1", vip.dailyRewardAvailable ? "수령함에서 받을 수 있어요" : "오늘 혜택 대기"),
+    eventDetailReward("상시 혜택", "펫 스킨 전체 해금 · 전용 뱃지", vip.active ? "적용 중" : "구독 후 적용"),
+    vipPurchaseButton(price, vip.active),
+  );
+}
+
+function vipPurchaseButton(price, active) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "event-detail-action";
+  button.textContent = active ? "VIP 활성 상태" : `VIP 구독 · ${price}`;
+  button.disabled = active && !state.reviewToolsEnabled;
+  button.addEventListener("click", () => runVipPurchaseFlow());
+  return button;
+}
+
+function renderEventRewardInbox(rewards) {
+  const inbox = $("eventRewardInbox");
+  const sorted = [...(Array.isArray(rewards) ? rewards : [])].sort((a, b) => {
+    if (Boolean(a.claimable) !== Boolean(b.claimable)) {
+      return a.claimable ? -1 : 1;
+    }
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  });
+  if (sorted.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "event-hub-empty";
+    empty.textContent = "수령함이 비어 있어요.";
+    inbox.replaceChildren(empty);
+    return;
+  }
+  inbox.replaceChildren(...sorted.map((reward) => eventRewardElement(reward)));
+}
+
+function eventRewardElement(reward) {
+  const row = document.createElement("article");
+  row.className = "event-reward-card";
+  row.classList.toggle("is-claimed", Boolean(reward.claimed));
+  const copy = document.createElement("div");
+  copy.className = "event-reward-copy";
+  const source = document.createElement("span");
+  source.textContent = reward.sourceEventName || "이벤트";
+  const title = document.createElement("strong");
+  title.textContent = reward.title || reward.rewardLabel || "보상";
+  const description = document.createElement("p");
+  description.className = "event-reward-labels";
+  rewardLabelParts(reward.rewardLabel || reward.description || "")
+    .forEach((part) => {
+      const chip = document.createElement("span");
+      chip.textContent = part;
+      description.appendChild(chip);
+    });
+  const expires = document.createElement("small");
+  expires.textContent = reward.claimed
+    ? "수령 완료"
+    : reward.daysRemaining > 0
+      ? `${reward.daysRemaining}일 남음`
+      : "오늘 만료";
+  copy.append(source, title, description, expires);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.disabled = !reward.claimable;
+  button.textContent = reward.claimed ? "완료" : "수령";
+  button.addEventListener("click", () => claimEventReward(reward.id, button));
+  row.append(copy, button);
+  return row;
+}
+
+function rewardLabelParts(label) {
+  const parts = String(label || "")
+    .split(" · ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : ["보상 확인"];
+}
+
+async function claimEventReward(rewardId, button) {
+  if (!rewardId) {
+    return;
+  }
+  button.disabled = true;
+  try {
+    const player = await requestWithLoginRetry(() => api(`/api/player/event-rewards/${encodeURIComponent(rewardId)}/claim`, { method: "POST" }));
+    setServerPlayer(player, { resetDisplayGold: true });
+    setMessage("이벤트 보상을 받았어요.");
+    render();
+  } catch (error) {
+    setMessage(error.message || "이벤트 보상 수령에 실패했어요.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function showEventRewardInbox() {
+  state.eventHubTab = "rewards";
+  $("eventHubDetail").classList.add("hidden");
+  renderEventHubModal(state.player);
+}
+
+async function openRookieEventDetailFromHub() {
   let event = state.player?.rookieEvent;
   if (!event?.visible) {
     return;
@@ -2464,6 +3345,7 @@ async function openRookieEventModal() {
     setMessage("이벤트를 시작할 수 없어요.");
     return;
   }
+  closeEventHubModal();
   state.rookieEventSelectedDay = event.currentDay || 1;
   $("rookieEventModal").classList.remove("hidden");
   renderRookieEventModal(event);
@@ -2502,6 +3384,7 @@ function renderRookieEventModal(event) {
   const finalClaimable = rookieEventFinalRewardClaimable(event);
   finalClaimButton.classList.toggle("hidden", !finalClaimable);
   finalClaimButton.disabled = !finalClaimable;
+  finalClaimButton.textContent = "수령함 열기";
   renderRookieEventDayTabs(days);
   renderRookieEventSelectedDay(selectedDay);
 }
@@ -2608,12 +3491,32 @@ function markRookieEventButtonSeenToday(player = state.player) {
   storeValue(rookieEventButtonSeenDateStorageKey(player), localDateKey());
 }
 
+function eventHubSeenDateStorageKey(player = state.player) {
+  const userKey = String(player?.userKey || "guest").trim() || "guest";
+  return `${eventHubSeenDateStoragePrefix}.${userKey}`;
+}
+
+function eventHubSeenToday(player = state.player) {
+  return storedValue(eventHubSeenDateStorageKey(player)) === localDateKey();
+}
+
+function markEventHubSeenToday(player = state.player) {
+  storeValue(eventHubSeenDateStorageKey(player), localDateKey());
+  markRookieEventButtonSeenToday(player);
+}
+
 function shouldShowRookieEventCallout(event = state.player?.rookieEvent, player = state.player) {
   return Boolean(event?.visible)
     && !event.expired
     && !event.rewardClaimed
     && !event.rewardActive
     && !rookieEventButtonSeenToday(player);
+}
+
+function shouldShowEventHubCallout(player = state.player) {
+  const claimableCount = Number(player?.eventHub?.claimableRewardCount || 0);
+  const participableCount = Number(player?.eventHub?.participableEventCount || 0);
+  return claimableCount > 0 || (participableCount > 0 && !eventHubSeenToday(player));
 }
 
 function rookieHomeShortcutReturnRequested() {
@@ -2836,8 +3739,8 @@ function rookieEventDailyRewardElement(day) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "rookie-event-claim";
-    button.textContent = "보상 받기";
-    button.addEventListener("click", () => claimRookieEventDailyReward(day.day, button));
+    button.textContent = "수령함";
+    button.addEventListener("click", () => openEventHubModal("rewards"));
     actions.append(button);
   }
   reward.append(title, label, actions);
@@ -2849,7 +3752,7 @@ function rookieEventDailyRewardStateText(day) {
     return "지급 완료";
   }
   if (day.rewardClaimable) {
-    return "수령 가능";
+    return "수령함에서 수령 가능";
   }
   if (day.completed) {
     return "이전 보상 먼저 수령";
@@ -3018,7 +3921,32 @@ function remainingSecondsFrom(value) {
 }
 
 function secondsLabel(seconds) {
-  return timeRewardModalDurationLabel(seconds || 3600);
+  return timeRewardModalDurationLabel(seconds ?? 3600);
+}
+
+function stopwatchLabel(seconds) {
+  const safeSeconds = Math.max(0, Math.ceil(Number(seconds || 0)));
+  const minutes = Math.floor(safeSeconds / 60);
+  const rest = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+function preciseDurationLabel(seconds) {
+  const safeSeconds = Math.max(0, Math.ceil(Number(seconds || 0)));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const rest = safeSeconds % 60;
+  const parts = [];
+  if (hours > 0) {
+    parts.push(`${hours}시간`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes}분`);
+  }
+  if (rest > 0 || parts.length === 0) {
+    parts.push(`${rest}초`);
+  }
+  return parts.join(" ");
 }
 
 function timeRewardModalDurationLabel(seconds) {
@@ -3830,6 +4758,10 @@ function claimFriendInviteReward(completedInvites = 1) {
 
 function dungeonAdditionalEntryRequired(player = state.player) {
   const dungeon = player?.dungeonCoupon || {};
+  const ticketCount = Math.max(0, Number(dungeon.count || 0));
+  if (ticketCount > 0) {
+    return false;
+  }
   const runsToday = dungeon.dungeonRunsToday || 0;
   const freeLimit = dungeon.dungeonFreeDailyLimit ?? dungeonFreeDailyLimit;
   return runsToday >= freeLimit;
@@ -4615,6 +5547,13 @@ async function battlePresetForTest() {
   return next;
 }
 
+async function eventPresetForTest() {
+  await ensureJobForTest();
+  await api("/api/player/test/events/rookie/start", { method: "POST" });
+  await api("/api/player/test/events/daily-mission/complete", { method: "POST" });
+  return api("/api/player/test/events/vip/activate", { method: "POST" });
+}
+
 async function runDevAction(request, message) {
   if ($("devPanel").classList.contains?.("is-busy")) {
     return;
@@ -4847,7 +5786,7 @@ document.querySelectorAll(".job-select").forEach((button) => {
       state.selectedJob = job;
       applyJob(job);
       await run(request, firstPick
-        ? `${jobMeta[job].pick} 선택했어요. 자동사냥 30분이 지급됐어요.`
+        ? `${jobMeta[job].pick} 선택했어요. 자동사냥 ${tutorialAutoHuntRewardLabel()}이 지급됐어요.`
         : `${jobMeta[job].pick} 선택했어요.`);
     };
 
@@ -4986,6 +5925,15 @@ $("claimFriendInviteReward").addEventListener("click", () => run(
 
 $("useDungeonCoupon").addEventListener("click", useDungeonCoupon);
 $("challengeBossRaid").addEventListener("click", challengeBossRaid);
+$("startMiniGame").addEventListener("click", startMiniGameFlow);
+$("miniGameStage").addEventListener("click", miniGameJump);
+$("miniGameJump").addEventListener("click", miniGameJump);
+$("exitMiniGame").addEventListener("click", closeMiniGameScreen);
+$("openWeeklyPunchKing").addEventListener("click", openWeeklyPunchKingScreen);
+$("exitWeeklyPunchKing").addEventListener("click", closeWeeklyPunchKingScreen);
+$("punchKingStart").addEventListener("click", startPunchKingRun);
+$("punchKingTarget").addEventListener("click", attackPunchKing);
+$("punchKingUltimate").addEventListener("click", usePunchKingUltimate);
 $("openAdventureInfo").addEventListener("click", openAdventureInfoModal);
 $("closeAdventureInfoModal").addEventListener("click", closeAdventureInfoModal);
 $("adventureInfoModal").addEventListener("click", (event) => {
@@ -5045,6 +5993,33 @@ function runCompanionPurchaseFlow() {
   });
 }
 
+function runVipPurchaseFlow() {
+  return runPurchaseFlow({
+    title: "VIP 멤버십",
+    description: isOneStoreTarget()
+      ? "심사용 게임 내 보상으로 VIP 혜택을 활성화해요."
+      : "결제를 완료하면 월간 VIP 혜택이 활성화돼요.",
+    amountText: isOneStoreTarget()
+      ? "심사용 VIP 활성화"
+      : iapDisplayAmount("vipMonthly", state.player?.vipMembership?.priceWon || vipMonthlyPriceWon),
+    productId: () => iapProductId("vipMonthly"),
+    request: () => {
+      const productId = iapProductId("vipMonthly");
+      if (!productId && state.reviewToolsEnabled) {
+        return api("/api/player/test/events/vip/activate", { method: "POST" });
+      }
+      return api("/api/player/shop/iap/grant", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId: clientRequestId("vip-local"),
+          productId,
+        }),
+      });
+    },
+    message: "VIP 멤버십이 활성화됐어요. 오늘 혜택은 수령함에서 받을 수 있어요.",
+  });
+}
+
 function handlePetShopAction(slot) {
   const button = $(slot === 1 ? "changePetOneSkin" : "changePetTwoSkin");
   if (button.dataset.petShopAction === "purchase") {
@@ -5057,6 +6032,7 @@ function handlePetShopAction(slot) {
 
 $("changePetOneSkin").addEventListener("click", () => handlePetShopAction(1));
 $("changePetTwoSkin").addEventListener("click", () => handlePetShopAction(2));
+$("buyVipMembership").addEventListener("click", runVipPurchaseFlow);
 $("closePetSkinModal").addEventListener("click", closePetSkinModal);
 $("petSkinModal").addEventListener("click", (event) => {
   if (event.target.id === "petSkinModal") {
@@ -5067,13 +6043,32 @@ $("petSkinModal").addEventListener("click", (event) => {
 $("rookieEventButton").addEventListener("click", openRookieEventModal);
 $("closeRookieEventModal").addEventListener("click", closeRookieEventModal);
 $("rookieEventFinalClaimButton").addEventListener("click", (event) => {
-  claimRookieEventFinalReward(event.currentTarget);
+  openEventHubModal("rewards");
 });
 $("rookieEventModal").addEventListener("click", (event) => {
   if (event.target.id === "rookieEventModal") {
     closeRookieEventModal();
   }
 });
+$("closeDailyMissionModal").addEventListener("click", closeDailyMissionModal);
+$("dailyMissionModal").addEventListener("click", (event) => {
+  if (event.target.id === "dailyMissionModal") {
+    closeDailyMissionModal();
+  }
+});
+$("closeEventHubModal").addEventListener("click", closeEventHubModal);
+$("eventHubModal").addEventListener("click", (event) => {
+  if (event.target.id === "eventHubModal") {
+    closeEventHubModal();
+  }
+});
+$("eventHubListTab").addEventListener("click", () => {
+  state.eventHubTab = "events";
+  markEventHubSeenToday();
+  renderRookieEvent(state.player);
+  renderEventHubModal(state.player);
+});
+$("eventHubRewardTab").addEventListener("click", () => showEventRewardInbox());
 $("closeHomeShortcutGuide").addEventListener("click", closeHomeShortcutGuide);
 $("homeShortcutGuideBack").addEventListener("click", previousHomeShortcutGuideStep);
 $("homeShortcutGuideNext").addEventListener("click", nextHomeShortcutGuideStep);
@@ -5167,13 +6162,13 @@ function initializeDevPanel() {
     "전사, 동료 펫 2마리, 자동사냥을 세팅했어요."
   ));
 
-  $("devAutoHunt").addEventListener("click", () => runDevAction(
-    async () => {
-      await ensureJobForTest();
-      return api("/api/player/test/auto-hunt", { method: "POST" });
-    },
-    "자동사냥 시간이 30분 충전됐어요."
-  ));
+	  $("devAutoHunt").addEventListener("click", () => runDevAction(
+	    async () => {
+	      await ensureJobForTest();
+	      return api("/api/player/test/auto-hunt", { method: "POST" });
+	    },
+	    `자동사냥 시간이 ${tutorialAutoHuntRewardLabel()} 충전됐어요.`
+	  ));
 
   $("devSkillPoint").addEventListener("click", () => runDevAction(
     async () => {
@@ -5267,9 +6262,54 @@ function initializeDevPanel() {
     "혜택 탭 신규 유저로 표시했어요. 게이지를 채우고 토스포인트 수령 버튼을 눌러보세요."
   ));
 
-  $("devPromotionLog").addEventListener("click", () => showPromotionExecutionsForTest());
+	  $("devPromotionLog").addEventListener("click", () => showPromotionExecutionsForTest());
 
-  $("devToggleBanner").addEventListener("click", () => {
+	  $("devEventPreset").addEventListener("click", () => runDevAction(
+	    () => eventPresetForTest(),
+	    "이벤트 목록, 일일 미션 보상, VIP 혜택을 테스트할 준비가 됐어요."
+	  ));
+
+	  $("devRookieStart").addEventListener("click", () => runDevAction(
+	    async () => {
+	      await ensureJobForTest();
+	      return api("/api/player/test/events/rookie/start", { method: "POST" });
+	    },
+	    "7일 사냥 동행 이벤트를 시작했어요."
+	  ));
+
+	  $("devRookieCompleteDay").addEventListener("click", () => runDevAction(
+	    async () => {
+	      await ensureJobForTest();
+	      return api("/api/player/test/events/rookie/complete-day", { method: "POST" });
+	    },
+	    "7일 미션 하루를 완료하고 수령함 보상을 만들었어요."
+	  ));
+
+	  $("devDailyMissionComplete").addEventListener("click", () => runDevAction(
+	    async () => {
+	      await ensureJobForTest();
+	      return api("/api/player/test/events/daily-mission/complete", { method: "POST" });
+	    },
+	    "일일 미션을 완료하고 수령함 보상을 만들었어요."
+	  ));
+
+	  $("devDailyMissionCycle").addEventListener("click", () => runDevAction(
+	    async () => {
+	      await ensureJobForTest();
+	      return api("/api/player/test/events/daily-mission/complete-cycle", { method: "POST" });
+	    },
+	    "일일 미션 7일 완료 보상을 수령함에 만들었어요."
+	  ));
+
+	  $("devVipActivate").addEventListener("click", () => runDevAction(
+	    async () => {
+	      await ensureJobForTest();
+	      return api("/api/player/test/events/vip/activate", { method: "POST" });
+	    },
+	    "VIP를 활성화하고 오늘 혜택을 수령함에 준비했어요."
+	  ));
+
+	  $("devToggleBanner").addEventListener("click", () => {
     state.showDummyBanner = !state.showDummyBanner;
     storeValue(dummyBannerStorageKey, String(state.showDummyBanner));
     renderDummyBanner();
@@ -5285,11 +6325,13 @@ function initializeDevPanel() {
       state.selectedJob = "WARRIOR";
       state.forceJobModal = false;
       state.dismissedJobModal = false;
-      state.featureTutorialStarted = false;
-      state.featureTutorialActive = false;
-      $("featureTutorial").classList.add("hidden");
-      await api("/api/player/test/promotion-executions/clear", { method: "POST" });
-      return api("/api/player/test/reset", { method: "POST" });
+	      state.featureTutorialStarted = false;
+	      state.featureTutorialActive = false;
+	      $("featureTutorial").classList.add("hidden");
+	      closeEventHubModal();
+	      closeRookieEventModal();
+	      await api("/api/player/test/promotion-executions/clear", { method: "POST" });
+	      return api("/api/player/test/reset", { method: "POST" });
     },
     "테스트 상태를 초기화했어요. 직업을 다시 선택하세요."
   ));

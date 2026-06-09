@@ -62,6 +62,7 @@ money-hunter:
     flare-pet-product-id: ${TOSS_IAP_FLARE_PET_PRODUCT_ID:}
     aqua-pet-product-id: ${TOSS_IAP_AQUA_PET_PRODUCT_ID:}
     skill-point-pack-product-id: ${TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID:}
+    vip-monthly-product-id: ${TOSS_IAP_VIP_MONTHLY_PRODUCT_ID:}
   share-reward:
     module-id: ${TOSS_SHARE_REWARD_MODULE_ID:}
     message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 1개를 받아요}

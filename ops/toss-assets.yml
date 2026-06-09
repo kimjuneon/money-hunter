@@ -87,7 +87,7 @@ smart_messages:
     agreement_template_secret: TOSS_ROOKIE_EVENT_MISSION_AGREEMENT_TEMPLATE_CODE
     batch_size_env: TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_BATCH_SIZE
     required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_ENABLED=true
-    status: waiting_approval
+    status: live
   dormant_sp_reward:
     enabled_env: TOSS_DORMANT_SP_REWARD_SMART_MESSAGE_ENABLED
     template_set_secret: TOSS_DORMANT_SP_REWARD_TEMPLATE_SET_CODE

@@ -3,6 +3,7 @@ package com.money_hunter.application;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 
@@ -30,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class AdminPlayerService {
 	private static final Logger log = LoggerFactory.getLogger(AdminPlayerService.class);
 	private static final int MAX_SEARCH_LIMIT = 100;
+	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
 	private final PlayerRepository playerRepository;
 	private final LoginSessionRepository loginSessionRepository;
@@ -44,11 +46,11 @@ public class AdminPlayerService {
 			PlayerRepository playerRepository,
 			LoginSessionRepository loginSessionRepository,
 			AdRewardSessionRepository adRewardSessionRepository,
-				NotificationEventRepository notificationEventRepository,
-				RewardClaimRepository rewardClaimRepository,
-				AdEventRepository adEventRepository,
-				RuntimeEconomyService economy
-		) {
+			NotificationEventRepository notificationEventRepository,
+			RewardClaimRepository rewardClaimRepository,
+			AdEventRepository adEventRepository,
+			RuntimeEconomyService economy
+	) {
 		this.playerRepository = playerRepository;
 		this.loginSessionRepository = loginSessionRepository;
 		this.adRewardSessionRepository = adRewardSessionRepository;
@@ -232,7 +234,7 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		requireOnboarded(player);
 		Instant now = clock.instant();
-		player.resetRookieEventForTest(now, LocalDate.now(clock));
+		player.resetRookieEventForTest(now, todayInSeoul());
 		log.warn("관리자 이벤트 테스트 초기화: userKey={}", mask(userKey));
 		return playerResponse(player);
 	}
@@ -243,17 +245,17 @@ public class AdminPlayerService {
 		requireOnboarded(player);
 		Instant now = clock.instant();
 		if (player.getRookieEventStartedAt() == null) {
-			player.resetRookieEventForTest(now, LocalDate.now(clock));
+			player.resetRookieEventForTest(now, todayInSeoul());
 		}
 		int completedDays = Math.min(7, player.getRookieEventCompletedDays() + 1);
 		int rewardedDays = Math.min(completedDays, player.getRookieEventRewardedDays());
-		player.overrideRookieEventForTest(
-				now,
-				LocalDate.now(clock),
-				completedDays,
-				rewardedDays,
-				player.isRookieEventRewardClaimed() && completedDays >= 7,
-				7);
+			player.overrideRookieEventForTest(
+					now,
+					todayInSeoul(),
+					completedDays,
+					rewardedDays,
+					player.isRookieEventRewardClaimed() && completedDays >= 7,
+					7);
 		log.warn(
 				"관리자 이벤트 테스트 일차 완료: userKey={}, completedDays={}, rewardedDays={}",
 				mask(userKey),
@@ -267,7 +269,7 @@ public class AdminPlayerService {
 		Player player = player(userKey);
 		requireOnboarded(player);
 		Instant now = clock.instant();
-		player.advanceRookieEventDayForTest(now, LocalDate.now(clock));
+		player.advanceRookieEventDayForTest(now, todayInSeoul());
 		log.warn(
 				"관리자 이벤트 테스트 하루 넘기기: userKey={}, completedDays={}, rewardedDays={}",
 				mask(userKey),
@@ -288,12 +290,12 @@ public class AdminPlayerService {
 		int safeCompletedDays = Math.max(0, Math.min(7, completedDays));
 		int safeRewardedDays = Math.max(0, Math.min(safeCompletedDays, rewardedDays));
 		boolean safeFinalRewardClaimed = finalRewardClaimed && safeCompletedDays >= 7;
-		player.overrideRookieEventForTest(
-				clock.instant(),
-				LocalDate.now(clock),
-				safeCompletedDays,
-				safeRewardedDays,
-				safeFinalRewardClaimed,
+			player.overrideRookieEventForTest(
+					clock.instant(),
+					todayInSeoul(),
+					safeCompletedDays,
+					safeRewardedDays,
+					safeFinalRewardClaimed,
 				7);
 		log.warn(
 				"관리자 이벤트 테스트 상태 적용: userKey={}, completedDays={}, rewardedDays={}, finalRewardClaimed={}",
@@ -311,6 +313,10 @@ public class AdminPlayerService {
 
 	private AdminPlayerResponse playerResponse(Player player) {
 		return AdminPlayerResponse.from(player, economy.goldPerTossPoint(), clock.instant());
+	}
+
+	private LocalDate todayInSeoul() {
+		return LocalDate.ofInstant(clock.instant(), SEOUL_ZONE);
 	}
 
 	private String requiredUserKey(String userKey) {

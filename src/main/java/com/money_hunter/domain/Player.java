@@ -214,6 +214,44 @@ public class Player {
 	private int bossRaidTicketCount = 0;
 
 	@Column(nullable = false)
+	private int dailyMissionCycle = 1;
+
+	private LocalDate dailyMissionCurrentDate;
+
+	private LocalDate dailyMissionLastCompletedDate;
+
+	@Column(nullable = false)
+	private int dailyMissionCompletedDays = 0;
+
+	@Column(nullable = false)
+	private long dailyMissionDailyHuntMillis = 0;
+
+	@Column(nullable = false)
+	private int dailyMissionDailyDungeonRuns = 0;
+
+	@Column(nullable = false)
+	private int dailyMissionSkipTicketCount = 0;
+
+	private Instant vipExpiresAt;
+
+	private LocalDate vipLastDailyRewardDate;
+
+	private Instant adventureMiniGameEntryStartedAt;
+
+	private LocalDate adventureMiniGameCompletedDate;
+
+	private LocalDate weeklyPunchKingWeekStartDate;
+
+	@Column(nullable = false)
+	private long weeklyPunchKingBestScore = 0;
+
+	@Column(nullable = false)
+	private long weeklyPunchKingRewardedGold = 0;
+
+	@Column(nullable = false)
+	private int weeklyPunchKingRewardedSkillPoints = 0;
+
+	@Column(nullable = false)
 	private Instant lastSettledAt;
 
 	@Column(nullable = false)
@@ -680,6 +718,164 @@ public class Player {
 		touch();
 	}
 
+	public void ensureDailyMissionDay(LocalDate today) {
+		if (today == null) {
+			return;
+		}
+		if (!today.equals(dailyMissionCurrentDate)) {
+			this.dailyMissionCurrentDate = today;
+			this.dailyMissionDailyHuntMillis = 0;
+			this.dailyMissionDailyDungeonRuns = 0;
+			touch();
+		}
+	}
+
+	public boolean completedDailyMissionToday(LocalDate today) {
+		return today != null && today.equals(dailyMissionLastCompletedDate);
+	}
+
+	public void addDailyMissionHuntProgress(long huntMillis, long requiredMillis) {
+		if (huntMillis < 1 || requiredMillis < 1) {
+			return;
+		}
+		this.dailyMissionDailyHuntMillis = Math.min(
+				requiredMillis,
+				Math.max(0, this.dailyMissionDailyHuntMillis) + huntMillis);
+		touch();
+	}
+
+	public void addDailyMissionDungeonRun(LocalDate today, int requiredRuns) {
+		ensureDailyMissionDay(today);
+		this.dailyMissionDailyDungeonRuns = Math.min(
+				Math.max(1, requiredRuns),
+				Math.max(0, this.dailyMissionDailyDungeonRuns) + 1);
+		touch();
+	}
+
+	public boolean dailyMissionReady(long requiredMillis, int requiredDungeonRuns) {
+		return dailyMissionDailyHuntMillis >= requiredMillis
+				&& dailyMissionDailyDungeonRuns >= requiredDungeonRuns;
+	}
+
+	public int completeDailyMission(LocalDate today, int maxDays) {
+		if (today == null || completedDailyMissionToday(today)) {
+			return dailyMissionCompletedDays;
+		}
+		this.dailyMissionLastCompletedDate = today;
+		this.dailyMissionCompletedDays = Math.min(maxDays, Math.max(0, dailyMissionCompletedDays) + 1);
+		touch();
+		return dailyMissionCompletedDays;
+	}
+
+	public boolean hasDailyMissionSkipTicket() {
+		return dailyMissionSkipTicketCount > 0;
+	}
+
+	public void addDailyMissionSkipTickets(int amount) {
+		if (amount < 1) {
+			throw new IllegalArgumentException("Daily mission skip ticket amount must be positive.");
+		}
+		this.dailyMissionSkipTicketCount = Math.max(0, this.dailyMissionSkipTicketCount) + amount;
+		touch();
+	}
+
+	public void spendDailyMissionSkipTicket() {
+		if (dailyMissionSkipTicketCount < 1) {
+			throw new IllegalStateException("사용할 일일 미션 스킵권이 없어요.");
+		}
+		this.dailyMissionSkipTicketCount -= 1;
+		touch();
+	}
+
+	public void startNextDailyMissionCycle(LocalDate today) {
+		this.dailyMissionCycle = Math.max(1, dailyMissionCycle) + 1;
+		this.dailyMissionCompletedDays = 0;
+		this.dailyMissionLastCompletedDate = null;
+		this.dailyMissionCurrentDate = today;
+		this.dailyMissionDailyHuntMillis = 0;
+		this.dailyMissionDailyDungeonRuns = 0;
+		touch();
+	}
+
+	public void activateVip(Instant now, Duration duration) {
+		if (now == null || duration == null || duration.isNegative() || duration.isZero()) {
+			throw new IllegalArgumentException("VIP duration is invalid.");
+		}
+		Instant base = vipExpiresAt != null && vipExpiresAt.isAfter(now) ? vipExpiresAt : now;
+		this.vipExpiresAt = base.plus(duration);
+		touch();
+	}
+
+	public boolean isVipActive(Instant now) {
+		return vipExpiresAt != null && now != null && vipExpiresAt.isAfter(now);
+	}
+
+	public boolean canClaimVipDailyReward(LocalDate today, Instant now) {
+		return isVipActive(now)
+				&& today != null
+				&& (vipLastDailyRewardDate == null || vipLastDailyRewardDate.isBefore(today));
+	}
+
+	public void markVipDailyRewardClaimed(LocalDate today) {
+		if (today != null && (vipLastDailyRewardDate == null || vipLastDailyRewardDate.isBefore(today))) {
+			this.vipLastDailyRewardDate = today;
+		}
+		touch();
+	}
+
+	public boolean adventureMiniGameCompletedToday(LocalDate today) {
+		return today != null && today.equals(adventureMiniGameCompletedDate);
+	}
+
+	public void startAdventureMiniGame(Instant now, LocalDate today, long entryCostGold) {
+		if (now == null || today == null) {
+			throw new IllegalArgumentException("Mini game entry options are invalid.");
+		}
+		if (adventureMiniGameCompletedToday(today)) {
+			throw new IllegalStateException("오늘 미니게임 보상은 이미 받았어요.");
+		}
+		spendGold(entryCostGold);
+		this.adventureMiniGameEntryStartedAt = now;
+		touch();
+	}
+
+	public boolean adventureMiniGameEntryActive(LocalDate today, Instant now, Duration ttl) {
+		if (today == null || now == null || ttl == null || ttl.isNegative() || adventureMiniGameEntryStartedAt == null) {
+			return false;
+		}
+		return LocalDate.ofInstant(adventureMiniGameEntryStartedAt, java.time.ZoneId.of("Asia/Seoul")).equals(today)
+				&& adventureMiniGameEntryStartedAt.plus(ttl).isAfter(now);
+	}
+
+	public void completeAdventureMiniGame(LocalDate today) {
+		if (today == null) {
+			return;
+		}
+		this.adventureMiniGameCompletedDate = today;
+		this.adventureMiniGameEntryStartedAt = null;
+		touch();
+	}
+
+	public void ensureWeeklyPunchKingWeek(LocalDate weekStartDate) {
+		if (weekStartDate == null) {
+			return;
+		}
+		if (!weekStartDate.equals(weeklyPunchKingWeekStartDate)) {
+			this.weeklyPunchKingWeekStartDate = weekStartDate;
+			this.weeklyPunchKingBestScore = 0;
+			this.weeklyPunchKingRewardedGold = 0;
+			this.weeklyPunchKingRewardedSkillPoints = 0;
+			touch();
+		}
+	}
+
+	public void recordWeeklyPunchKingReward(long score, long rewardedGold, int rewardedSkillPoints) {
+		this.weeklyPunchKingBestScore = Math.max(Math.max(0, score), weeklyPunchKingBestScore);
+		this.weeklyPunchKingRewardedGold = Math.max(0, rewardedGold);
+		this.weeklyPunchKingRewardedSkillPoints = Math.max(0, rewardedSkillPoints);
+		touch();
+	}
+
 	public void spendBossRaidTicket() {
 		if (bossRaidTicketCount < 1) {
 			throw new IllegalStateException("보스 입장권이 없어요.");
@@ -1059,15 +1255,30 @@ public class Player {
 		this.battleReadyDailyLastSentAt = null;
 		this.dungeonCouponCount = 0;
 		this.dungeonCouponHuntMillis = 0;
-		this.dungeonRunCountDate = null;
-		this.dungeonRunCount = 0;
-		this.dungeonNextAvailableAt = null;
-		this.bossRaidTicketCount = 0;
-		this.lastSettledAt = now;
-		this.lastAccessedAt = now;
-		this.skills.forEach(PlayerSkill::resetLevel);
-		touch();
-	}
+			this.dungeonRunCountDate = null;
+			this.dungeonRunCount = 0;
+			this.dungeonNextAvailableAt = null;
+			this.bossRaidTicketCount = 0;
+			this.dailyMissionCycle = 1;
+			this.dailyMissionCurrentDate = null;
+			this.dailyMissionLastCompletedDate = null;
+			this.dailyMissionCompletedDays = 0;
+			this.dailyMissionDailyHuntMillis = 0;
+			this.dailyMissionDailyDungeonRuns = 0;
+			this.dailyMissionSkipTicketCount = 0;
+			this.vipExpiresAt = null;
+			this.vipLastDailyRewardDate = null;
+			this.adventureMiniGameEntryStartedAt = null;
+			this.adventureMiniGameCompletedDate = null;
+			this.weeklyPunchKingWeekStartDate = null;
+			this.weeklyPunchKingBestScore = 0;
+			this.weeklyPunchKingRewardedGold = 0;
+			this.weeklyPunchKingRewardedSkillPoints = 0;
+			this.lastSettledAt = now;
+			this.lastAccessedAt = now;
+			this.skills.forEach(PlayerSkill::resetLevel);
+			touch();
+		}
 
 	private void addOwnedPetSkin(String skinKey) {
 		LinkedHashSet<String> keys = new LinkedHashSet<>(ownedPetSkinKeyList());

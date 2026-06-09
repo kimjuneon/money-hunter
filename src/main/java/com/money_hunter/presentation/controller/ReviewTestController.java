@@ -90,6 +90,31 @@ public class ReviewTestController {
 		return playerService.markBenefitTabNewUserEntryForTest(userKey(principal));
 	}
 
+	@PostMapping("/events/vip/activate")
+	public PlayerStateResponse activateVipForTest(Principal principal) {
+		return playerService.activateVipForTest(userKey(principal));
+	}
+
+	@PostMapping("/events/daily-mission/complete")
+	public PlayerStateResponse completeDailyMissionForTest(Principal principal) {
+		return playerService.completeDailyMissionForTest(userKey(principal));
+	}
+
+	@PostMapping("/events/daily-mission/complete-cycle")
+	public PlayerStateResponse completeDailyMissionCycleForTest(Principal principal) {
+		return playerService.completeDailyMissionCycleForTest(userKey(principal));
+	}
+
+	@PostMapping("/events/rookie/start")
+	public PlayerStateResponse startRookieEventForTest(Principal principal) {
+		return playerService.startRookieEventForTest(userKey(principal));
+	}
+
+	@PostMapping("/events/rookie/complete-day")
+	public PlayerStateResponse completeRookieEventDayForTest(Principal principal) {
+		return playerService.completeRookieEventDayForTest(userKey(principal));
+	}
+
 	@GetMapping("/promotion-executions")
 	public List<LocalRecordingTossPromotionClient.RecordedPromotion> promotionExecutionsForTest(Principal principal) {
 		return tossPromotionClient.executionsFor(userKey(principal));

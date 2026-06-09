@@ -531,6 +531,76 @@ class ReviewProfileApiExposureTest {
 		}
 
 	@Test
+	void dailyMissionCreatesInboxRewardsAndFinalRewardStartsNextCycleWhenClaimed() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		String dailyResponse = mockMvc.perform(post("/api/player/test/events/daily-mission/complete"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.dailyMission.completedToday", is(true)))
+				.andExpect(jsonPath("$.eventHub.rewards[0].sourceEventKey", is("daily_mission")))
+				.andExpect(jsonPath("$.eventHub.rewards[0].claimable", is(true)))
+				.andExpect(jsonPath("$.eventHub.rewards[0].daysRemaining", is(7)))
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		Number dailyRewardId = firstRewardId(dailyResponse, "daily_mission");
+		mockMvc.perform(post("/api/player/event-rewards/" + dailyRewardId + "/claim"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gold", is(300)))
+				.andExpect(jsonPath("$.eventHub.rewards[0].claimed", is(true)));
+
+			String cycleResponse = mockMvc.perform(post("/api/player/test/events/daily-mission/complete-cycle"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.dailyMission.completedDays", is(7)))
+					.andReturn()
+					.getResponse()
+					.getContentAsString();
+
+			assertTrue(rewardClaimable(cycleResponse, "daily-mission:cycle:1:final"));
+			Number finalRewardId = firstRewardIdByKey(cycleResponse, "daily-mission:cycle:1:final");
+			mockMvc.perform(post("/api/player/event-rewards/" + finalRewardId + "/claim"))
+					.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gold", is(1300)))
+				.andExpect(jsonPath("$.skillPoints", is(1)))
+				.andExpect(jsonPath("$.dailyMission.cycle", is(2)))
+				.andExpect(jsonPath("$.dailyMission.completedDays", is(0)));
+	}
+
+	@Test
+	void vipTestToolActivatesMembershipAndDailyInboxReward() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		String vipResponse = mockMvc.perform(post("/api/player/test/events/vip/activate"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.vipMembership.active", is(true)))
+				.andExpect(jsonPath("$.eventHub.rewards[0].sourceEventKey", is("vip_monthly")))
+				.andExpect(jsonPath("$.eventHub.rewards[0].claimable", is(true)))
+				.andExpect(jsonPath("$.eventHub.rewards[0].daysRemaining", is(7)))
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		Number vipRewardId = firstRewardId(vipResponse, "vip_monthly");
+		mockMvc.perform(post("/api/player/event-rewards/" + vipRewardId + "/claim"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.skillPoints", is(1)))
+				.andExpect(jsonPath("$.dungeonCoupon.count", is(3)))
+				.andExpect(jsonPath("$.dungeonCoupon.bossTicketCount", is(1)))
+				.andExpect(jsonPath("$.vipMembership.dailyMissionSkipTickets", is(1)));
+	}
+
+	@Test
 	void bossRaidConsumesBossTicketAndGrantsReward() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());
@@ -698,6 +768,21 @@ class ReviewProfileApiExposureTest {
 	private long readLong(String json, String path) {
 		Number number = JsonPath.read(json, path);
 		return number.longValue();
+	}
+
+	private Number firstRewardId(String json, String sourceEventKey) {
+		List<Number> values = JsonPath.read(json, "$.eventHub.rewards[?(@.sourceEventKey == '" + sourceEventKey + "')].id");
+		return values.get(0);
+	}
+
+	private Number firstRewardIdByKey(String json, String rewardKey) {
+		List<Number> values = JsonPath.read(json, "$.eventHub.rewards[?(@.rewardKey == '" + rewardKey + "')].id");
+		return values.get(0);
+	}
+
+	private boolean rewardClaimable(String json, String rewardKey) {
+		List<Boolean> values = JsonPath.read(json, "$.eventHub.rewards[?(@.rewardKey == '" + rewardKey + "')].claimable");
+		return !values.isEmpty() && values.get(0);
 	}
 
 	private int readSkillInt(String json, SkillType type, String field) {

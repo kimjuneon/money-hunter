@@ -8,13 +8,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record IapProperties(
 		String flarePetProductId,
 		String aquaPetProductId,
-		String skillPointPackProductId
+		String skillPointPackProductId,
+		String vipMonthlyProductId
 ) {
 	public Map<String, String> clientProductIds() {
 		return Map.of(
 				"flarePet", value(flarePetProductId),
 				"aquaPet", value(aquaPetProductId),
-				"skillPointPack", value(skillPointPackProductId)
+				"skillPointPack", value(skillPointPackProductId),
+				"vipMonthly", value(vipMonthlyProductId)
 		);
 	}
 
@@ -24,16 +26,27 @@ public record IapProperties(
 
 	public String productType(String productId) {
 		String normalized = value(productId);
-		if (normalized.equals(value(flarePetProductId))) {
+		if (normalized.isBlank()) {
+			return "";
+		}
+		if (matches(normalized, flarePetProductId)) {
 			return "FLARE_PET";
 		}
-		if (normalized.equals(value(aquaPetProductId))) {
+		if (matches(normalized, aquaPetProductId)) {
 			return "AQUA_PET";
 		}
-		if (normalized.equals(value(skillPointPackProductId))) {
+		if (matches(normalized, skillPointPackProductId)) {
 			return "SKILL_POINT_PACK";
 		}
+		if (matches(normalized, vipMonthlyProductId)) {
+			return "VIP_MONTHLY";
+		}
 		return "";
+	}
+
+	private boolean matches(String normalizedProductId, String configuredProductId) {
+		String configured = value(configuredProductId);
+		return !configured.isBlank() && normalizedProductId.equals(configured);
 	}
 
 	private String value(String raw) {

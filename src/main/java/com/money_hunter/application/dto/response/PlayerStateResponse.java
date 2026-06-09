@@ -47,10 +47,15 @@ public record PlayerStateResponse(
 				int attackIntervalMillis,
 				int normalAttackIntervalMillis,
 				Instant autoHuntEndsAt,
-				MonsterResponse monster,
-				List<SkillResponse> skills,
-				DungeonCouponStateResponse dungeonCoupon,
-			RookieEventResponse rookieEvent,
-			NotificationResponse latestNotification
-	) {
+					MonsterResponse monster,
+					List<SkillResponse> skills,
+					DungeonCouponStateResponse dungeonCoupon,
+				AdventureMiniGameResponse adventureMiniGame,
+				WeeklyPunchKingResponse weeklyPunchKing,
+				EventHubResponse eventHub,
+				DailyMissionEventResponse dailyMission,
+				VipMembershipResponse vipMembership,
+				RookieEventResponse rookieEvent,
+				NotificationResponse latestNotification
+		) {
 }
