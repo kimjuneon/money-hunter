@@ -2137,6 +2137,1051 @@ img {
   color: #1d4ed8;
 }
 
+#dungeonCouponCard,
+#bossRaidCard,
+#miniGameCard,
+#weeklyPunchKingCard {
+	position: relative;
+	display: grid;
+	grid-template-columns: 88px minmax(0, 1fr);
+	grid-template-rows: minmax(0, 1fr) 34px;
+	align-items: center;
+	gap: 6px 10px;
+	aspect-ratio: 2022 / 778;
+	min-height: 0;
+	margin-top: 10px;
+	padding: 9px 10px 8px;
+	overflow: hidden;
+	border: 3px solid #c99a4d;
+	border-radius: 17px;
+	background:
+		linear-gradient(135deg, rgba(224, 172, 82, 0.68) 0 2px, transparent 2px) 10px 10px / 34px 34px no-repeat,
+		linear-gradient(225deg, rgba(224, 172, 82, 0.68) 0 2px, transparent 2px) calc(100% - 10px) 10px / 34px 34px no-repeat,
+		linear-gradient(45deg, rgba(224, 172, 82, 0.68) 0 2px, transparent 2px) 10px calc(100% - 10px) / 34px 34px no-repeat,
+		linear-gradient(315deg, rgba(224, 172, 82, 0.68) 0 2px, transparent 2px) calc(100% - 10px) calc(100% - 10px) / 34px 34px no-repeat,
+		radial-gradient(circle at 82% 38%, rgba(212, 175, 107, 0.2), transparent 24%),
+		linear-gradient(180deg, #fffdf5 0%, #f8ecd7 100%);
+	box-shadow:
+		inset 0 0 0 2px rgba(255, 255, 255, 0.88),
+		inset 0 0 0 5px rgba(143, 93, 33, 0.11),
+		0 7px 13px rgba(52, 37, 21, 0.16);
+}
+
+#dungeonCouponCard[hidden] {
+	display: none;
+}
+
+#dungeonCouponCard::before,
+#bossRaidCard::before,
+#miniGameCard::before,
+#weeklyPunchKingCard::before {
+	content: "";
+	position: absolute;
+	inset: 7px;
+	border: 1px solid rgba(178, 128, 57, 0.28);
+	border-radius: 12px;
+	pointer-events: none;
+}
+
+#dungeonCouponCard::after,
+#bossRaidCard::after,
+#miniGameCard::after,
+#weeklyPunchKingCard::after {
+	content: "";
+	position: absolute;
+	right: 12px;
+	top: 13px;
+	width: 88px;
+	height: 88px;
+	opacity: 0.12;
+	background:
+		linear-gradient(45deg, transparent 47%, #b9893e 48% 52%, transparent 53%),
+		linear-gradient(-45deg, transparent 47%, #b9893e 48% 52%, transparent 53%),
+		radial-gradient(circle, transparent 45%, #b9893e 46% 48%, transparent 49%);
+	pointer-events: none;
+}
+
+#dungeonCouponCard > *,
+#bossRaidCard > *,
+#miniGameCard > *,
+#weeklyPunchKingCard > * {
+	position: relative;
+	z-index: 1;
+}
+
+#dungeonCouponCard [hidden],
+#bossRaidCard [hidden],
+#miniGameCard [hidden],
+#weeklyPunchKingCard [hidden] {
+	display: none !important;
+}
+
+#dungeonCouponCard .dungeon-coupon-icon,
+#bossRaidCard .boss-raid-visual,
+#miniGameCard .mini-game-visual,
+#weeklyPunchKingCard .weekly-punch-visual {
+	display: grid;
+	grid-row: 1;
+	width: 86px;
+	height: 86px;
+	place-items: center;
+	overflow: hidden;
+	border: 0;
+	border-radius: 0;
+	background: transparent center / contain no-repeat;
+	color: transparent;
+	font-size: 0;
+	font-weight: 1000;
+	box-shadow: none;
+}
+
+#dungeonCouponCard .dungeon-coupon-icon {
+	background-image: url("/assets/adventure/cards/dungeon-card-icon.png?v=20260610-01");
+}
+
+#bossRaidCard .boss-raid-visual {
+	background-image: url("/assets/adventure/cards/boss-card-icon.png?v=20260610-01");
+}
+
+#miniGameCard .mini-game-visual {
+	background-image: url("/assets/adventure/cards/agility-card-icon.png?v=20260610-01");
+}
+
+#weeklyPunchKingCard .weekly-punch-visual {
+	background-image: url("/assets/adventure/cards/punch-king-card-icon.png?v=20260610-01");
+}
+
+#bossRaidCard .boss-raid-visual img {
+	display: none;
+}
+
+#dungeonCouponCard .dungeon-coupon-copy,
+#bossRaidCard .boss-raid-copy,
+#miniGameCard .mini-game-copy,
+#weeklyPunchKingCard .weekly-punch-copy {
+	grid-row: 1;
+	min-width: 0;
+	padding-right: 0;
+}
+
+#miniGameCard .mini-game-copy,
+#weeklyPunchKingCard .weekly-punch-copy {
+	padding-right: 0;
+}
+
+#dungeonCouponCard strong,
+#bossRaidCard strong,
+#miniGameCard strong,
+#weeklyPunchKingCard strong {
+	display: block;
+	color: #0f213b;
+	font-size: 20px;
+	font-weight: 1000;
+	line-height: 1.08;
+	text-shadow: 0 1px rgba(255, 255, 255, 0.82);
+}
+
+#dungeonCouponCard strong::after,
+#bossRaidCard strong::after,
+#miniGameCard strong::after,
+#weeklyPunchKingCard strong::after {
+	content: "";
+	display: block;
+	width: min(168px, 100%);
+	height: 7px;
+	margin: 2px 0 0;
+	background:
+		linear-gradient(90deg, rgba(196, 143, 57, 0.72), rgba(196, 143, 57, 0.14) 70%, transparent);
+	clip-path: polygon(0 45%, 84% 45%, 90% 0, 96% 45%, 100% 45%, 96% 55%, 90% 100%, 84% 55%, 0 55%);
+}
+
+#dungeonCouponCard p,
+#bossRaidCard p,
+#miniGameCard p,
+#weeklyPunchKingCard p {
+	display: inline-flex;
+	align-items: center;
+	width: min(210px, 100%);
+	max-width: 100%;
+	margin: 3px 0 0;
+	padding: 5px 10px 5px 12px;
+	overflow: hidden;
+	border: 2px solid rgba(238, 201, 116, 0.72);
+	border-radius: 10px;
+	background:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 34%),
+		linear-gradient(180deg, #0f4c99 0%, #08306b 100%);
+	color: #ffffff;
+	font-size: 11px;
+	font-weight: 1000;
+	line-height: 1.2;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	box-shadow:
+		inset 0 1px rgba(255, 255, 255, 0.34),
+		0 3px 6px rgba(40, 25, 9, 0.18);
+	clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%, 7px 50%);
+}
+
+#bossRaidCard p {
+	background: linear-gradient(180deg, #7c3aed 0%, #4c1d95 100%);
+}
+
+#miniGameCard p {
+	background: linear-gradient(180deg, #0891b2 0%, #0f5d73 100%);
+}
+
+#weeklyPunchKingCard p {
+	background: linear-gradient(180deg, #b91c1c 0%, #7f1d1d 100%);
+}
+
+#dungeonCouponCard p,
+#bossRaidCard p {
+	width: min(158px, 100%);
+}
+
+#dungeonCouponCard small,
+#bossRaidCard small,
+#miniGameCard small,
+#weeklyPunchKingCard small {
+	display: inline-flex;
+	align-items: center;
+	min-width: min(148px, 100%);
+	max-width: 100%;
+	margin-top: 4px;
+	padding: 4px 9px;
+	overflow: hidden;
+	border: 1px solid rgba(194, 158, 100, 0.34);
+	border-radius: 999px;
+	background: rgba(237, 225, 206, 0.76);
+	color: #6b563e;
+	font-size: 10px;
+	font-weight: 1000;
+	line-height: 1.15;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#dungeonHuntProgress.is-complete {
+	color: #166534;
+}
+
+#dungeonCouponCard .reward-list-button,
+#bossRaidCard .reward-list-button {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	z-index: 3;
+	width: auto;
+	min-width: 72px;
+	min-height: 34px;
+	padding: 0 11px;
+	border: 2px solid rgba(238, 201, 116, 0.82);
+	border-radius: 12px;
+	background:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 30%),
+		linear-gradient(180deg, #124aa0 0%, #082f6b 100%);
+	color: #ffffff;
+	font-size: 13px;
+	box-shadow:
+		inset 0 1px rgba(255, 255, 255, 0.34),
+		0 6px 10px rgba(17, 24, 39, 0.2);
+}
+
+#dungeonCouponCard .adventure-card-actions,
+#bossRaidCard .adventure-card-actions,
+#miniGameCard .adventure-card-actions,
+#weeklyPunchKingCard .adventure-card-actions {
+	grid-column: 1 / -1;
+	grid-row: 2;
+	margin-top: 0;
+}
+
+#dungeonCouponCard .dungeon-coupon-button,
+#bossRaidCard .boss-raid-button,
+#miniGameCard .mini-game-button,
+#weeklyPunchKingCard .weekly-punch-button {
+	min-height: 34px;
+	margin-top: 0;
+	border: 2px solid rgba(238, 201, 116, 0.82);
+	border-radius: 11px;
+	background:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 28%),
+		linear-gradient(180deg, #164ea5 0%, #0b3475 100%);
+	color: #ffffff;
+	font-size: 18px;
+	font-weight: 1000;
+	text-shadow: 0 2px rgba(0, 0, 0, 0.22);
+	box-shadow:
+		inset 0 1px rgba(255, 255, 255, 0.32),
+		0 6px 12px rgba(42, 27, 12, 0.18);
+}
+
+#bossRaidCard .boss-raid-button {
+	background: linear-gradient(180deg, #7c3aed 0%, #4c1d95 100%);
+}
+
+#weeklyPunchKingCard .weekly-punch-button {
+	background:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 28%),
+		linear-gradient(180deg, #b91c1c 0%, #7f1d1d 100%);
+}
+
+#adventurePanel #useDungeonCoupon:disabled,
+#adventurePanel #challengeBossRaid:disabled,
+#adventurePanel #startMiniGame:disabled,
+#adventurePanel #openWeeklyPunchKing:disabled {
+	border-color: rgba(142, 150, 160, 0.7);
+	background: linear-gradient(180deg, #e5e7eb 0%, #c7ccd2 100%);
+	color: #525b66;
+	text-shadow: 0 1px rgba(255, 255, 255, 0.58);
+	box-shadow:
+		inset 0 1px rgba(255, 255, 255, 0.55),
+		0 4px 8px rgba(42, 27, 12, 0.08);
+}
+
+#bossRaidCard.locked {
+	border-color: #b9a988;
+	background:
+		radial-gradient(circle at 82% 38%, rgba(148, 163, 184, 0.16), transparent 22%),
+		linear-gradient(180deg, #fffaf0 0%, #eee6d9 100%);
+	box-shadow:
+		inset 0 0 0 2px rgba(255, 255, 255, 0.72),
+		0 7px 14px rgba(52, 37, 21, 0.12);
+}
+
+#miniGameCard.is-completed {
+	border-color: #b9a988;
+	background:
+		radial-gradient(circle at 82% 38%, rgba(34, 197, 94, 0.13), transparent 22%),
+		linear-gradient(180deg, #fffaf0 0%, #eef7ed 100%);
+	box-shadow:
+		inset 0 0 0 2px rgba(255, 255, 255, 0.72),
+		0 7px 14px rgba(52, 37, 21, 0.12);
+}
+
+@media (max-width: 390px) {
+	#dungeonCouponCard,
+	#bossRaidCard,
+	#miniGameCard,
+	#weeklyPunchKingCard {
+		grid-template-columns: 82px minmax(0, 1fr);
+		grid-template-rows: minmax(0, 1fr) 34px;
+		gap: 5px 9px;
+		aspect-ratio: 2022 / 778;
+		min-height: 0;
+		padding: 8px 9px 7px;
+	}
+
+	#dungeonCouponCard .dungeon-coupon-icon,
+	#bossRaidCard .boss-raid-visual,
+	#miniGameCard .mini-game-visual,
+	#weeklyPunchKingCard .weekly-punch-visual {
+		width: 80px;
+		height: 80px;
+	}
+
+	#dungeonCouponCard .dungeon-coupon-copy,
+	#bossRaidCard .boss-raid-copy {
+		padding-right: 0;
+	}
+
+	#dungeonCouponCard strong,
+	#bossRaidCard strong,
+	#miniGameCard strong,
+	#weeklyPunchKingCard strong {
+		font-size: 19px;
+	}
+
+	#dungeonCouponCard p,
+	#bossRaidCard p,
+	#miniGameCard p,
+	#weeklyPunchKingCard p {
+		width: min(178px, 100%);
+		padding: 5px 8px 5px 10px;
+		font-size: 10px;
+	}
+
+	#dungeonCouponCard p,
+	#bossRaidCard p {
+		width: min(150px, 100%);
+	}
+
+	#dungeonCouponCard small,
+	#bossRaidCard small,
+	#miniGameCard small,
+	#weeklyPunchKingCard small {
+		min-width: min(132px, 100%);
+		padding: 4px 8px;
+		font-size: 9px;
+	}
+
+	#dungeonCouponCard .reward-list-button,
+	#bossRaidCard .reward-list-button {
+		min-width: 68px;
+		min-height: 32px;
+		font-size: 12px;
+	}
+
+	#dungeonCouponCard .dungeon-coupon-button,
+	#bossRaidCard .boss-raid-button,
+	#miniGameCard .mini-game-button,
+	#weeklyPunchKingCard .weekly-punch-button {
+		min-height: 34px;
+		font-size: 17px;
+	}
+}
+
+#dungeonCouponCard,
+#bossRaidCard,
+#miniGameCard,
+#weeklyPunchKingCard {
+	display: block;
+	aspect-ratio: 2022 / 778;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent center / 100% 100% no-repeat;
+	box-shadow: none;
+}
+
+#dungeonCouponCard::before,
+#dungeonCouponCard::after,
+#bossRaidCard::before,
+#bossRaidCard::after,
+#miniGameCard::before,
+#miniGameCard::after,
+#weeklyPunchKingCard::before,
+#weeklyPunchKingCard::after {
+	display: none;
+}
+
+#dungeonCouponCard {
+	background-image: url("/assets/adventure/card-templates/dungeon.png?v=20260610-02");
+}
+
+#bossRaidCard {
+	background-image: url("/assets/adventure/card-templates/boss-locked.png?v=20260610-02");
+}
+
+#bossRaidCard.locked {
+	background: transparent center / 100% 100% no-repeat;
+	background-image: url("/assets/adventure/card-templates/boss-locked.png?v=20260610-02");
+	box-shadow: none;
+}
+
+#miniGameCard {
+	background-image: url("/assets/adventure/card-templates/agility-training.png?v=20260610-02");
+}
+
+#miniGameCard.is-completed {
+	background: transparent center / 100% 100% no-repeat;
+	background-image: url("/assets/adventure/card-templates/agility-training.png?v=20260610-02");
+	box-shadow: none;
+}
+
+#weeklyPunchKingCard {
+	background-image: url("/assets/adventure/card-templates/punch-king.png?v=20260610-02");
+}
+
+#dungeonCouponCard .dungeon-coupon-icon,
+#dungeonCouponCard .dungeon-coupon-copy,
+#bossRaidCard .boss-raid-visual,
+#bossRaidCard .boss-raid-copy,
+#miniGameCard .mini-game-visual,
+#miniGameCard .mini-game-copy,
+#weeklyPunchKingCard .weekly-punch-visual,
+#weeklyPunchKingCard .weekly-punch-copy {
+	display: none !important;
+}
+
+#dungeonCouponCard .reward-list-button {
+	position: absolute;
+	top: 10%;
+	right: 6%;
+	z-index: 4;
+	width: 19%;
+	min-width: 0;
+	height: 23%;
+	min-height: 0;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	opacity: 0;
+}
+
+#bossRaidCard .reward-list-button {
+	display: none !important;
+}
+
+#dungeonCouponCard .adventure-card-actions,
+#bossRaidCard .adventure-card-actions,
+#miniGameCard .adventure-card-actions,
+#weeklyPunchKingCard .adventure-card-actions {
+	position: absolute;
+	left: 5%;
+	right: 5%;
+	bottom: 7%;
+	z-index: 4;
+	display: block;
+	height: 20%;
+	margin: 0;
+}
+
+#dungeonCouponCard .dungeon-coupon-button,
+#bossRaidCard .boss-raid-button,
+#miniGameCard .mini-game-button,
+#weeklyPunchKingCard .weekly-punch-button {
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	color: transparent;
+	text-shadow: none;
+	opacity: 0;
+}
+
+/* Flexible adventure cards: image assets stay decorative, values and buttons stay editable. */
+#dungeonCouponCard,
+#bossRaidCard,
+#miniGameCard,
+#weeklyPunchKingCard {
+	--adventure-paper-a: #fff8e9;
+	--adventure-paper-b: #f8ead0;
+	--adventure-navy: #071832;
+	--adventure-brown: #60462e;
+	--adventure-status-a: #236fc9;
+	--adventure-status-b: #123f8a;
+	--adventure-action-a: #236fc9;
+	--adventure-action-b: #123f8a;
+	position: relative;
+	display: block;
+	width: 100%;
+	aspect-ratio: 2022 / 778;
+	container-type: inline-size;
+	margin-top: 10px;
+	padding: 0;
+	overflow: hidden;
+	isolation: isolate;
+	border: 0.3cqw solid rgba(126, 76, 21, 0.86);
+	border-radius: 3.2cqw;
+	background:
+		radial-gradient(circle at 78% 47%, rgba(194, 151, 78, 0.12) 0 13%, transparent 25%),
+		linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 28%),
+		linear-gradient(180deg, var(--adventure-paper-a), var(--adventure-paper-b)) !important;
+	box-shadow:
+		0 0.45cqw 1cqw rgba(80, 52, 20, 0.22),
+		inset 0 0 0 0.42cqw rgba(255, 255, 255, 0.82),
+		inset 0 0 0 0.76cqw rgba(226, 174, 91, 0.42),
+		inset 0 0 2.5cqw rgba(134, 84, 28, 0.12);
+}
+
+#dungeonCouponCard {
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-dungeon.png?v=20260610-01");
+	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-swords.png?v=20260610-01");
+}
+
+#bossRaidCard {
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-boss.png?v=20260610-01");
+	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-boss-custom.png?v=20260610-01");
+	--adventure-status-a: #8847d5;
+	--adventure-status-b: #5926a4;
+}
+
+#miniGameCard {
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-jump.png?v=20260610-01");
+	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-training-custom.png?v=20260610-01");
+	--adventure-status-a: #0da9b2;
+	--adventure-status-b: #006f7c;
+}
+
+#weeklyPunchKingCard {
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-punchking.png?v=20260610-01");
+	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-punchking-crown.png?v=20260610-02");
+	--adventure-navy: #3c2108;
+	--adventure-status-a: #d63a2e;
+	--adventure-status-b: #9e2118;
+	--adventure-action-a: #d63a2e;
+	--adventure-action-b: #9e2118;
+}
+
+#bossRaidCard.locked,
+#miniGameCard.is-completed {
+	background:
+		radial-gradient(circle at 78% 47%, rgba(194, 151, 78, 0.12) 0 13%, transparent 25%),
+		linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 28%),
+		linear-gradient(180deg, var(--adventure-paper-a), var(--adventure-paper-b)) !important;
+	box-shadow:
+		0 0.45cqw 1cqw rgba(80, 52, 20, 0.22),
+		inset 0 0 0 0.42cqw rgba(255, 255, 255, 0.82),
+		inset 0 0 0 0.76cqw rgba(226, 174, 91, 0.42),
+		inset 0 0 2.5cqw rgba(134, 84, 28, 0.12);
+}
+
+#dungeonCouponCard[hidden] {
+	display: none !important;
+}
+
+#dungeonCouponCard::before,
+#bossRaidCard::before,
+#miniGameCard::before,
+#weeklyPunchKingCard::before {
+	content: "";
+	position: absolute;
+	inset: 1.2%;
+	z-index: 0;
+	display: block;
+	border: 0.13cqw solid rgba(199, 142, 55, 0.75);
+	border-radius: 2.65cqw;
+	pointer-events: none;
+}
+
+#dungeonCouponCard::after,
+#bossRaidCard::after,
+#miniGameCard::after,
+#weeklyPunchKingCard::after {
+	content: "";
+	position: absolute;
+	right: 15.5%;
+	top: 21%;
+	z-index: 0;
+	display: block;
+	width: 17cqw;
+	height: 17cqw;
+	border: 0.22cqw solid rgba(185, 138, 73, 0.14);
+	border-radius: 50%;
+	background:
+		linear-gradient(45deg, transparent 47%, rgba(185, 138, 73, 0.16) 48% 52%, transparent 53%),
+		linear-gradient(-45deg, transparent 47%, rgba(185, 138, 73, 0.16) 48% 52%, transparent 53%),
+		radial-gradient(circle, transparent 44%, rgba(185, 138, 73, 0.16) 45% 47%, transparent 48%);
+	transform: rotate(45deg);
+	pointer-events: none;
+}
+
+#dungeonCouponCard .dungeon-coupon-icon,
+#bossRaidCard .boss-raid-visual,
+#miniGameCard .mini-game-visual,
+#weeklyPunchKingCard .weekly-punch-visual {
+	position: absolute !important;
+	left: 3.55%;
+	top: 7.2%;
+	z-index: 2;
+	display: block !important;
+	width: 23.8%;
+	aspect-ratio: 1 / 1;
+	height: auto;
+	overflow: visible;
+	border: 0;
+	border-radius: 0;
+	background: var(--adventure-main-icon) center / contain no-repeat !important;
+	color: transparent;
+	font-size: 0;
+	box-shadow: none;
+	filter: drop-shadow(0 0.55cqw 0.55cqw rgba(72, 45, 14, 0.32));
+}
+
+#bossRaidCard .boss-raid-visual img {
+	display: none !important;
+}
+
+#dungeonCouponCard .dungeon-coupon-copy,
+#bossRaidCard .boss-raid-copy,
+#miniGameCard .mini-game-copy,
+#weeklyPunchKingCard .weekly-punch-copy {
+	position: absolute !important;
+	left: 31.2%;
+	top: 9.5%;
+	z-index: 3;
+	display: block !important;
+	width: 55%;
+	min-width: 0;
+	padding: 0;
+}
+
+#dungeonCouponCard strong,
+#bossRaidCard strong,
+#miniGameCard strong,
+#weeklyPunchKingCard strong {
+	display: block;
+	color: var(--adventure-navy);
+	font-size: clamp(17px, 4.35cqw, 88px);
+	font-weight: 950;
+	line-height: 1;
+	letter-spacing: 0;
+	text-shadow:
+		0 0.13cqw 0 rgba(255, 255, 255, 0.95),
+		0 0.21cqw 0.15cqw rgba(70, 43, 12, 0.12);
+}
+
+#dungeonCouponCard strong::after,
+#bossRaidCard strong::after,
+#miniGameCard strong::after,
+#weeklyPunchKingCard strong::after {
+	content: "";
+	display: block;
+	width: 74%;
+	height: 0.2cqw;
+	margin-top: 1.25cqw;
+	background: linear-gradient(90deg, transparent, rgba(190, 139, 62, 0.82), transparent);
+	opacity: 0.9;
+}
+
+#dungeonCouponCard p,
+#bossRaidCard p,
+#miniGameCard p,
+#weeklyPunchKingCard p {
+	position: relative;
+	display: flex;
+	align-items: center;
+	width: fit-content;
+	min-width: 35cqw;
+	max-width: 52cqw;
+	height: 5.7cqw;
+	margin: 1.35cqw 0 0;
+	padding: 0 2.4cqw 0 7.4cqw;
+	overflow: hidden;
+	border: 0.22cqw solid rgba(130, 80, 20, 0.88);
+	border-radius: 0.75cqw;
+	background:
+		linear-gradient(180deg, var(--adventure-status-a), var(--adventure-status-b)) !important;
+	clip-path: polygon(2.8% 0, 97% 0, 100% 50%, 97% 100%, 2.8% 100%, 0 50%);
+	box-shadow:
+		inset 0 0.15cqw 0 rgba(255, 255, 255, 0.34),
+		inset 0 -0.25cqw 0.45cqw rgba(0, 0, 0, 0.18),
+		0 0.28cqw 0.55cqw rgba(70, 45, 14, 0.26);
+	color: #ffffff;
+	font-size: clamp(11px, 2.7cqw, 54px);
+	font-weight: 950;
+	line-height: 1;
+	letter-spacing: 0;
+	text-shadow:
+		0 0.13cqw 0 rgba(0, 0, 0, 0.28),
+		0 0 0.18cqw rgba(255, 255, 255, 0.18);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#dungeonCouponCard p::before,
+#bossRaidCard p::before,
+#miniGameCard p::before,
+#weeklyPunchKingCard p::before {
+	content: "";
+	position: absolute;
+	left: -0.2cqw;
+	top: 50%;
+	width: 7.4cqw;
+	aspect-ratio: 1 / 1;
+	background: var(--adventure-badge-icon) center / contain no-repeat;
+	filter: drop-shadow(0 0.25cqw 0.28cqw rgba(0, 0, 0, 0.28));
+	transform: translateY(-50%);
+}
+
+#dungeonCouponCard p b,
+#bossRaidCard p b,
+#miniGameCard p b,
+#weeklyPunchKingCard p b {
+	color: #ffd86b;
+	font-weight: 950;
+}
+
+#bossRaidCard p {
+	min-width: 36cqw;
+	max-width: 54cqw;
+	height: 5.7cqw;
+	padding: 0 2.4cqw 0 8.9cqw;
+	border: 0.22cqw solid rgba(130, 80, 20, 0.88);
+	border-radius: 0.75cqw;
+	background:
+		linear-gradient(180deg, var(--adventure-status-a), var(--adventure-status-b)) !important;
+	clip-path: polygon(2.8% 0, 97% 0, 100% 50%, 97% 100%, 2.8% 100%, 0 50%);
+	box-shadow:
+		inset 0 0.15cqw 0 rgba(255, 255, 255, 0.34),
+		inset 0 -0.25cqw 0.45cqw rgba(0, 0, 0, 0.18),
+		0 0.28cqw 0.55cqw rgba(70, 45, 14, 0.26);
+	color: #ffffff;
+	text-shadow:
+		0 0.13cqw 0 rgba(0, 0, 0, 0.28),
+		0 0 0.18cqw rgba(255, 255, 255, 0.18);
+	overflow: hidden;
+}
+
+#bossRaidCard p::before {
+	left: -0.65cqw;
+	width: 8.6cqw;
+	aspect-ratio: 252 / 238;
+}
+
+#bossRaidCard p b {
+	color: #ffd86b;
+}
+
+#dungeonCouponCard p {
+	padding-left: 8.1cqw;
+}
+
+#dungeonCouponCard p::before {
+	left: -0.1cqw;
+}
+
+#miniGameCard p {
+	padding-left: 8.7cqw;
+}
+
+#miniGameCard p::before {
+	left: -0.55cqw;
+	width: 8.4cqw;
+	aspect-ratio: 280 / 272;
+}
+
+#weeklyPunchKingCard p {
+	padding-left: 8.8cqw;
+}
+
+#weeklyPunchKingCard p::before {
+	left: -0.55cqw;
+	width: 8.6cqw;
+	aspect-ratio: 238 / 206;
+}
+
+#dungeonCouponCard small,
+#bossRaidCard small,
+#miniGameCard small,
+#weeklyPunchKingCard small {
+	display: inline-flex !important;
+	align-items: center;
+	gap: 0.9cqw;
+	width: fit-content;
+	min-width: 33cqw;
+	max-width: 52cqw;
+	min-height: 4.6cqw;
+	margin-top: 1.65cqw;
+	padding: 0.48cqw 2.2cqw 0.48cqw 1.3cqw;
+	overflow: hidden;
+	border: 0.1cqw solid rgba(153, 113, 61, 0.18);
+	border-radius: 999px;
+	background: rgba(231, 213, 181, 0.55);
+	box-shadow: inset 0 0.12cqw 0.18cqw rgba(118, 78, 30, 0.08);
+	color: var(--adventure-brown);
+	font-size: clamp(10px, 2.25cqw, 45px);
+	font-weight: 900;
+	line-height: 1;
+	letter-spacing: 0;
+	text-shadow: 0 0.1cqw 0 rgba(255, 255, 255, 0.76);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#dungeonCouponCard small::before,
+#miniGameCard small::before {
+	content: "";
+	width: 5.3cqw;
+	aspect-ratio: 1.45 / 1;
+	flex: 0 0 auto;
+	background: url("/assets/adventure/flexible-ui/icons/ticket-gold.png?v=20260610-01") center / contain no-repeat;
+	filter: drop-shadow(0 0.15cqw 0.15cqw rgba(80, 45, 10, 0.22));
+}
+
+#bossRaidCard small::before,
+#weeklyPunchKingCard small::before {
+	content: "";
+	width: 1.8cqw;
+	aspect-ratio: 1 / 1;
+	flex: 0 0 auto;
+	background:
+		linear-gradient(45deg, transparent 44%, rgba(118, 88, 51, 0.55) 45% 55%, transparent 56%),
+		linear-gradient(-45deg, transparent 44%, rgba(118, 88, 51, 0.55) 45% 55%, transparent 56%);
+}
+
+#dungeonHuntProgress.is-complete {
+	color: #166534;
+}
+
+#dungeonCouponCard .reward-list-button,
+#bossRaidCard .reward-list-button {
+	position: absolute;
+	right: 5.7%;
+	top: 10.6%;
+	z-index: 3;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	width: 18.2%;
+	height: 19.8%;
+	min-width: 0;
+	min-height: 0;
+	padding: 0;
+	border: 0.24cqw solid rgba(120, 76, 22, 0.92);
+	border-radius: 1.3cqw;
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 42%),
+		linear-gradient(180deg, #276bc2, #123d82);
+	box-shadow:
+		inset 0 0 0 0.25cqw rgba(244, 204, 111, 0.5),
+		inset 0 0.18cqw 0 rgba(255, 255, 255, 0.35),
+		0 0.35cqw 0.8cqw rgba(78, 48, 12, 0.3);
+	color: #ffffff;
+	font-size: clamp(12px, 2.9cqw, 58px);
+	font-weight: 950;
+	letter-spacing: 0;
+	text-shadow: 0 0.14cqw 0 rgba(0, 0, 0, 0.3);
+	opacity: 1;
+}
+
+#dungeonCouponCard .adventure-card-actions,
+#bossRaidCard .adventure-card-actions,
+#miniGameCard .adventure-card-actions,
+#weeklyPunchKingCard .adventure-card-actions {
+	position: absolute;
+	left: 4.8%;
+	right: 4.8%;
+	bottom: 7.2%;
+	z-index: 3;
+	display: block !important;
+	height: 20.4%;
+	margin: 0;
+}
+
+#dungeonCouponCard .dungeon-coupon-button,
+#bossRaidCard .boss-raid-button,
+#miniGameCard .mini-game-button,
+#weeklyPunchKingCard .weekly-punch-button {
+	position: relative;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	gap: 1.1cqw;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	padding: 0;
+	border: 0.24cqw solid rgba(181, 132, 55, 0.92);
+	border-radius: 1.45cqw;
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent 45%),
+		linear-gradient(180deg, var(--adventure-action-a), var(--adventure-action-b));
+	box-shadow:
+		inset 0 0 0 0.22cqw rgba(255, 255, 255, 0.25),
+		inset 0 0.18cqw 0 rgba(255, 255, 255, 0.3),
+		0 0.32cqw 0.72cqw rgba(69, 43, 12, 0.25);
+	color: #ffffff;
+	font-size: clamp(13px, 3.5cqw, 70px);
+	font-weight: 950;
+	letter-spacing: 0;
+	text-shadow: 0 0.15cqw 0 rgba(0, 0, 0, 0.26);
+	opacity: 1;
+	cursor: pointer;
+}
+
+#dungeonCouponCard .dungeon-coupon-button::before,
+#dungeonCouponCard .dungeon-coupon-button::after,
+#bossRaidCard .boss-raid-button::before,
+#bossRaidCard .boss-raid-button::after,
+#miniGameCard .mini-game-button::before,
+#miniGameCard .mini-game-button::after,
+#weeklyPunchKingCard .weekly-punch-button::before,
+#weeklyPunchKingCard .weekly-punch-button::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	width: 20%;
+	height: 0.13cqw;
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+	opacity: 0.65;
+}
+
+#dungeonCouponCard .dungeon-coupon-button::before,
+#bossRaidCard .boss-raid-button::before,
+#miniGameCard .mini-game-button::before,
+#weeklyPunchKingCard .weekly-punch-button::before {
+	left: 10%;
+}
+
+#dungeonCouponCard .dungeon-coupon-button::after,
+#bossRaidCard .boss-raid-button::after,
+#miniGameCard .mini-game-button::after,
+#weeklyPunchKingCard .weekly-punch-button::after {
+	right: 10%;
+}
+
+#bossRaidCard .boss-raid-button.adventure-action--primary {
+	--adventure-action-a: #8847d5;
+	--adventure-action-b: #5926a4;
+}
+
+#weeklyPunchKingCard .weekly-punch-button.adventure-action--danger {
+	--adventure-action-a: #d63a2e;
+	--adventure-action-b: #9e2118;
+}
+
+#adventurePanel .adventure-action--disabled,
+#adventurePanel #useDungeonCoupon:disabled,
+#adventurePanel #challengeBossRaid:disabled,
+#adventurePanel #startMiniGame:disabled,
+#adventurePanel #openWeeklyPunchKing:disabled {
+	border-color: rgba(143, 143, 143, 0.85);
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 45%),
+		linear-gradient(180deg, #e9ecef, #bfc4c9);
+	color: #34373c;
+	text-shadow: 0 0.12cqw 0 rgba(255, 255, 255, 0.7);
+	cursor: not-allowed;
+}
+
+#dungeonCouponCard .dungeon-coupon-button span,
+#bossRaidCard .boss-raid-button span,
+#miniGameCard .mini-game-button span,
+#weeklyPunchKingCard .weekly-punch-button span,
+#dungeonCouponCard .adventure-action-icon,
+#bossRaidCard .adventure-action-icon,
+#miniGameCard .adventure-action-icon,
+#weeklyPunchKingCard .adventure-action-icon {
+	position: relative;
+	z-index: 1;
+}
+
+#dungeonCouponCard .dungeon-coupon-button span,
+#bossRaidCard .boss-raid-button span,
+#miniGameCard .mini-game-button span,
+#weeklyPunchKingCard .weekly-punch-button span {
+	display: inline;
+	width: auto;
+	max-width: 78%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#dungeonCouponCard .adventure-action-icon,
+#bossRaidCard .adventure-action-icon,
+#miniGameCard .adventure-action-icon,
+#weeklyPunchKingCard .adventure-action-icon {
+	width: 5.9cqw;
+	height: 5.9cqw;
+	min-height: 0;
+	aspect-ratio: auto;
+	margin: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	object-fit: contain;
+	filter: drop-shadow(0 0.15cqw 0.15cqw rgba(0, 0, 0, 0.22));
+}
+
+#dungeonCouponCard .dungeon-coupon-button:not(:disabled):active,
+#bossRaidCard .boss-raid-button:not(:disabled):active,
+#miniGameCard .mini-game-button:not(:disabled):active,
+#weeklyPunchKingCard .weekly-punch-button:not(:disabled):active,
+#dungeonCouponCard .reward-list-button:not(:disabled):active {
+	transform: translateY(0.12cqw);
+}
+
 .reward-panel .secondary-leaderboard-button {
   border-color: #c7d2fe;
   background: linear-gradient(180deg, #ffffff 0%, #eef2ff 100%);

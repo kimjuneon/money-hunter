@@ -254,6 +254,20 @@ const adventureAssets = {
   bossRaid: "/assets/adventure/boss-icon-filled-inside.png?v=20260605-01",
   bossTicket: "/assets/adventure/boss-ticket.png?v=20260604-01",
 };
+const adventureFlexibleAssetVersion = "20260610-01";
+const adventureFlexibleAssets = {
+  badgeCrown: `/assets/adventure/flexible-ui/icons/badge-crown.png?v=${adventureFlexibleAssetVersion}`,
+  badgeSkull: `/assets/adventure/flexible-ui/icons/badge-skull.png?v=${adventureFlexibleAssetVersion}`,
+  badgeSwords: `/assets/adventure/flexible-ui/icons/badge-swords.png?v=${adventureFlexibleAssetVersion}`,
+  badgeTraining: `/assets/adventure/flexible-ui/icons/badge-training.png?v=${adventureFlexibleAssetVersion}`,
+  lock: `/assets/adventure/flexible-ui/icons/lock.png?v=${adventureFlexibleAssetVersion}`,
+  mainBoss: `/assets/adventure/flexible-ui/icons/main-boss.png?v=${adventureFlexibleAssetVersion}`,
+  mainDungeon: `/assets/adventure/flexible-ui/icons/main-dungeon.png?v=${adventureFlexibleAssetVersion}`,
+  mainJump: `/assets/adventure/flexible-ui/icons/main-jump.png?v=${adventureFlexibleAssetVersion}`,
+  mainPunchKing: `/assets/adventure/flexible-ui/icons/main-punchking.png?v=${adventureFlexibleAssetVersion}`,
+  ticketGold: `/assets/adventure/flexible-ui/icons/ticket-gold.png?v=${adventureFlexibleAssetVersion}`,
+  ticketGray: `/assets/adventure/flexible-ui/icons/ticket-gray.png?v=${adventureFlexibleAssetVersion}`,
+};
 const adventureSceneSpecs = {
   dungeon: {
     fallback: adventureAssets.dungeon,
@@ -347,7 +361,7 @@ const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationA
 const rookieEventMissionNotificationAgreementStatusStorageKey = "moneyHunter.rookieEventMissionNotificationAgreementStatus";
 const rookieEventButtonSeenDateStoragePrefix = "moneyHunter.rookieEventButtonSeenDate";
 const eventHubSeenDateStoragePrefix = "moneyHunter.eventHubSeenDate";
-const punchKingAssetVersion = "20260609-01";
+const punchKingAssetVersion = "20260610-01";
 const punchKingUltimateVideos = {
   WARRIOR: `/assets/punchking/warrior-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
   ARCHER: `/assets/punchking/archer-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
@@ -1891,6 +1905,48 @@ function bossRaidTier(player = state.player) {
   return bossRaidTiers.reduce((selected, tier) => power >= tier.minCombatPower ? tier : selected, bossRaidTiers[0]);
 }
 
+function setAdventureHighlightedText(element, text, highlight) {
+  if (!element) return;
+  const value = String(text || "");
+  const target = highlight == null ? "" : String(highlight);
+  element.textContent = "";
+  if (!target) {
+    element.textContent = value;
+    return;
+  }
+  const index = value.indexOf(target);
+  if (index < 0) {
+    element.textContent = value;
+    return;
+  }
+  element.append(document.createTextNode(value.slice(0, index)));
+  const accent = document.createElement("b");
+  accent.textContent = target;
+  element.append(accent);
+  element.append(document.createTextNode(value.slice(index + target.length)));
+}
+
+function setAdventureButtonState(button, stateName) {
+  if (!button) return;
+  button.classList.remove("adventure-action--primary", "adventure-action--danger", "adventure-action--disabled");
+  button.classList.add(`adventure-action--${stateName}`);
+}
+
+function setAdventureButtonContent(button, label, iconSrc = "") {
+  if (!button) return;
+  button.textContent = "";
+  if (iconSrc) {
+    const icon = document.createElement("img");
+    icon.className = "adventure-action-icon";
+    icon.src = iconSrc;
+    icon.alt = "";
+    button.append(icon);
+  }
+  const text = document.createElement("span");
+  text.textContent = label;
+  button.append(text);
+}
+
 function renderAdventurePanel(player) {
   const dungeonCoupon = player.dungeonCoupon || {};
   const miniGame = player.adventureMiniGame || {};
@@ -1924,20 +1980,31 @@ function renderAdventurePanel(player) {
   const dungeonRequiresAd = !dungeonUsesTicket && dungeonRunsToday >= dungeonFreeLimit;
   $("dungeonCouponCard").hidden = !dungeonCouponEnabled;
   $("dungeonCouponCard").classList.toggle("has-coupon", dungeonAvailable);
-  $("bossRaidCard").classList.toggle("locked", !dungeonCouponEnabled || bossTicketCount < 1);
+  $("dungeonCouponCard").classList.toggle("has-ticket", dungeonUsesTicket);
+  $("dungeonCouponCard").classList.toggle("requires-ad", dungeonRequiresAd);
+  const bossRaidReady = dungeonCouponEnabled && bossTicketCount > 0;
+  $("bossRaidCard").classList.toggle("locked", !bossRaidReady);
+  $("bossRaidCard").classList.toggle("has-ticket", bossRaidReady);
   $("bossRaidImage").src = adventureAssets.bossRaid;
-  $("bossRaidTitle").textContent = `${bossTier.bossName} · ${bossTier.difficultyName}`;
+  setAdventureHighlightedText($("bossRaidTitle"), `${bossTier.bossName} · ${bossTier.difficultyName}`, bossTier.difficultyName);
   $("bossRaidStatus").textContent = dungeonCouponEnabled
     ? bossTicketCount > 0
       ? `보스 입장권 ${bossTicketCount.toLocaleString("ko-KR")}장 보유 · 토벌 가능`
       : "던전에서 확률적으로 입장권 획득"
     : "모험 기능 준비중";
-  $("challengeBossRaid").disabled = !dungeonCouponEnabled || bossTicketCount < 1;
-  $("challengeBossRaid").innerHTML = bossTicketCount > 0
-    ? `<span class="boss-ticket-button-label"><img src="${adventureAssets.bossTicket}" alt="" />입장권 ${bossTicketCount.toLocaleString("ko-KR")}장 · 토벌</span>`
-    : `<span class="boss-ticket-button-label"><img src="${adventureAssets.bossTicket}" alt="" />입장권 필요</span>`;
+  $("challengeBossRaid").disabled = !bossRaidReady;
+  setAdventureButtonState($("challengeBossRaid"), bossRaidReady ? "primary" : "disabled");
+  setAdventureButtonContent(
+    $("challengeBossRaid"),
+    bossRaidReady ? `입장권 ${bossTicketCount.toLocaleString("ko-KR")}장 · 토벌` : "입장권 필요",
+    bossRaidReady ? adventureFlexibleAssets.ticketGold : adventureFlexibleAssets.ticketGray,
+  );
   if (dungeonCouponEnabled) {
-    $("dungeonCouponCopy").textContent = `${dungeonCoupon.tierName || "초급 던전"} · ${dungeonRunsToday}/${dungeonDailyLimit}`;
+    setAdventureHighlightedText(
+      $("dungeonCouponCopy"),
+      `${dungeonCoupon.tierName || "초급 던전"} · ${dungeonRunsToday}/${dungeonDailyLimit}`,
+      `${dungeonRunsToday}/${dungeonDailyLimit}`,
+    );
     $("dungeonHuntProgress").textContent = dungeonTicketCount > 0
       ? `던전 입장권 ${dungeonTicketCount.toLocaleString("ko-KR")}장 보유`
       : `사냥 진행도 ${timeRewardModalDurationLabel(dungeonHuntProgressSeconds)}/${timeRewardModalDurationLabel(dungeonHuntRequiredSeconds)}`;
@@ -1957,30 +2024,59 @@ function renderAdventurePanel(player) {
       $("dungeonCouponStatus").textContent = "";
     }
     $("useDungeonCoupon").disabled = !dungeonAvailable;
-    $("useDungeonCoupon").innerHTML = dungeonAvailable
-      ? dungeonUsesTicket
-        ? `<span>입장권 ${dungeonTicketCount.toLocaleString("ko-KR")}장 · 던전 입장</span>`
-        : dungeonRequiresAd
-        ? "<span>광고 보고 추가 입장</span>"
-        : "<span>던전 입장</span>"
-      : `<span>${dungeonCoupon.dungeonUnavailableReason || "입장 대기"}</span>`;
+    setAdventureButtonState($("useDungeonCoupon"), dungeonAvailable ? "primary" : "disabled");
+    setAdventureButtonContent(
+      $("useDungeonCoupon"),
+      dungeonAvailable
+        ? dungeonUsesTicket
+          ? `입장권 ${dungeonTicketCount.toLocaleString("ko-KR")}장 · 던전 입장`
+          : dungeonRequiresAd
+          ? "광고 보고 추가 입장"
+          : "던전 입장"
+        : dungeonCoupon.dungeonUnavailableReason || "입장 대기",
+      dungeonAvailable && dungeonUsesTicket
+        ? adventureFlexibleAssets.ticketGold
+        : dungeonAvailable
+        ? ""
+        : adventureFlexibleAssets.lock,
+    );
   }
   $("miniGameCard").classList.toggle("is-completed", Boolean(miniGame.completedToday));
-  $("miniGameTitle").textContent = miniGame.completedToday
+  const miniGameEntryCost = Number(miniGame.entryCostGold || 100);
+  const miniGameDurationLabel = preciseDurationLabel(miniGame.clearSeconds || 120);
+  const miniGameTitle = miniGame.completedToday
     ? "오늘 훈련 완료"
-    : `${Number(miniGame.entryCostGold || 100).toLocaleString("ko-KR")}G 입장 · ${preciseDurationLabel(miniGame.clearSeconds || 120)} 버티기`;
+    : `${miniGameEntryCost.toLocaleString("ko-KR")}G 입장 · ${miniGameDurationLabel} 버티기`;
+  setAdventureHighlightedText(
+    $("miniGameTitle"),
+    miniGameTitle,
+    miniGame.completedToday ? "완료" : `${miniGameEntryCost.toLocaleString("ko-KR")}G`,
+  );
   $("miniGameStatus").textContent = miniGame.completedToday
     ? "내일 다시 도전할 수 있어요"
     : `클리어 시 SP ${Number(miniGame.clearRewardSkillPoints || 1).toLocaleString("ko-KR")}개`;
-  $("startMiniGame").disabled = !miniGame.visible || miniGame.completedToday || player.gold < Number(miniGame.entryCostGold || 100);
-  $("startMiniGame").innerHTML = miniGame.completedToday
-    ? "<span>완료</span>"
-    : player.gold < Number(miniGame.entryCostGold || 100)
-      ? "<span>골드 부족</span>"
-      : "<span>입장</span>";
-  $("weeklyPunchKingTitle").textContent = `${preciseDurationLabel(punchKing.durationSeconds || 90)} 동안 최고 점수 도전`;
+  const miniGameDisabled = !miniGame.visible || miniGame.completedToday || player.gold < miniGameEntryCost;
+  $("startMiniGame").disabled = miniGameDisabled;
+  setAdventureButtonState($("startMiniGame"), miniGameDisabled ? "disabled" : "primary");
+  setAdventureButtonContent(
+    $("startMiniGame"),
+    miniGame.completedToday
+      ? "완료"
+      : player.gold < miniGameEntryCost
+        ? "골드 부족"
+        : "입장",
+    miniGameDisabled && !miniGame.completedToday ? adventureFlexibleAssets.ticketGray : "",
+  );
+  const punchKingDurationLabel = preciseDurationLabel(punchKing.durationSeconds || 90);
+  setAdventureHighlightedText(
+    $("weeklyPunchKingTitle"),
+    `${punchKingDurationLabel} 동안 최고 점수 도전`,
+    punchKingDurationLabel,
+  );
   $("weeklyPunchKingStatus").textContent = `최고 ${formatCompactNumber(punchKing.bestScore || 0)} · 지급 ${Number(punchKing.rewardedGold || 0).toLocaleString("ko-KR")}G / SP ${Number(punchKing.rewardedSkillPoints || 0).toLocaleString("ko-KR")}`;
   $("openWeeklyPunchKing").disabled = !punchKing.visible;
+  setAdventureButtonState($("openWeeklyPunchKing"), punchKing.visible ? "danger" : "disabled");
+  setAdventureButtonContent($("openWeeklyPunchKing"), punchKing.visible ? "도전" : "준비중");
 }
 
 function openAdventureInfoModal() {
@@ -2235,17 +2331,17 @@ async function runAdventureAction(kind, request) {
 async function startMiniGameFlow() {
   const miniGame = state.player?.adventureMiniGame || {};
   if (miniGame.completedToday) {
-    setMessage("오늘 점프 훈련장 보상은 이미 받았어요.");
+    setMessage("오늘 순발력 훈련장 보상은 이미 받았어요.");
     return;
   }
   try {
-    setMessage("점프 훈련장에 입장하는 중이에요.");
+    setMessage("순발력 훈련장에 입장하는 중이에요.");
     const player = await requestWithLoginRetry(() => api("/api/player/adventures/mini-game/start", { method: "POST" }));
     setServerPlayer(player, { resetDisplayGold: true });
     render();
     openMiniGameScreen();
   } catch (error) {
-    setMessage(error.message || "점프 훈련장 입장에 실패했어요.");
+    setMessage(error.message || "순발력 훈련장 입장에 실패했어요.");
   }
 }
 
@@ -2354,7 +2450,7 @@ async function clearMiniGame() {
     const player = await requestWithLoginRetry(() => api("/api/player/adventures/mini-game/clear", { method: "POST" }));
     setServerPlayer(player, { resetDisplayGold: true });
     render();
-    setMessage("점프 훈련장을 클리어했어요. SP 1개를 받았어요.");
+    setMessage("순발력 훈련장을 클리어했어요. SP 1개를 받았어요.");
   } catch (error) {
     setMessage(error.message || "미니게임 보상 지급에 실패했어요.");
   } finally {
@@ -2495,6 +2591,9 @@ function usePunchKingUltimate() {
   video.classList.remove("is-fading");
   video.src = src;
   video.currentTime = 0;
+  video.muted = !canPlaySound();
+  video.volume = 0.9;
+  video.playsInline = true;
   video.classList.add("is-playing");
   let settled = false;
   const finish = () => {
