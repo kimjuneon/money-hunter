@@ -2005,24 +2005,20 @@ function renderAdventurePanel(player) {
       `${dungeonCoupon.tierName || "초급 던전"} · ${dungeonRunsToday}/${dungeonDailyLimit}`,
       `${dungeonRunsToday}/${dungeonDailyLimit}`,
     );
-    $("dungeonHuntProgress").textContent = dungeonTicketCount > 0
-      ? `던전 입장권 ${dungeonTicketCount.toLocaleString("ko-KR")}장 보유`
-      : `사냥 진행도 ${timeRewardModalDurationLabel(dungeonHuntProgressSeconds)}/${timeRewardModalDurationLabel(dungeonHuntRequiredSeconds)}`;
-    $("dungeonHuntProgress").classList.toggle("is-complete", dungeonHuntCompleted);
-    $("dungeonCouponStatus").hidden = dungeonCooldownSeconds <= 0 || dungeonUsesTicket;
+    let dungeonProgressLabel = `사냥 진행도 ${timeRewardModalDurationLabel(dungeonHuntProgressSeconds)}/${timeRewardModalDurationLabel(dungeonHuntRequiredSeconds)}`;
     if (dungeonUsesTicket) {
-      $("dungeonCouponStatus").hidden = true;
-      $("dungeonCouponStatus").textContent = "";
-    } else if (dungeonRemainingRuns <= 0) {
-      $("dungeonCouponStatus").hidden = true;
-      $("dungeonCouponStatus").textContent = "";
-    } else if (dungeonCooldownSeconds > 0) {
-      $("dungeonCouponStatus").textContent = `${timeRewardModalDurationLabel(dungeonCooldownSeconds)} 후 재입장`;
-    } else if (dungeonRequiresAd) {
-      $("dungeonCouponStatus").textContent = "";
-    } else {
-      $("dungeonCouponStatus").textContent = "";
+      dungeonProgressLabel = `던전 입장권 ${dungeonTicketCount.toLocaleString("ko-KR")}장 보유`;
+    } else if (dungeonHuntCompleted && dungeonRemainingRuns <= 0) {
+      dungeonProgressLabel = "오늘 입장 완료";
+    } else if (dungeonHuntCompleted && dungeonCooldownSeconds > 0) {
+      dungeonProgressLabel = `${timeRewardModalDurationLabel(dungeonCooldownSeconds)} 후 재입장`;
+    } else if (dungeonHuntCompleted) {
+      dungeonProgressLabel = "입장 가능";
     }
+    $("dungeonHuntProgress").textContent = dungeonProgressLabel;
+    $("dungeonHuntProgress").classList.toggle("is-complete", dungeonHuntCompleted && dungeonCooldownSeconds <= 0 && dungeonRemainingRuns > 0);
+    $("dungeonCouponStatus").hidden = true;
+    $("dungeonCouponStatus").textContent = "";
     $("useDungeonCoupon").disabled = !dungeonAvailable;
     setAdventureButtonState($("useDungeonCoupon"), dungeonAvailable ? "primary" : "disabled");
     setAdventureButtonContent(

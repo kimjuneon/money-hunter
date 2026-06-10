@@ -2670,17 +2670,17 @@ img {
 	padding: 0;
 	overflow: hidden;
 	isolation: isolate;
-	border: 0.3cqw solid rgba(126, 76, 21, 0.86);
-	border-radius: 3.2cqw;
+	border: 1.14px solid rgba(126, 76, 21, 0.86);
+	border-radius: 12.13px;
 	background:
 		radial-gradient(circle at 78% 47%, rgba(194, 151, 78, 0.12) 0 13%, transparent 25%),
 		linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 28%),
 		linear-gradient(180deg, var(--adventure-paper-a), var(--adventure-paper-b)) !important;
 	box-shadow:
-		0 0.45cqw 1cqw rgba(80, 52, 20, 0.22),
-		inset 0 0 0 0.42cqw rgba(255, 255, 255, 0.82),
-		inset 0 0 0 0.76cqw rgba(226, 174, 91, 0.42),
-		inset 0 0 2.5cqw rgba(134, 84, 28, 0.12);
+		0 1.71px 3.79px rgba(80, 52, 20, 0.22),
+		inset 0 0 0 1.59px rgba(255, 255, 255, 0.82),
+		inset 0 0 0 2.88px rgba(226, 174, 91, 0.42),
+		inset 0 0 9.47px rgba(134, 84, 28, 0.12);
 }
 
 #dungeonCouponCard {
@@ -2719,10 +2719,10 @@ img {
 		linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 28%),
 		linear-gradient(180deg, var(--adventure-paper-a), var(--adventure-paper-b)) !important;
 	box-shadow:
-		0 0.45cqw 1cqw rgba(80, 52, 20, 0.22),
-		inset 0 0 0 0.42cqw rgba(255, 255, 255, 0.82),
-		inset 0 0 0 0.76cqw rgba(226, 174, 91, 0.42),
-		inset 0 0 2.5cqw rgba(134, 84, 28, 0.12);
+		0 1.71px 3.79px rgba(80, 52, 20, 0.22),
+		inset 0 0 0 1.59px rgba(255, 255, 255, 0.82),
+		inset 0 0 0 2.88px rgba(226, 174, 91, 0.42),
+		inset 0 0 9.47px rgba(134, 84, 28, 0.12);
 }
 
 #dungeonCouponCard[hidden] {
@@ -2738,8 +2738,8 @@ img {
 	inset: 1.2%;
 	z-index: 0;
 	display: block;
-	border: 0.13cqw solid rgba(199, 142, 55, 0.75);
-	border-radius: 2.65cqw;
+	border: 0.49px solid rgba(199, 142, 55, 0.75);
+	border-radius: 10.04px;
 	pointer-events: none;
 }
 
@@ -2753,9 +2753,9 @@ img {
 	top: 21%;
 	z-index: 0;
 	display: block;
-	width: 17cqw;
-	height: 17cqw;
-	border: 0.22cqw solid rgba(185, 138, 73, 0.14);
+	width: 64.43px;
+	height: 64.43px;
+	border: 0.83px solid rgba(185, 138, 73, 0.14);
 	border-radius: 50%;
 	background:
 		linear-gradient(45deg, transparent 47%, rgba(185, 138, 73, 0.16) 48% 52%, transparent 53%),
@@ -2784,7 +2784,7 @@ img {
 	color: transparent;
 	font-size: 0;
 	box-shadow: none;
-	filter: drop-shadow(0 0.55cqw 0.55cqw rgba(72, 45, 14, 0.32));
+	filter: drop-shadow(0 2.08px 2.08px rgba(72, 45, 14, 0.32));
 }
 
 #bossRaidCard .boss-raid-visual img {
@@ -2811,13 +2811,13 @@ img {
 #weeklyPunchKingCard strong {
 	display: block;
 	color: var(--adventure-navy);
-	font-size: clamp(17px, 4.35cqw, 88px);
+	font-size: 16.49px;
 	font-weight: 950;
 	line-height: 1;
 	letter-spacing: 0;
 	text-shadow:
-		0 0.13cqw 0 rgba(255, 255, 255, 0.95),
-		0 0.21cqw 0.15cqw rgba(70, 43, 12, 0.12);
+		0 0.49px 0 rgba(255, 255, 255, 0.95),
+		0 0.80px 0.57px rgba(70, 43, 12, 0.12);
 }
 
 #dungeonCouponCard strong::after,
@@ -2827,8 +2827,8 @@ img {
 	content: "";
 	display: block;
 	width: 74%;
-	height: 0.2cqw;
-	margin-top: 1.25cqw;
+	height: 0.76px;
+	margin-top: 4.74px;
 	background: linear-gradient(90deg, transparent, rgba(190, 139, 62, 0.82), transparent);
 	opacity: 0.9;
 }
@@ -2841,29 +2841,29 @@ img {
 	display: flex;
 	align-items: center;
 	width: fit-content;
-	min-width: 35cqw;
-	max-width: 52cqw;
-	height: 5.7cqw;
-	margin: 1.35cqw 0 0;
-	padding: 0 2.4cqw 0 7.4cqw;
+	min-width: 132.65px;
+	max-width: 197.08px;
+	height: 21.60px;
+	margin: 5.12px 0 0;
+	padding: 0 9.10px 0 28.05px;
 	overflow: hidden;
-	border: 0.22cqw solid rgba(130, 80, 20, 0.88);
-	border-radius: 0.75cqw;
+	border: 0.83px solid rgba(130, 80, 20, 0.88);
+	border-radius: 2.84px;
 	background:
 		linear-gradient(180deg, var(--adventure-status-a), var(--adventure-status-b)) !important;
 	clip-path: polygon(2.8% 0, 97% 0, 100% 50%, 97% 100%, 2.8% 100%, 0 50%);
 	box-shadow:
-		inset 0 0.15cqw 0 rgba(255, 255, 255, 0.34),
-		inset 0 -0.25cqw 0.45cqw rgba(0, 0, 0, 0.18),
-		0 0.28cqw 0.55cqw rgba(70, 45, 14, 0.26);
+		inset 0 0.57px 0 rgba(255, 255, 255, 0.34),
+		inset 0 -0.95px 1.71px rgba(0, 0, 0, 0.18),
+		0 1.06px 2.08px rgba(70, 45, 14, 0.26);
 	color: #ffffff;
-	font-size: clamp(11px, 2.7cqw, 54px);
+	font-size: 10.23px;
 	font-weight: 950;
 	line-height: 1;
 	letter-spacing: 0;
 	text-shadow:
-		0 0.13cqw 0 rgba(0, 0, 0, 0.28),
-		0 0 0.18cqw rgba(255, 255, 255, 0.18);
+		0 0.49px 0 rgba(0, 0, 0, 0.28),
+		0 0 0.68px rgba(255, 255, 255, 0.18);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -2874,12 +2874,12 @@ img {
 #weeklyPunchKingCard p::before {
 	content: "";
 	position: absolute;
-	left: -0.2cqw;
+	left: -0.76px;
 	top: 50%;
-	width: 7.4cqw;
+	width: 28.05px;
 	aspect-ratio: 1 / 1;
 	background: var(--adventure-badge-icon) center / contain no-repeat;
-	filter: drop-shadow(0 0.25cqw 0.28cqw rgba(0, 0, 0, 0.28));
+	filter: drop-shadow(0 0.95px 1.06px rgba(0, 0, 0, 0.28));
 	transform: translateY(-50%);
 }
 
@@ -2892,29 +2892,29 @@ img {
 }
 
 #bossRaidCard p {
-	min-width: 36cqw;
-	max-width: 54cqw;
-	height: 5.7cqw;
-	padding: 0 2.4cqw 0 8.9cqw;
-	border: 0.22cqw solid rgba(130, 80, 20, 0.88);
-	border-radius: 0.75cqw;
+	min-width: 136.44px;
+	max-width: 204.66px;
+	height: 21.60px;
+	padding: 0 9.10px 0 33.73px;
+	border: 0.83px solid rgba(130, 80, 20, 0.88);
+	border-radius: 2.84px;
 	background:
 		linear-gradient(180deg, var(--adventure-status-a), var(--adventure-status-b)) !important;
 	clip-path: polygon(2.8% 0, 97% 0, 100% 50%, 97% 100%, 2.8% 100%, 0 50%);
 	box-shadow:
-		inset 0 0.15cqw 0 rgba(255, 255, 255, 0.34),
-		inset 0 -0.25cqw 0.45cqw rgba(0, 0, 0, 0.18),
-		0 0.28cqw 0.55cqw rgba(70, 45, 14, 0.26);
+		inset 0 0.57px 0 rgba(255, 255, 255, 0.34),
+		inset 0 -0.95px 1.71px rgba(0, 0, 0, 0.18),
+		0 1.06px 2.08px rgba(70, 45, 14, 0.26);
 	color: #ffffff;
 	text-shadow:
-		0 0.13cqw 0 rgba(0, 0, 0, 0.28),
-		0 0 0.18cqw rgba(255, 255, 255, 0.18);
+		0 0.49px 0 rgba(0, 0, 0, 0.28),
+		0 0 0.68px rgba(255, 255, 255, 0.18);
 	overflow: hidden;
 }
 
 #bossRaidCard p::before {
-	left: -0.65cqw;
-	width: 8.6cqw;
+	left: -2.46px;
+	width: 32.59px;
 	aspect-ratio: 252 / 238;
 }
 
@@ -2923,30 +2923,30 @@ img {
 }
 
 #dungeonCouponCard p {
-	padding-left: 8.1cqw;
+	padding-left: 30.70px;
 }
 
 #dungeonCouponCard p::before {
-	left: -0.1cqw;
+	left: -0.38px;
 }
 
 #miniGameCard p {
-	padding-left: 8.7cqw;
+	padding-left: 32.97px;
 }
 
 #miniGameCard p::before {
-	left: -0.55cqw;
-	width: 8.4cqw;
+	left: -2.08px;
+	width: 31.84px;
 	aspect-ratio: 280 / 272;
 }
 
 #weeklyPunchKingCard p {
-	padding-left: 8.8cqw;
+	padding-left: 33.35px;
 }
 
 #weeklyPunchKingCard p::before {
-	left: -0.55cqw;
-	width: 8.6cqw;
+	left: -2.08px;
+	width: 32.59px;
 	aspect-ratio: 238 / 206;
 }
 
@@ -2956,24 +2956,24 @@ img {
 #weeklyPunchKingCard small {
 	display: inline-flex !important;
 	align-items: center;
-	gap: 0.9cqw;
+	gap: 3.41px;
 	width: fit-content;
-	min-width: 33cqw;
-	max-width: 52cqw;
-	min-height: 4.6cqw;
-	margin-top: 1.65cqw;
-	padding: 0.48cqw 2.2cqw 0.48cqw 1.3cqw;
+	min-width: 125.07px;
+	max-width: 197.08px;
+	min-height: 17.43px;
+	margin-top: 6.25px;
+	padding: 1.82px 8.34px 1.82px 4.93px;
 	overflow: hidden;
-	border: 0.1cqw solid rgba(153, 113, 61, 0.18);
+	border: 0.38px solid rgba(153, 113, 61, 0.18);
 	border-radius: 999px;
 	background: rgba(231, 213, 181, 0.55);
-	box-shadow: inset 0 0.12cqw 0.18cqw rgba(118, 78, 30, 0.08);
+	box-shadow: inset 0 0.45px 0.68px rgba(118, 78, 30, 0.08);
 	color: var(--adventure-brown);
-	font-size: clamp(10px, 2.25cqw, 45px);
+	font-size: 8.53px;
 	font-weight: 900;
 	line-height: 1;
 	letter-spacing: 0;
-	text-shadow: 0 0.1cqw 0 rgba(255, 255, 255, 0.76);
+	text-shadow: 0 0.38px 0 rgba(255, 255, 255, 0.76);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -2981,17 +2981,17 @@ img {
 #dungeonCouponCard small::before,
 #miniGameCard small::before {
 	content: "";
-	width: 5.3cqw;
+	width: 20.09px;
 	aspect-ratio: 1.45 / 1;
 	flex: 0 0 auto;
 	background: url("/assets/adventure/flexible-ui/icons/ticket-gold.png?v=20260610-01") center / contain no-repeat;
-	filter: drop-shadow(0 0.15cqw 0.15cqw rgba(80, 45, 10, 0.22));
+	filter: drop-shadow(0 0.57px 0.57px rgba(80, 45, 10, 0.22));
 }
 
 #bossRaidCard small::before,
 #weeklyPunchKingCard small::before {
 	content: "";
-	width: 1.8cqw;
+	width: 6.82px;
 	aspect-ratio: 1 / 1;
 	flex: 0 0 auto;
 	background:
@@ -3017,20 +3017,20 @@ img {
 	min-width: 0;
 	min-height: 0;
 	padding: 0;
-	border: 0.24cqw solid rgba(120, 76, 22, 0.92);
-	border-radius: 1.3cqw;
+	border: 0.91px solid rgba(120, 76, 22, 0.92);
+	border-radius: 4.93px;
 	background:
 		linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 42%),
 		linear-gradient(180deg, #276bc2, #123d82);
 	box-shadow:
-		inset 0 0 0 0.25cqw rgba(244, 204, 111, 0.5),
-		inset 0 0.18cqw 0 rgba(255, 255, 255, 0.35),
-		0 0.35cqw 0.8cqw rgba(78, 48, 12, 0.3);
+		inset 0 0 0 0.95px rgba(244, 204, 111, 0.5),
+		inset 0 0.68px 0 rgba(255, 255, 255, 0.35),
+		0 1.33px 3.03px rgba(78, 48, 12, 0.3);
 	color: #ffffff;
-	font-size: clamp(12px, 2.9cqw, 58px);
+	font-size: 10.99px;
 	font-weight: 950;
 	letter-spacing: 0;
-	text-shadow: 0 0.14cqw 0 rgba(0, 0, 0, 0.3);
+	text-shadow: 0 0.53px 0 rgba(0, 0, 0, 0.3);
 	opacity: 1;
 }
 
@@ -3056,25 +3056,25 @@ img {
 	display: flex !important;
 	align-items: center;
 	justify-content: center;
-	gap: 1.1cqw;
+	gap: 4.17px;
 	width: 100%;
 	height: 100%;
 	min-height: 0;
 	padding: 0;
-	border: 0.24cqw solid rgba(181, 132, 55, 0.92);
-	border-radius: 1.45cqw;
+	border: 0.91px solid rgba(181, 132, 55, 0.92);
+	border-radius: 5.50px;
 	background:
 		linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent 45%),
 		linear-gradient(180deg, var(--adventure-action-a), var(--adventure-action-b));
 	box-shadow:
-		inset 0 0 0 0.22cqw rgba(255, 255, 255, 0.25),
-		inset 0 0.18cqw 0 rgba(255, 255, 255, 0.3),
-		0 0.32cqw 0.72cqw rgba(69, 43, 12, 0.25);
+		inset 0 0 0 0.83px rgba(255, 255, 255, 0.25),
+		inset 0 0.68px 0 rgba(255, 255, 255, 0.3),
+		0 1.21px 2.73px rgba(69, 43, 12, 0.25);
 	color: #ffffff;
-	font-size: clamp(13px, 3.5cqw, 70px);
+	font-size: 13.27px;
 	font-weight: 950;
 	letter-spacing: 0;
-	text-shadow: 0 0.15cqw 0 rgba(0, 0, 0, 0.26);
+	text-shadow: 0 0.57px 0 rgba(0, 0, 0, 0.26);
 	opacity: 1;
 	cursor: pointer;
 }
@@ -3091,7 +3091,7 @@ img {
 	position: absolute;
 	top: 50%;
 	width: 20%;
-	height: 0.13cqw;
+	height: 0.49px;
 	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
 	opacity: 0.65;
 }
@@ -3130,7 +3130,7 @@ img {
 		linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 45%),
 		linear-gradient(180deg, #e9ecef, #bfc4c9);
 	color: #34373c;
-	text-shadow: 0 0.12cqw 0 rgba(255, 255, 255, 0.7);
+	text-shadow: 0 0.45px 0 rgba(255, 255, 255, 0.7);
 	cursor: not-allowed;
 }
 
@@ -3162,8 +3162,8 @@ img {
 #bossRaidCard .adventure-action-icon,
 #miniGameCard .adventure-action-icon,
 #weeklyPunchKingCard .adventure-action-icon {
-	width: 5.9cqw;
-	height: 5.9cqw;
+	width: 22.36px;
+	height: 22.36px;
 	min-height: 0;
 	aspect-ratio: auto;
 	margin: 0;
@@ -3171,7 +3171,7 @@ img {
 	border-radius: 0;
 	background: transparent;
 	object-fit: contain;
-	filter: drop-shadow(0 0.15cqw 0.15cqw rgba(0, 0, 0, 0.22));
+	filter: drop-shadow(0 0.57px 0.57px rgba(0, 0, 0, 0.22));
 }
 
 #dungeonCouponCard .dungeon-coupon-button:not(:disabled):active,
@@ -3179,7 +3179,7 @@ img {
 #miniGameCard .mini-game-button:not(:disabled):active,
 #weeklyPunchKingCard .weekly-punch-button:not(:disabled):active,
 #dungeonCouponCard .reward-list-button:not(:disabled):active {
-	transform: translateY(0.12cqw);
+	transform: translateY(0.45px);
 }
 
 .reward-panel .secondary-leaderboard-button {
