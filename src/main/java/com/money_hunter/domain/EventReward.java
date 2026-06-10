@@ -57,9 +57,6 @@ public class EventReward {
 	private int bossRaidTicketAmount = 0;
 
 	@Column(nullable = false)
-	private int dailyMissionSkipTicketAmount = 0;
-
-	@Column(nullable = false)
 	private boolean rookieEventPetReward = false;
 
 	@Column(nullable = false)
@@ -103,7 +100,6 @@ public class EventReward {
 		this.autoHuntSeconds = grant.autoHuntSeconds();
 		this.dungeonCouponAmount = grant.dungeonCouponAmount();
 		this.bossRaidTicketAmount = grant.bossRaidTicketAmount();
-		this.dailyMissionSkipTicketAmount = grant.dailyMissionSkipTicketAmount();
 		this.rookieEventPetReward = grant.rookieEventPetReward();
 		this.vipBadgeReward = grant.vipBadgeReward();
 		this.petSkinUnlockReward = grant.petSkinUnlockReward();
@@ -161,10 +157,6 @@ public class EventReward {
 
 	public int getBossRaidTicketAmount() {
 		return bossRaidTicketAmount;
-	}
-
-	public int getDailyMissionSkipTicketAmount() {
-		return dailyMissionSkipTicketAmount;
 	}
 
 	public boolean isRookieEventPetReward() {

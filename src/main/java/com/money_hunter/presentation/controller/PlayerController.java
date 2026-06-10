@@ -270,11 +270,6 @@ public class PlayerController {
 		return playerService.claimEventReward(userKey(principal), rewardId);
 	}
 
-	@PostMapping("/events/daily-mission/skip")
-	public PlayerStateResponse skipDailyMission(Principal principal) {
-		return playerService.skipDailyMission(userKey(principal));
-	}
-
 	@PostMapping("/onestore/auto-hunt/claim")
 	public PlayerStateResponse claimOneStoreAutoHunt(Principal principal) {
 		String userKey = userKey(principal);

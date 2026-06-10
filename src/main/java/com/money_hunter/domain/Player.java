@@ -229,9 +229,6 @@ public class Player {
 	@Column(nullable = false)
 	private int dailyMissionDailyDungeonRuns = 0;
 
-	@Column(nullable = false)
-	private int dailyMissionSkipTicketCount = 0;
-
 	private Instant vipExpiresAt;
 
 	private LocalDate vipLastDailyRewardDate;
@@ -767,26 +764,6 @@ public class Player {
 		return dailyMissionCompletedDays;
 	}
 
-	public boolean hasDailyMissionSkipTicket() {
-		return dailyMissionSkipTicketCount > 0;
-	}
-
-	public void addDailyMissionSkipTickets(int amount) {
-		if (amount < 1) {
-			throw new IllegalArgumentException("Daily mission skip ticket amount must be positive.");
-		}
-		this.dailyMissionSkipTicketCount = Math.max(0, this.dailyMissionSkipTicketCount) + amount;
-		touch();
-	}
-
-	public void spendDailyMissionSkipTicket() {
-		if (dailyMissionSkipTicketCount < 1) {
-			throw new IllegalStateException("사용할 일일 미션 스킵권이 없어요.");
-		}
-		this.dailyMissionSkipTicketCount -= 1;
-		touch();
-	}
-
 	public void startNextDailyMissionCycle(LocalDate today) {
 		this.dailyMissionCycle = Math.max(1, dailyMissionCycle) + 1;
 		this.dailyMissionCompletedDays = 0;
@@ -1265,7 +1242,6 @@ public class Player {
 			this.dailyMissionCompletedDays = 0;
 			this.dailyMissionDailyHuntMillis = 0;
 			this.dailyMissionDailyDungeonRuns = 0;
-			this.dailyMissionSkipTicketCount = 0;
 			this.vipExpiresAt = null;
 			this.vipLastDailyRewardDate = null;
 			this.adventureMiniGameEntryStartedAt = null;

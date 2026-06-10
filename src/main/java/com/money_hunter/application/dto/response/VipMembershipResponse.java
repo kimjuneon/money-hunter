@@ -8,7 +8,6 @@ public record VipMembershipResponse(
 		Instant expiresAt,
 		LocalDate lastDailyRewardDate,
 		boolean dailyRewardAvailable,
-		int dailyMissionSkipTickets,
 		int priceWon
 ) {
 }

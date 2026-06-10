@@ -596,8 +596,7 @@ class ReviewProfileApiExposureTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.skillPoints", is(1)))
 				.andExpect(jsonPath("$.dungeonCoupon.count", is(3)))
-				.andExpect(jsonPath("$.dungeonCoupon.bossTicketCount", is(1)))
-				.andExpect(jsonPath("$.vipMembership.dailyMissionSkipTickets", is(1)));
+				.andExpect(jsonPath("$.dungeonCoupon.bossTicketCount", is(1)));
 	}
 
 	@Test

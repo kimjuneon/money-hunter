@@ -105,7 +105,7 @@ public class PlayerService {
 	private static final Duration VIP_MONTHLY_DURATION = Duration.ofDays(30);
 	private static final int ADVENTURE_MINI_GAME_ENTRY_COST_GOLD = 100;
 	private static final int ADVENTURE_MINI_GAME_CLEAR_REWARD_SP = 1;
-	private static final int ADVENTURE_MINI_GAME_CLEAR_SECONDS = 120;
+	private static final int ADVENTURE_MINI_GAME_CLEAR_SECONDS = 90;
 	private static final Duration ADVENTURE_MINI_GAME_ENTRY_TTL = Duration.ofMinutes(8);
 	private static final int WEEKLY_PUNCH_KING_DURATION_SECONDS = 90;
 	private static final int WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS = 30;
@@ -1158,22 +1158,6 @@ public class PlayerService {
 	}
 
 	@Transactional
-	public PlayerStateResponse skipDailyMission(String userKey) {
-		Player player = getOrCreatePlayer(userKey);
-		requireOnboarded(player);
-		settle(player);
-		LocalDate today = todayInSeoul();
-		prepareDailyMission(player);
-		if (player.completedDailyMissionToday(today)) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 일일 미션은 이미 완료했어요.");
-		}
-		player.spendDailyMissionSkipTicket();
-		int completedDay = player.completeDailyMission(today, DAILY_MISSION_DAYS);
-		createDailyMissionRewards(player, completedDay);
-		return toState(player);
-	}
-
-	@Transactional
 	public PlayerStateResponse fillRewardGaugeForTest(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
 		requireOnboarded(player);
@@ -1898,7 +1882,7 @@ public class PlayerService {
 				"VIP 멤버십",
 				"VIP 오늘의 혜택",
 				"월간 정기 구독 일일 혜택",
-				"SP 1개 · 던전권 3장 · 보스권 1장 · 자동사냥 1시간 · 스킵권 1장",
+				"SP 1개 · 던전권 3장 · 보스권 1장 · 자동사냥 1시간",
 				EventRewardGrant.vipDaily());
 	}
 
@@ -1946,9 +1930,6 @@ public class PlayerService {
 		}
 		if (reward.getBossRaidTicketAmount() > 0) {
 			player.addBossRaidTickets(reward.getBossRaidTicketAmount());
-		}
-		if (reward.getDailyMissionSkipTicketAmount() > 0) {
-			player.addDailyMissionSkipTickets(reward.getDailyMissionSkipTicketAmount());
 		}
 		if (reward.isPetSkinUnlockReward()) {
 			player.unlockEasterEggPetSkins(PET_SKIN_KEYS);
@@ -2498,22 +2479,21 @@ public class PlayerService {
 					DAILY_MISSION_HUNT_REQUIRED_MILLIS / 1_000,
 					0,
 					DAILY_MISSION_DUNGEON_RUNS_REQUIRED,
-					0,
 					false,
 					false);
-			}
-			LocalDate today = todayInSeoul();
-			player.ensureDailyMissionDay(today);
-			int completedDays = Math.min(DAILY_MISSION_DAYS, Math.max(0, player.getDailyMissionCompletedDays()));
-			Instant now = clock.instant();
-			boolean dailyPending = eventRewardPending(
-					player,
-					dailyMissionRewardKey(player.getDailyMissionCycle(), Math.max(1, completedDays)),
-					now);
-			boolean finalPending = eventRewardPending(
-					player,
-					dailyMissionFinalRewardKey(player.getDailyMissionCycle()),
-					now);
+		}
+		LocalDate today = todayInSeoul();
+		player.ensureDailyMissionDay(today);
+		int completedDays = Math.min(DAILY_MISSION_DAYS, Math.max(0, player.getDailyMissionCompletedDays()));
+		Instant now = clock.instant();
+		boolean dailyPending = eventRewardPending(
+				player,
+				dailyMissionRewardKey(player.getDailyMissionCycle(), Math.max(1, completedDays)),
+				now);
+		boolean finalPending = eventRewardPending(
+				player,
+				dailyMissionFinalRewardKey(player.getDailyMissionCycle()),
+				now);
 		return new DailyMissionEventResponse(
 				true,
 				player.completedDailyMissionToday(today),
@@ -2524,10 +2504,9 @@ public class PlayerService {
 				Math.max(0, player.getDailyMissionDailyHuntMillis() / 1_000),
 				DAILY_MISSION_HUNT_REQUIRED_MILLIS / 1_000,
 				Math.max(0, player.getDailyMissionDailyDungeonRuns()),
-					DAILY_MISSION_DUNGEON_RUNS_REQUIRED,
-					Math.max(0, player.getDailyMissionSkipTicketCount()),
-					dailyPending,
-					finalPending);
+				DAILY_MISSION_DUNGEON_RUNS_REQUIRED,
+				dailyPending,
+				finalPending);
 	}
 
 	private boolean eventRewardPending(Player player, String rewardKey, Instant now) {
@@ -2545,7 +2524,6 @@ public class PlayerService {
 				player.getVipExpiresAt(),
 				player.getVipLastDailyRewardDate(),
 				player.canClaimVipDailyReward(today, now),
-				Math.max(0, player.getDailyMissionSkipTicketCount()),
 				VIP_MONTHLY_PRICE_WON);
 	}
 

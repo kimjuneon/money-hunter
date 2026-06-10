@@ -244,8 +244,11 @@
                 <small id="miniGameStatus">클리어 시 SP 1개</small>
               </div>
               <div class="adventure-card-actions">
-                <button id="startMiniGame" class="mini-game-button" type="button">
-                  <span>입장</span>
+                <button id="practiceMiniGame" class="mini-game-button mini-game-button--practice" type="button">
+                  <span>연습하기</span>
+                </button>
+                <button id="startMiniGame" class="mini-game-button mini-game-button--challenge" type="button">
+                  <span>도전하기</span>
                 </button>
               </div>
             </article>
@@ -358,10 +361,10 @@
           </article>
           <div class="shop-section-title">멤버십</div>
           <article id="vipMembershipShop" class="shop-item vip-membership-shop-item">
-            <div class="vip-shop-icon" aria-hidden="true">V</div>
+            <div class="vip-shop-icon" aria-hidden="true"></div>
             <div class="shop-copy">
               <strong>VIP 멤버십</strong>
-              <p id="vipMembershipCopy">매일 SP, 던전권, 보스권, 자동사냥권, 스킵권 지급</p>
+              <p id="vipMembershipCopy">매일 SP, 던전권, 보스권<br>자동사냥권 지급</p>
               <small id="vipMembershipStatus">월간 구독 준비 중</small>
             </div>
             <button id="buyVipMembership" class="vip-membership-button shop-buy-button" type="button">
@@ -667,7 +670,7 @@
         <div class="rookie-event-card daily-mission-card">
           <button id="closeDailyMissionModal" class="modal-close" type="button" aria-label="닫기">×</button>
           <div class="daily-mission-hero">
-            <div class="daily-mission-badge" aria-hidden="true">D</div>
+            <div class="daily-mission-badge" aria-hidden="true"></div>
             <div>
               <p class="modal-kicker">DAILY EVENT</p>
               <h2 id="dailyMissionTitle">일일 미션</h2>
@@ -690,23 +693,41 @@
       </section>
 
       <section id="miniGameScreen" class="adventure-fullscreen mini-game-screen hidden" aria-label="순발력 훈련장">
-        <div class="adventure-fullscreen-top">
+        <div class="adventure-fullscreen-top mini-game-top">
           <button id="exitMiniGame" type="button" aria-label="나가기">×</button>
-          <div>
+          <div class="mini-game-heading">
             <strong>순발력 훈련장</strong>
-            <span id="miniGameTimer">02:00</span>
+            <span>화면 터치로 점프</span>
           </div>
-          <b id="miniGameReward">SP 1</b>
+          <div class="mini-game-timeboard" aria-label="훈련 시간">
+            <span>
+              <small>남은 시간</small>
+              <b id="miniGameTimer">01:30</b>
+            </span>
+            <span>
+              <small>버틴 시간</small>
+              <b id="miniGameSurvived">0초</b>
+            </span>
+          </div>
         </div>
         <div id="miniGameStage" class="mini-game-stage">
           <div class="mini-game-skyline" aria-hidden="true"></div>
-          <img id="miniGameHero" class="mini-game-hero" src="/assets/body-warrior.png?v=20260525-03" alt="" />
-          <div id="miniGameObstacle" class="mini-game-obstacle" aria-hidden="true"></div>
+          <img id="miniGameHero" class="mini-game-hero" src="/assets/warrior.png?v=20260525-03" alt="" />
+          <img id="miniGameObstacle" class="mini-game-obstacle" src="/assets/boss-rock.png" alt="" aria-hidden="true" />
           <div class="mini-game-ground" aria-hidden="true"></div>
-        </div>
-        <div class="mini-game-hud">
-          <strong id="miniGameMessage">화면을 눌러 점프</strong>
-          <button id="miniGameJump" type="button">점프</button>
+          <div id="miniGameStartPrompt" class="mini-game-start-prompt" aria-live="polite">
+            <strong id="miniGameMessage">화면을 클릭해서 시작하세요!</strong>
+            <span id="miniGameStartCopy">장애물을 피하고 1분 30초를 버티면 SP 1개를 받아요.</span>
+          </div>
+          <div id="miniGameResultPanel" class="mini-game-result hidden" role="dialog" aria-live="polite" aria-labelledby="miniGameResultTitle">
+            <span id="miniGameResultBadge" class="mini-game-result-badge" aria-hidden="true">!</span>
+            <strong id="miniGameResultTitle">훈련 종료</strong>
+            <p id="miniGameResultSummary">버틴 시간 0초 · 남은 시간 0초</p>
+            <div class="mini-game-result-actions">
+              <button id="miniGameContinueAd" type="button">광고 보고 이어하기</button>
+              <button id="miniGameResultExit" type="button">종료</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -715,32 +736,74 @@
           <button id="exitWeeklyPunchKing" type="button" aria-label="나가기">×</button>
           <div>
             <strong>주간 펀치킹</strong>
-            <span id="punchKingTimer">01:30</span>
+            <span>월요일마다 기록 초기화</span>
           </div>
-          <b id="punchKingScore">0</b>
+          <div class="punch-king-scoreboard" aria-label="펀치킹 최고 기록">
+            <small>최고 기록</small>
+            <b id="punchKingBest">0</b>
+          </div>
         </div>
         <div class="punch-king-arena">
-          <div class="punch-king-statline">
-            <span id="punchKingBest">최고 0</span>
-            <span id="punchKingReward">보상 0G · SP 0</span>
-          </div>
           <div class="punch-king-health">
             <strong>초거대 훈련 골렘</strong>
             <span id="punchKingHpText">HP ∞</span>
             <i id="punchKingHpBar"></i>
           </div>
-          <button id="punchKingTarget" class="punch-king-target" type="button" aria-label="펀치">
-            <img id="punchKingHero" class="punch-king-hero" src="/assets/body-warrior.png?v=20260525-03" alt="" />
-            <div class="punch-king-boss" aria-hidden="true"></div>
+          <div class="punch-king-liveboard" aria-label="펀치킹 진행 상태">
+            <span>
+              <small>현재 점수</small>
+              <b id="punchKingScore">0</b>
+            </span>
+            <span>
+              <small>남은 시간</small>
+              <b id="punchKingTimer">01:30</b>
+            </span>
+          </div>
+          <div id="punchKingTarget" class="punch-king-target" role="button" tabindex="0" aria-label="펀치">
+            <div id="punchKingHero" class="hero-sprite punch-king-hero warrior" aria-hidden="true">
+              <img id="punchKingHeroImage" src="/assets/body-warrior.png?v=20260525-03" alt="" />
+              <img id="punchKingArmImage" class="hero-weapon sword" src="/assets/arm-warrior.png?v=20260525-03" alt="" />
+            </div>
+            <div id="punchKingPetParty" class="pet-party punch-king-pet-party" aria-hidden="true">
+              <img id="punchKingPetFlare" class="pet-sprite pet-flare hidden" src="/assets/pet-flarefox.svg" alt="" />
+              <img id="punchKingPetAqua" class="pet-sprite pet-aqua hidden" src="/assets/pet-aquabun.svg" alt="" />
+              <img id="punchKingPetRookieEvent" class="pet-sprite pet-event hidden" src="/assets/events/rookie-event-pet.png?v=20260602-01" alt="" />
+            </div>
+            <img id="punchKingBoss" class="punch-king-boss" src="/assets/punchking/monster-transparent.png?v=20260610-02" alt="" aria-hidden="true" />
+            <span id="punchKingImpact" class="punch-king-impact" aria-hidden="true"></span>
+            <div id="punchKingProjectileLayer" class="projectile-layer punch-king-projectile-layer" aria-hidden="true"></div>
+            <div id="punchKingSkillEffectLayer" class="skill-effect-layer punch-king-skill-effect-layer" aria-hidden="true"></div>
+            <div id="punchKingPetAttackLayer" class="pet-attack-layer punch-king-pet-attack-layer" aria-hidden="true"></div>
             <video id="punchKingUltimateVideo" class="punch-king-ultimate-video" playsinline preload="auto"></video>
-          </button>
+            <div id="punchKingStartPrompt" class="punch-king-start-prompt" aria-live="polite">
+              <strong>화면을 클릭해서 시작하세요!</strong>
+              <span>화면을 누르고 있으면 0.5초마다 자동 공격해요.</span>
+              <span>궁극기는 사용시 큰 피해를 줄 수 있어요.</span>
+            </div>
+          </div>
         </div>
         <div class="punch-king-actions">
           <button id="punchKingUltimate" type="button" disabled>
             <span>궁극기</span>
             <small id="punchKingUltimateCooldown">30초</small>
           </button>
-          <button id="punchKingStart" type="button">시작</button>
+        </div>
+        <div id="punchKingResultPanel" class="punch-king-result hidden" role="dialog" aria-modal="true" aria-labelledby="punchKingResultTitle">
+          <span id="punchKingResultBadge" class="punch-king-result-badge" aria-hidden="true">OK</span>
+          <strong id="punchKingResultTitle">도전 종료</strong>
+          <div class="punch-king-result-scores" aria-label="펀치킹 점수 요약">
+            <span>
+              <small>기존 최고</small>
+              <b id="punchKingResultPreviousBest">0</b>
+            </span>
+            <span>
+              <small>이번 점수</small>
+              <b id="punchKingResultScore">0</b>
+            </span>
+          </div>
+          <p id="punchKingResultSummary">기존 최고와 이번 점수를 확인해 주세요.</p>
+          <div id="punchKingResultRewards" class="punch-king-result-rewards"></div>
+          <button id="punchKingResultClose" type="button">확인</button>
         </div>
       </section>
 
@@ -797,6 +860,7 @@
           <button id="devFillReward" type="button">게이지 채우기</button>
           <button id="devClaimReward" type="button">리워드 수령</button>
           <button id="devBenefitTabEntry" type="button">혜택탭 유저</button>
+          <button id="devMiniGameContinue" type="button">미니게임 이어하기</button>
 	          <button id="devPromotionLog" type="button">프로모션 로그</button>
 	          <button id="devToggleBanner" type="button">배너 숨기기</button>
 	          <button id="devReset" class="dev-danger" type="button">초기화</button>

@@ -56,6 +56,7 @@ money-hunter:
     skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:}
     reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:}
     dungeon-additional-reward-ad-group-id: ${TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID:}
+    mini-game-continue-reward-ad-group-id: ${TOSS_AD_GROUP_MINI_GAME_CONTINUE_ID:}
     job-change-interstitial-ad-group-id: ${TOSS_AD_GROUP_JOB_CHANGE_ID:}
     banner-ad-group-id: ${TOSS_AD_GROUP_BANNER_ID:}
   iap:

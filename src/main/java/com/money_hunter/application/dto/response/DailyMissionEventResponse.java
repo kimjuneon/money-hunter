@@ -13,7 +13,6 @@ public record DailyMissionEventResponse(
 		long autoHuntRequiredSeconds,
 		int dungeonRuns,
 		int dungeonRunsRequired,
-		int dailyMissionSkipTickets,
 		boolean rewardPending,
 		boolean finalRewardPending
 ) {

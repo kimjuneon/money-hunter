@@ -48,6 +48,7 @@ const state = {
   lastServerGold: null,
   lastSettlementGold: 0,
   attackTimer: null,
+  attackMotionStartedAt: 0,
   adAction: null,
   adTimer: null,
   timeRewardOverflowAction: null,
@@ -146,8 +147,14 @@ const state = {
 	    remainingMs: 0,
 	    cooldownMs: 0,
 	    score: 0,
+	    displayScore: 0,
+	    pendingScore: 0,
+	    scoreAnimationRemainingMs: 0,
 	    lastFrameAt: 0,
 	    lastAttackAt: 0,
+	    holdAttackTimer: 0,
+	    attackTimer: 0,
+	    hitTimer: 0,
 	    ultimateActive: false,
 	    submitting: false,
 	    rafId: 0,
@@ -222,10 +229,10 @@ const emptyElement = {
 const $ = (id) => document.getElementById(id) || emptyElement;
 
 const jobMeta = {
-  WARRIOR: { label: "전사", pick: "전사를", change: "전사로", className: "warrior", weapon: "sword", image: "/assets/body-warrior.png?v=20260525-03", arm: "/assets/arm-warrior.png?v=20260525-03", projectile: "/assets/projectile-sword.png?v=20260525-02", name: "검의 헌터" },
-  ARCHER: { label: "궁수", pick: "궁수를", change: "궁수로", className: "archer", weapon: "arrow", image: "/assets/body-archer.png?v=20260525-03", arm: "/assets/arm-archer.png?v=20260525-03", projectile: "/assets/projectile-arrow.png?v=20260525-02", name: "숲의 헌터" },
-  MAGE: { label: "마법사", pick: "마법사를", change: "마법사로", className: "mage", weapon: "magic", image: "/assets/body-mage.png?v=20260525-03", arm: "/assets/arm-mage.png?v=20260525-03", projectile: "/assets/projectile-magic.png?v=20260525-02", name: "별빛 헌터" },
-  ROGUE: { label: "도적", pick: "도적을", change: "도적으로", className: "rogue", weapon: "shuriken", image: "/assets/body-rogue.png?v=20260525-02", arm: "/assets/arm-rogue.png?v=20260525-02", projectile: "/assets/projectile-shuriken.png?v=20260525-02", name: "그림자 헌터" },
+  WARRIOR: { label: "전사", pick: "전사를", change: "전사로", className: "warrior", weapon: "sword", image: "/assets/body-warrior.png?v=20260525-03", miniGameImage: "/assets/warrior.png?v=20260525-03", arm: "/assets/arm-warrior.png?v=20260525-03", projectile: "/assets/projectile-sword.png?v=20260525-02", name: "검의 헌터" },
+  ARCHER: { label: "궁수", pick: "궁수를", change: "궁수로", className: "archer", weapon: "arrow", image: "/assets/body-archer.png?v=20260525-03", miniGameImage: "/assets/archer.png?v=20260525-03", arm: "/assets/arm-archer.png?v=20260525-03", projectile: "/assets/projectile-arrow.png?v=20260525-02", name: "숲의 헌터" },
+  MAGE: { label: "마법사", pick: "마법사를", change: "마법사로", className: "mage", weapon: "magic", image: "/assets/body-mage.png?v=20260525-03", miniGameImage: "/assets/mage.png?v=20260525-03", arm: "/assets/arm-mage.png?v=20260525-03", projectile: "/assets/projectile-magic.png?v=20260525-02", name: "별빛 헌터" },
+  ROGUE: { label: "도적", pick: "도적을", change: "도적으로", className: "rogue", weapon: "shuriken", image: "/assets/body-rogue.png?v=20260525-02", miniGameImage: "/assets/rogue.png?v=20260525-02", arm: "/assets/arm-rogue.png?v=20260525-02", projectile: "/assets/projectile-shuriken.png?v=20260525-02", name: "그림자 헌터" },
 };
 
 const monsterMeta = {
@@ -361,26 +368,29 @@ const notificationAgreementStatusStorageKey = "moneyHunter.autoHuntNotificationA
 const rookieEventMissionNotificationAgreementStatusStorageKey = "moneyHunter.rookieEventMissionNotificationAgreementStatus";
 const rookieEventButtonSeenDateStoragePrefix = "moneyHunter.rookieEventButtonSeenDate";
 const eventHubSeenDateStoragePrefix = "moneyHunter.eventHubSeenDate";
-const punchKingAssetVersion = "20260610-01";
+const punchKingAssetVersion = "20260610-02";
 const punchKingUltimateVideos = {
   WARRIOR: `/assets/punchking/warrior-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
   ARCHER: `/assets/punchking/archer-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
   MAGE: `/assets/punchking/wizard-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
   ROGUE: `/assets/punchking/thief-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
 };
+const punchKingMonsterImage = `/assets/punchking/monster-transparent.png?v=${punchKingAssetVersion}`;
 const miniGameGravity = 0.00215;
-const miniGameJumpVelocity = 1.25;
-const miniGameBaseObstacleSpeed = 0.34;
-const miniGameMaxObstacleSpeed = 0.88;
+const miniGameJumpVelocity = 0.84;
+const miniGameBaseObstacleSpeed = 0.3;
+const miniGameMaxObstacleSpeed = 0.68;
+const miniGameObstacleAccelerationPower = 1.55;
 const miniGameHeroX = 72;
-const punchKingMinAttackIntervalMs = 100;
-const punchKingBossMaxHp = 9_999_999_999;
+const punchKingMinAttackIntervalMs = 450;
+const punchKingHoldAttackIntervalMs = 500;
+const punchKingUltimateScoreAnimationFallbackMs = 1200;
 const punchKingUltimateFadeMs = 1000;
 const gameProfileWebviewUrl = "servicetoss://game-center/profile";
 const appsInTossSdkUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-framework@2.5.0/+esm";
 const appsInTossBridgeUrl = "https://cdn.jsdelivr.net/npm/@apps-in-toss/web-bridge@2.5.0/dist/bridge.js/+esm";
 const productionApiBaseUrl = "https://money-hunter-prod-4qddpaimyq-du.a.run.app";
-const realFullScreenAdGroupKeys = ["autoHunt", "rewardClaim", "dungeonAdditional", "jobChange"];
+const realFullScreenAdGroupKeys = ["autoHunt", "rewardClaim", "dungeonAdditional", "jobChange", "miniGameContinue"];
 const realAdPreloadRetryMs = 30000;
 const realAdCooldownPreloadLeadMs = 20000;
 const realAdLoadedTtlMs = 120000;
@@ -2039,29 +2049,35 @@ function renderAdventurePanel(player) {
   }
   $("miniGameCard").classList.toggle("is-completed", Boolean(miniGame.completedToday));
   const miniGameEntryCost = Number(miniGame.entryCostGold || 100);
-  const miniGameDurationLabel = preciseDurationLabel(miniGame.clearSeconds || 120);
-  const miniGameTitle = miniGame.completedToday
-    ? "오늘 훈련 완료"
-    : `${miniGameEntryCost.toLocaleString("ko-KR")}G 입장 · ${miniGameDurationLabel} 버티기`;
+  const miniGameDurationLabel = preciseDurationLabel(miniGame.clearSeconds || 90);
+  const miniGameTitle = `${miniGameEntryCost.toLocaleString("ko-KR")}G 도전 · ${miniGameDurationLabel} 버티기`;
   setAdventureHighlightedText(
     $("miniGameTitle"),
     miniGameTitle,
-    miniGame.completedToday ? "완료" : `${miniGameEntryCost.toLocaleString("ko-KR")}G`,
+    `${miniGameEntryCost.toLocaleString("ko-KR")}G`,
   );
   $("miniGameStatus").textContent = miniGame.completedToday
-    ? "내일 다시 도전할 수 있어요"
-    : `클리어 시 SP ${Number(miniGame.clearRewardSkillPoints || 1).toLocaleString("ko-KR")}개`;
-  const miniGameDisabled = !miniGame.visible || miniGame.completedToday || player.gold < miniGameEntryCost;
-  $("startMiniGame").disabled = miniGameDisabled;
-  setAdventureButtonState($("startMiniGame"), miniGameDisabled ? "disabled" : "primary");
+    ? "오늘 도전 완료 · 연습 가능"
+    : `도전 성공 시 SP ${Number(miniGame.clearRewardSkillPoints || 1).toLocaleString("ko-KR")}개`;
+  const miniGamePracticeDisabled = !miniGame.visible;
+  const miniGameChallengeDisabled = !miniGame.visible || miniGame.completedToday || player.gold < miniGameEntryCost;
+  $("practiceMiniGame").disabled = miniGamePracticeDisabled;
+  $("startMiniGame").disabled = miniGameChallengeDisabled;
+  setAdventureButtonState($("practiceMiniGame"), miniGamePracticeDisabled ? "disabled" : "primary");
+  setAdventureButtonState($("startMiniGame"), miniGameChallengeDisabled ? "disabled" : "primary");
+  setAdventureButtonContent(
+    $("practiceMiniGame"),
+    "연습하기",
+    "",
+  );
   setAdventureButtonContent(
     $("startMiniGame"),
     miniGame.completedToday
-      ? "완료"
+      ? "도전 완료"
       : player.gold < miniGameEntryCost
         ? "골드 부족"
-        : "입장",
-    miniGameDisabled && !miniGame.completedToday ? adventureFlexibleAssets.ticketGray : "",
+        : "도전하기",
+    miniGameChallengeDisabled && !miniGame.completedToday ? adventureFlexibleAssets.ticketGray : "",
   );
   const punchKingDurationLabel = preciseDurationLabel(punchKing.durationSeconds || 90);
   setAdventureHighlightedText(
@@ -2324,49 +2340,91 @@ async function runAdventureAction(kind, request) {
   }
 }
 
+function practiceMiniGameFlow() {
+  const miniGame = state.player?.adventureMiniGame || {};
+  if (!miniGame.visible) {
+    setMessage("순발력 훈련장은 아직 이용할 수 없어요.");
+    return;
+  }
+  setMessage("연습 모드로 입장해요. SP 보상은 지급되지 않아요.");
+  openMiniGameScreen({ practice: true });
+}
+
 async function startMiniGameFlow() {
   const miniGame = state.player?.adventureMiniGame || {};
+  const entryCost = Number(miniGame.entryCostGold || 100);
+  if (!miniGame.visible) {
+    setMessage("순발력 훈련장은 아직 이용할 수 없어요.");
+    return;
+  }
   if (miniGame.completedToday) {
-    setMessage("오늘 순발력 훈련장 보상은 이미 받았어요.");
+    setMessage("오늘 도전 보상은 이미 받았어요. 연습하기로 다시 플레이할 수 있어요.");
+    return;
+  }
+  if (Number(state.player?.gold || 0) < entryCost) {
+    setMessage(`도전하려면 골드 ${entryCost.toLocaleString("ko-KR")}G가 필요해요.`);
     return;
   }
   try {
-    setMessage("순발력 훈련장에 입장하는 중이에요.");
+    setMessage("순발력 훈련장 도전에 입장하는 중이에요.");
     const player = await requestWithLoginRetry(() => api("/api/player/adventures/mini-game/start", { method: "POST" }));
     setServerPlayer(player, { resetDisplayGold: true });
     render();
-    openMiniGameScreen();
+    openMiniGameScreen({ practice: false });
   } catch (error) {
     setMessage(error.message || "순발력 훈련장 입장에 실패했어요.");
   }
 }
 
-function openMiniGameScreen() {
+function openMiniGameScreen(options = {}) {
   stopMiniGameLoop();
   const miniGame = state.player?.adventureMiniGame || {};
+  const practice = Boolean(options.practice);
+  const unlimitedContinue = Boolean(options.unlimitedContinue);
   const hero = jobMeta[state.player?.job || state.selectedJob || "WARRIOR"] || jobMeta.WARRIOR;
-  $("miniGameHero").src = hero.image;
+  const monster = displayMonster(state.player);
+  const monsterAsset = monsterMeta[monster.key] || monsterMeta.BOSS_ROCK;
+  const totalMs = Math.max(1, Number(miniGame.clearSeconds || 90)) * 1000;
+  $("miniGameHero").src = hero.miniGameImage || hero.image;
+  $("miniGameObstacle").src = monsterAsset.image;
+  setMiniGameResultVisible(false);
+  $("miniGameScreen").classList.remove("is-running");
+  $("miniGameStartPrompt").classList.remove("hidden");
   $("miniGameScreen").classList.remove("hidden");
+  const stageWidth = $("miniGameStage").clientWidth || $("miniGameScreen").clientWidth || window.innerWidth || 360;
   state.miniGame = {
-    active: true,
-    started: true,
-    startedAt: performance.now(),
-    remainingMs: Math.max(1, Number(miniGame.clearSeconds || 120)) * 1000,
+    active: false,
+    started: false,
+    startedAt: 0,
+    totalMs,
+    remainingMs: totalMs,
     heroY: 0,
     velocityY: 0,
-    obstacleX: Math.max(280, $("miniGameStage").clientWidth || 360),
+    obstacleX: Math.max(280, stageWidth) + 90,
     obstacleSpeed: miniGameBaseObstacleSpeed,
     lastFrameAt: performance.now(),
     rafId: 0,
     clearing: false,
+    resultOpen: false,
+    practice,
+    continueUsed: false,
+    unlimitedContinue,
   };
-  $("miniGameMessage").textContent = "화면을 눌러 점프";
-  tickMiniGame(performance.now());
+  $("miniGameHero").style.transform = "translateY(0)";
+  $("miniGameObstacle").style.transform = `translateX(${state.miniGame.obstacleX}px)`;
+  $("miniGameMessage").textContent = "화면을 클릭해서 시작하세요!";
+  $("miniGameStartCopy").textContent = practice
+    ? "연습 모드에서는 SP 보상이 지급되지 않아요."
+    : "장애물을 피하고 1분 30초를 버티면 SP 1개를 받아요.";
+  updateMiniGameClock();
 }
 
 function stopMiniGameLoop() {
   if (state.miniGame?.rafId) {
     cancelAnimationFrame(state.miniGame.rafId);
+  }
+  if (!state.miniGame) {
+    return;
   }
   state.miniGame.rafId = 0;
   state.miniGame.active = false;
@@ -2374,16 +2432,46 @@ function stopMiniGameLoop() {
 
 function closeMiniGameScreen() {
   stopMiniGameLoop();
+  setMiniGameResultVisible(false);
+  $("miniGameScreen").classList.remove("is-running");
   $("miniGameScreen").classList.add("hidden");
+}
+
+function handleMiniGameTap(event) {
+  if (event?.target?.closest("button, .mini-game-result, .mini-game-top")) {
+    return;
+  }
+  const game = state.miniGame;
+  if (!game || game.resultOpen || game.clearing) {
+    return;
+  }
+  if (!game.started) {
+    startMiniGameRun();
+    return;
+  }
+  miniGameJump();
+}
+
+function startMiniGameRun() {
+  const game = state.miniGame;
+  if (!game || game.started || game.resultOpen || game.clearing) {
+    return;
+  }
+  game.active = true;
+  game.started = true;
+  game.startedAt = performance.now();
+  game.lastFrameAt = game.startedAt;
+  $("miniGameScreen").classList.add("is-running");
+  $("miniGameStartPrompt").classList.add("hidden");
+  tickMiniGame(game.startedAt);
 }
 
 function miniGameJump() {
   const game = state.miniGame;
-  if (!game?.active || game.clearing || game.heroY > 2) {
+  if (!game?.active || game.resultOpen || game.clearing || game.heroY > 2) {
     return;
   }
   game.velocityY = miniGameJumpVelocity;
-  $("miniGameMessage").textContent = "좋아요";
 }
 
 function tickMiniGame(now) {
@@ -2394,10 +2482,11 @@ function tickMiniGame(now) {
   const delta = Math.min(40, Math.max(0, now - game.lastFrameAt));
   game.lastFrameAt = now;
   game.remainingMs = Math.max(0, game.remainingMs - delta);
-  const elapsedRatio = 1 - game.remainingMs / Math.max(1, Number(state.player?.adventureMiniGame?.clearSeconds || 120) * 1000);
-  game.obstacleSpeed = miniGameBaseObstacleSpeed + (miniGameMaxObstacleSpeed - miniGameBaseObstacleSpeed) * Math.max(0, Math.min(1, elapsedRatio));
+  const elapsedRatio = Math.max(0, Math.min(1, 1 - game.remainingMs / miniGameTotalMs(game)));
+  const speedRatio = Math.pow(elapsedRatio, miniGameObstacleAccelerationPower);
+  game.obstacleSpeed = miniGameBaseObstacleSpeed + (miniGameMaxObstacleSpeed - miniGameBaseObstacleSpeed) * speedRatio;
   game.obstacleX -= game.obstacleSpeed * delta;
-  if (game.obstacleX < -52) {
+  if (game.obstacleX < -80) {
     game.obstacleX = Math.max(280, $("miniGameStage").clientWidth || 360) + 80 + Math.random() * 140;
   }
   game.velocityY -= miniGameGravity * delta;
@@ -2408,9 +2497,9 @@ function tickMiniGame(now) {
   }
   $("miniGameHero").style.transform = `translateY(${-game.heroY}px)`;
   $("miniGameObstacle").style.transform = `translateX(${game.obstacleX}px)`;
-  $("miniGameTimer").textContent = stopwatchLabel(Math.ceil(game.remainingMs / 1000));
+  updateMiniGameClock(game);
   if (miniGameCollided()) {
-    failMiniGame("장애물에 부딪혔어요. 다시 입장하면 재도전할 수 있어요.");
+    failMiniGame("장애물에 부딪혔어요.");
     return;
   }
   if (game.remainingMs <= 0) {
@@ -2423,35 +2512,187 @@ function tickMiniGame(now) {
 function miniGameCollided() {
   const hero = $("miniGameHero").getBoundingClientRect();
   const obstacle = $("miniGameObstacle").getBoundingClientRect();
-  return hero.left + 10 < obstacle.right
-    && hero.right - 10 > obstacle.left
-    && hero.bottom - 8 > obstacle.top
-    && hero.top + 12 < obstacle.bottom;
+  const heroHitbox = {
+    left: hero.left + 14,
+    right: hero.right - 14,
+    top: hero.top + 16,
+    bottom: hero.bottom - 12,
+  };
+  const obstacleHitbox = {
+    left: obstacle.left + 8,
+    right: obstacle.right - 8,
+    top: obstacle.top + 10,
+    bottom: obstacle.bottom - 6,
+  };
+  return heroHitbox.left < obstacleHitbox.right
+    && heroHitbox.right > obstacleHitbox.left
+    && heroHitbox.bottom > obstacleHitbox.top
+    && heroHitbox.top < obstacleHitbox.bottom;
 }
 
 function failMiniGame(message) {
+  const game = state.miniGame;
+  if (!game) {
+    return;
+  }
   stopMiniGameLoop();
-  setMessage(message);
-  closeMiniGameScreen();
+  game.resultOpen = true;
+  const { survivedSeconds, remainingSeconds } = miniGameRunStats(game);
+  const continueAvailable = remainingSeconds > 0 && (!game.continueUsed || game.unlimitedContinue);
+  $("miniGameResultBadge").textContent = "!";
+  $("miniGameResultTitle").textContent = "훈련 실패";
+  $("miniGameResultSummary").textContent = [
+    message,
+    `버틴 시간 ${preciseDurationLabel(survivedSeconds)} · 남은 시간 ${preciseDurationLabel(remainingSeconds)}`,
+    !continueAvailable && game.continueUsed && !game.unlimitedContinue ? "이어하기는 한 게임에 한 번만 가능해요." : "",
+  ].filter(Boolean).join("\n");
+  $("miniGameContinueAd").hidden = !continueAvailable;
+  $("miniGameResultExit").textContent = "종료";
+  setMiniGameResultVisible(true, "fail");
+  setMessage("실패했어요. 광고를 보고 남은 시간부터 이어서 할 수 있어요.");
 }
 
 async function clearMiniGame() {
   const game = state.miniGame;
-  if (game.clearing) {
+  if (!game || game.clearing) {
     return;
   }
   game.clearing = true;
   stopMiniGameLoop();
+  if (game.practice) {
+    game.resultOpen = true;
+    const totalSeconds = Math.ceil(miniGameTotalMs(game) / 1000);
+    $("miniGameResultBadge").textContent = "OK";
+    $("miniGameResultTitle").textContent = "연습 완료";
+    $("miniGameResultSummary").textContent = `SP 보상 없음\n버틴 시간 ${preciseDurationLabel(totalSeconds)} · 남은 시간 0초`;
+    $("miniGameContinueAd").hidden = true;
+    $("miniGameResultExit").textContent = "확인";
+    setMiniGameResultVisible(true, "success");
+    setMessage("연습을 완료했어요. 연습 모드에서는 SP 보상이 지급되지 않아요.");
+    return;
+  }
   try {
     const player = await requestWithLoginRetry(() => api("/api/player/adventures/mini-game/clear", { method: "POST" }));
     setServerPlayer(player, { resetDisplayGold: true });
     render();
+    game.resultOpen = true;
+    const totalSeconds = Math.ceil(miniGameTotalMs(game) / 1000);
+    $("miniGameResultBadge").textContent = "SP";
+    $("miniGameResultTitle").textContent = "훈련 완료";
+    $("miniGameResultSummary").textContent = `SP 1개 획득\n버틴 시간 ${preciseDurationLabel(totalSeconds)} · 남은 시간 0초`;
+    $("miniGameContinueAd").hidden = true;
+    $("miniGameResultExit").textContent = "확인";
+    setMiniGameResultVisible(true, "success");
     setMessage("순발력 훈련장을 클리어했어요. SP 1개를 받았어요.");
   } catch (error) {
+    game.resultOpen = true;
+    $("miniGameResultBadge").textContent = "!";
+    $("miniGameResultTitle").textContent = "보상 지급 실패";
+    $("miniGameResultSummary").textContent = error.message || "미니게임 보상 지급에 실패했어요.";
+    $("miniGameContinueAd").hidden = true;
+    $("miniGameResultExit").textContent = "종료";
+    setMiniGameResultVisible(true, "error");
     setMessage(error.message || "미니게임 보상 지급에 실패했어요.");
-  } finally {
-    closeMiniGameScreen();
   }
+}
+
+function miniGameTotalMs(game = state.miniGame) {
+  const configuredClearSeconds = Number(state.player?.adventureMiniGame?.clearSeconds || 90);
+  return Math.max(1, Number(game?.totalMs || configuredClearSeconds * 1000));
+}
+
+function miniGameRunStats(game = state.miniGame) {
+  const totalMs = miniGameTotalMs(game);
+  const remainingMs = Math.max(0, Math.min(totalMs, Number(game?.remainingMs || 0)));
+  return {
+    survivedSeconds: Math.max(0, Math.floor((totalMs - remainingMs) / 1000)),
+    remainingSeconds: Math.max(0, Math.ceil(remainingMs / 1000)),
+  };
+}
+
+function updateMiniGameClock(game = state.miniGame) {
+  const { survivedSeconds, remainingSeconds } = miniGameRunStats(game);
+  $("miniGameTimer").textContent = stopwatchLabel(remainingSeconds);
+  $("miniGameSurvived").textContent = preciseDurationLabel(survivedSeconds);
+}
+
+function setMiniGameResultVisible(visible, resultType = "") {
+  const panel = $("miniGameResultPanel");
+  panel.classList.toggle("hidden", !visible);
+  panel.classList.toggle("has-single-action", visible && $("miniGameContinueAd").hidden);
+  panel.classList.remove("is-success", "is-fail", "is-error");
+  if (visible && resultType) {
+    panel.classList.add(`is-${resultType}`);
+  }
+}
+
+function resumeMiniGameAfterAd(options = {}) {
+  const game = state.miniGame;
+  if (!game || game.clearing || game.remainingMs <= 0) {
+    return;
+  }
+  if (options.consumeContinue && !game.unlimitedContinue) {
+    game.continueUsed = true;
+  }
+  if (options.unlimitedContinue) {
+    game.unlimitedContinue = true;
+  }
+  const stageWidth = $("miniGameStage").clientWidth || 360;
+  game.active = true;
+  game.started = true;
+  game.resultOpen = false;
+  game.heroY = 0;
+  game.velocityY = 0;
+  game.obstacleX = Math.max(280, stageWidth) + 110;
+  game.obstacleSpeed = miniGameBaseObstacleSpeed;
+  game.lastFrameAt = performance.now();
+  $("miniGameScreen").classList.add("is-running");
+  $("miniGameStartPrompt").classList.add("hidden");
+  $("miniGameHero").style.transform = "translateY(0)";
+  $("miniGameObstacle").style.transform = `translateX(${game.obstacleX}px)`;
+  setMiniGameResultVisible(false);
+  updateMiniGameClock(game);
+  tickMiniGame(performance.now());
+}
+
+function continueMiniGameAfterAd() {
+  const game = state.miniGame;
+  if (!game?.resultOpen || game.clearing || game.remainingMs <= 0) {
+    return;
+  }
+  if (game.continueUsed && !game.unlimitedContinue) {
+    $("miniGameContinueAd").hidden = true;
+    setMiniGameResultVisible(true, "fail");
+    setMessage("이어하기는 한 게임에 한 번만 가능해요.");
+    return;
+  }
+  return runRewardFlow("순발력 훈련장 이어하기 광고", "광고를 보면 남은 시간부터 이어서 도전해요.", {
+    adGroupKey: "miniGameContinue",
+    requiresReward: true,
+    skipAdSession: true,
+    adCompleteLabel: "광고 완료하고 이어하기",
+    afterAdMessage: "광고 시청 완료, 남은 시간부터 이어갈게요.",
+    afterAd: async () => resumeMiniGameAfterAd({ consumeContinue: true }),
+  });
+}
+
+function continueMiniGameForTest() {
+  const game = state.miniGame;
+  if (!game || game.remainingMs <= 0) {
+    const message = "이어갈 미니게임이 없어요.";
+    setMessage(message);
+    setDevStatus(message);
+    return;
+  }
+  game.unlimitedContinue = true;
+  if (game.resultOpen) {
+    resumeMiniGameAfterAd({ unlimitedContinue: true });
+    setDevStatus("미니게임을 제한 없이 이어서 진행해요.");
+    return;
+  }
+  const message = "현재 미니게임은 이어하기 제한 없이 테스트해요.";
+  setMessage(message);
+  setDevStatus(message);
 }
 
 function openWeeklyPunchKingScreen() {
@@ -2467,26 +2708,71 @@ function openWeeklyPunchKingScreen() {
 
 function closeWeeklyPunchKingScreen() {
   stopPunchKingLoop();
+  setPunchKingResultVisible(false);
   $("weeklyPunchKingScreen").classList.add("hidden");
 }
 
-function resetPunchKingUi() {
+function resetPunchKingUi(options = {}) {
   const punchKing = state.player?.weeklyPunchKing || {};
   const hero = jobMeta[state.player?.job || state.selectedJob || "WARRIOR"] || jobMeta.WARRIOR;
-  $("punchKingHero").src = hero.image;
+  if (!options.keepRun) {
+    stopPunchKingLoop();
+    state.punchKing = {
+      active: false,
+      started: false,
+      startedAt: 0,
+      remainingMs: Math.max(1, Number(punchKing.durationSeconds || 90)) * 1000,
+      cooldownMs: Math.max(1, Number(punchKing.ultimateCooldownSeconds || 30)) * 1000,
+      score: 0,
+      displayScore: 0,
+      pendingScore: 0,
+      scoreAnimationRemainingMs: 0,
+      lastFrameAt: 0,
+      lastAttackAt: 0,
+      holdAttackTimer: 0,
+      attackTimer: 0,
+      hitTimer: 0,
+      ultimateActive: false,
+      submitting: false,
+      rafId: 0,
+      previousBest: Math.max(0, Number(punchKing.bestScore || 0)),
+      previousRewardedGold: Math.max(0, Number(punchKing.rewardedGold || 0)),
+      previousRewardedSkillPoints: Math.max(0, Number(punchKing.rewardedSkillPoints || 0)),
+      bossHpMax: punchKingBossHpMax(),
+      resultOpen: false,
+    };
+  }
+  $("punchKingHero").className = `hero-sprite punch-king-hero ${hero.className || "warrior"}`;
+  $("punchKingHeroImage").src = hero.image;
+  $("punchKingArmImage").src = hero.arm;
+  $("punchKingArmImage").className = `hero-weapon ${hero.weapon}`;
+  renderPunchKingPets(state.player);
+  $("punchKingBoss").src = punchKingMonsterImage;
   $("punchKingTimer").textContent = stopwatchLabel(punchKing.durationSeconds || 90);
   $("punchKingScore").textContent = "0";
-  $("punchKingBest").textContent = `최고 ${formatCompactNumber(punchKing.bestScore || 0)}`;
-  $("punchKingReward").textContent = `지급 ${Number(punchKing.rewardedGold || 0).toLocaleString("ko-KR")}G · SP ${Number(punchKing.rewardedSkillPoints || 0).toLocaleString("ko-KR")}`;
+  $("punchKingBest").textContent = formatCompactNumber(punchKing.bestScore || 0);
   $("punchKingHpBar").style.width = "100%";
+  $("punchKingHpBar").style.setProperty("--hp-width", "100");
+  $("punchKingHpText").textContent = formatCompactNumber(state.punchKing?.bossHpMax || punchKingBossHpMax());
   $("punchKingUltimate").disabled = true;
   $("punchKingUltimateCooldown").textContent = `${punchKing.ultimateCooldownSeconds || 30}초`;
-  $("punchKingStart").disabled = false;
-  $("punchKingStart").textContent = "시작";
+  $("weeklyPunchKingScreen").classList.remove("is-running", "is-ultimate-playing");
+  $("punchKingTarget").classList.remove("is-attacking", "is-hit");
+  $("punchKingProjectileLayer").replaceChildren();
+  $("punchKingSkillEffectLayer").replaceChildren();
+  $("punchKingPetAttackLayer").replaceChildren();
+  $("punchKingStartPrompt").classList.remove("hidden");
+  if (!options.keepResult) {
+    setPunchKingResultVisible(false);
+  }
 }
 
 function startPunchKingRun() {
   const punchKing = state.player?.weeklyPunchKing || {};
+  if (state.punchKing?.active || state.punchKing?.submitting) {
+    return;
+  }
+  setPunchKingResultVisible(false);
   state.punchKing = {
     active: true,
     started: true,
@@ -2494,28 +2780,77 @@ function startPunchKingRun() {
     remainingMs: Math.max(1, Number(punchKing.durationSeconds || 90)) * 1000,
     cooldownMs: Math.max(1, Number(punchKing.ultimateCooldownSeconds || 30)) * 1000,
     score: 0,
+    displayScore: 0,
+    pendingScore: 0,
+    scoreAnimationRemainingMs: 0,
     lastFrameAt: performance.now(),
     lastAttackAt: 0,
+    holdAttackTimer: 0,
+    attackTimer: 0,
+    hitTimer: 0,
     ultimateActive: false,
     submitting: false,
     rafId: 0,
+    previousBest: Math.max(0, Number(punchKing.bestScore || 0)),
+    previousRewardedGold: Math.max(0, Number(punchKing.rewardedGold || 0)),
+    previousRewardedSkillPoints: Math.max(0, Number(punchKing.rewardedSkillPoints || 0)),
+    bossHpMax: punchKingBossHpMax(),
+    resultOpen: false,
   };
-  $("punchKingStart").disabled = true;
-  $("punchKingStart").textContent = "도전 중";
+  $("weeklyPunchKingScreen").classList.add("is-running");
+  $("punchKingStartPrompt").classList.add("hidden");
   $("punchKingUltimate").disabled = true;
   tickPunchKing(performance.now());
 }
 
 function stopPunchKingLoop() {
+  stopPunchKingHoldAttack();
+  if (state.punchKing?.attackTimer) {
+    window.clearTimeout(state.punchKing.attackTimer);
+    state.punchKing.attackTimer = 0;
+  }
+  if (state.punchKing?.hitTimer) {
+    window.clearTimeout(state.punchKing.hitTimer);
+    state.punchKing.hitTimer = 0;
+  }
   if (state.punchKing?.rafId) {
     cancelAnimationFrame(state.punchKing.rafId);
   }
-  state.punchKing.rafId = 0;
-  state.punchKing.active = false;
-  state.punchKing.ultimateActive = false;
+  if (state.punchKing) {
+    state.punchKing.rafId = 0;
+    state.punchKing.active = false;
+    state.punchKing.ultimateActive = false;
+  }
   const video = $("punchKingUltimateVideo");
   video.pause?.();
   video.classList.remove("is-playing", "is-fading");
+  $("weeklyPunchKingScreen").classList.remove("is-ultimate-playing");
+}
+
+function stopPunchKingHoldAttack() {
+  if (state.punchKing?.holdAttackTimer) {
+    window.clearInterval(state.punchKing.holdAttackTimer);
+    state.punchKing.holdAttackTimer = 0;
+  }
+}
+
+function renderPunchKingPets(player = state.player) {
+  const pets = unlockedPetCount(player);
+  const punchKingPetIds = ["punchKingPetFlare", "punchKingPetAqua"];
+  petMeta.forEach((pet, index) => {
+    const element = $(punchKingPetIds[index]);
+    const visible = pets > index;
+    element.classList.toggle("hidden", !visible);
+    if (visible) {
+      element.src = petSkinForSlot(index + 1, player).image;
+    }
+  });
+  const eventPet = $("punchKingPetRookieEvent");
+  const showEventPet = rookieEventRewardActive(player);
+  eventPet.classList.toggle("hidden", !showEventPet);
+  if (showEventPet) {
+    eventPet.src = rookieEventAssets.pet;
+  }
 }
 
 function tickPunchKing(now) {
@@ -2529,15 +2864,8 @@ function tickPunchKing(now) {
   if (!run.ultimateActive) {
     run.cooldownMs = Math.max(0, run.cooldownMs - delta);
   }
-  $("punchKingTimer").textContent = stopwatchLabel(Math.ceil(run.remainingMs / 1000));
-  $("punchKingScore").textContent = formatCompactNumber(run.score);
-  $("punchKingUltimate").disabled = run.cooldownMs > 0 || run.ultimateActive;
-  $("punchKingUltimateCooldown").textContent = run.cooldownMs > 0
-    ? `${Math.ceil(run.cooldownMs / 1000)}초`
-    : "사용 가능";
-  const hpPercent = Math.max(8, 100 - run.score * 100 / punchKingBossMaxHp);
-  $("punchKingHpBar").style.width = `${hpPercent}%`;
-  $("punchKingHpText").textContent = `${Math.max(0, Math.ceil((punchKingBossMaxHp - run.score) / 1_000_000)).toLocaleString("ko-KR")}M`;
+  applyPunchKingScoreAnimation(run, delta);
+  updatePunchKingHud(run);
   if (run.remainingMs <= 0) {
     finishPunchKingRun();
     return;
@@ -2552,6 +2880,77 @@ function punchKingClickDamage() {
   return base + petBonus;
 }
 
+function punchKingBossHpMax() {
+  return 100_000;
+}
+
+function punchKingHpStage(score, baseHp = punchKingBossHpMax()) {
+  let stageStartScore = 0;
+  let stageMaxHp = Math.max(1, Number(baseHp || 1));
+  const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+  for (let guard = 0; guard < 12 && safeScore >= stageStartScore + stageMaxHp; guard += 1) {
+    stageStartScore += stageMaxHp;
+    stageMaxHp *= 10;
+  }
+  const stageDamage = Math.max(0, safeScore - stageStartScore);
+  return {
+    hp: Math.max(1, Math.ceil(stageMaxHp - stageDamage)),
+    maxHp: stageMaxHp,
+  };
+}
+
+function addPunchKingScore(amount, options = {}) {
+  const run = state.punchKing;
+  if (!run) {
+    return;
+  }
+  const safeAmount = Math.max(0, Math.floor(amount || 0));
+  run.score += safeAmount;
+  if (options.animated) {
+    run.pendingScore += safeAmount;
+    run.scoreAnimationRemainingMs = Math.max(
+      run.scoreAnimationRemainingMs || 0,
+      Math.max(1, Number(options.durationMs || punchKingUltimateScoreAnimationFallbackMs)),
+    );
+  } else {
+    run.displayScore += safeAmount;
+  }
+  updatePunchKingHud(run);
+}
+
+function applyPunchKingScoreAnimation(run, delta) {
+  if (!run?.pendingScore) {
+    run.displayScore = Math.min(run.score, run.displayScore || 0);
+    return;
+  }
+  const remainingMs = Math.max(1, run.scoreAnimationRemainingMs || punchKingUltimateScoreAnimationFallbackMs);
+  const step = Math.min(run.pendingScore, Math.max(1, Math.ceil(run.pendingScore * delta / remainingMs)));
+  run.pendingScore -= step;
+  run.displayScore += step;
+  run.scoreAnimationRemainingMs = Math.max(0, remainingMs - delta);
+  if (run.scoreAnimationRemainingMs <= 0 && run.pendingScore > 0) {
+    run.displayScore += run.pendingScore;
+    run.pendingScore = 0;
+  }
+}
+
+function updatePunchKingHud(run = state.punchKing) {
+  if (!run) {
+    return;
+  }
+  const shownScore = Math.max(0, Math.floor(run.displayScore || 0));
+  const bossHpStage = punchKingHpStage(shownScore, run.bossHpMax);
+  const hpPercent = Math.max(4, Math.min(100, bossHpStage.hp * 100 / bossHpStage.maxHp));
+  $("punchKingTimer").textContent = stopwatchLabel(Math.ceil(run.remainingMs / 1000));
+  $("punchKingScore").textContent = formatCompactNumber(shownScore);
+  $("punchKingUltimate").disabled = !run.active || run.cooldownMs > 0 || run.ultimateActive;
+  $("punchKingUltimateCooldown").textContent = run.cooldownMs > 0
+    ? `${Math.ceil(run.cooldownMs / 1000)}초`
+    : "준비";
+  $("punchKingHpBar").style.setProperty("--hp-width", String(hpPercent));
+  $("punchKingHpText").textContent = `${formatCompactNumber(bossHpStage.hp)} / ${formatCompactNumber(bossHpStage.maxHp)}`;
+}
+
 function attackPunchKing() {
   const run = state.punchKing;
   if (!run?.active || run.ultimateActive) {
@@ -2562,15 +2961,135 @@ function attackPunchKing() {
     return;
   }
   run.lastAttackAt = now;
-  run.score += punchKingClickDamage();
+  addPunchKingScore(punchKingClickDamage());
+  playPunchKingAttackMotion();
+}
+
+function playPunchKingAttackMotion() {
+  const run = state.punchKing;
+  if (run?.hitTimer) {
+    window.clearTimeout(run.hitTimer);
+    run.hitTimer = 0;
+  }
   $("punchKingTarget").classList.remove("is-hit");
-  void $("punchKingTarget").offsetWidth;
+  const shouldRestartArmMotion = !run?.attackTimer;
+  if (shouldRestartArmMotion) {
+    $("punchKingTarget").classList.remove("is-attacking");
+    void $("punchKingTarget").offsetWidth;
+    $("punchKingTarget").classList.add("is-attacking");
+  }
   $("punchKingTarget").classList.add("is-hit");
+  spawnPunchKingProjectile();
+  spawnPunchKingSkillEffect();
+  spawnPunchKingPetAttacks();
+  const hitTimer = window.setTimeout(() => {
+    $("punchKingTarget").classList.remove("is-hit");
+    if (state.punchKing === run) {
+      run.hitTimer = 0;
+    }
+  }, 260);
+  const attackDurationMs = 440;
+  const attackTimer = shouldRestartArmMotion
+    ? window.setTimeout(() => {
+      $("punchKingTarget").classList.remove("is-attacking");
+      if (state.punchKing === run) {
+        run.attackTimer = 0;
+      }
+    }, attackDurationMs)
+    : run?.attackTimer || 0;
+  if (run) {
+    run.hitTimer = hitTimer;
+    run.attackTimer = attackTimer;
+  }
+}
+
+function spawnPunchKingProjectile() {
+  const job = activeJob();
+  const meta = jobMeta[job] || jobMeta.WARRIOR;
+  const type = statSkillByJob[job];
+  const tier = skillTier(type);
+  const tieredImage = effectImageFor(type, tier);
+  const prefix = skillMeta[type]?.effectPrefix;
+  const projectile = document.createElement("img");
+  projectile.className = tieredImage
+    ? `projectile punch-king-projectile ${meta.weapon} skill-projectile ${prefix} tier-${tier}`
+    : `projectile punch-king-projectile ${meta.weapon}`;
+  projectile.src = tieredImage || meta.projectile;
+  projectile.alt = "";
+  $("punchKingProjectileLayer").appendChild(projectile);
+  window.setTimeout(() => projectile.remove(), attackMotionMs(job) + 120);
+}
+
+function spawnPunchKingSkillEffect() {
+  const type = activeStatSkill();
+  const tier = skillTier(type);
+  const image = effectImageFor(type, tier);
+  if (!image) {
+    return;
+  }
+  const effect = document.createElement("img");
+  effect.className = `skill-effect punch-king-skill-effect ${skillMeta[type].effectPrefix} tier-${tier}`;
+  effect.src = image;
+  effect.alt = "";
+  $("punchKingSkillEffectLayer").appendChild(effect);
+  window.setTimeout(() => effect.remove(), attackMotionMs() + 120);
+}
+
+function spawnPunchKingPetAttacks() {
+  const pets = unlockedPetCount();
+  petMeta.slice(0, pets).forEach((pet, index) => {
+    const skin = petSkinForSlot(index + 1);
+    const delayMs = 160 + index * 110;
+    window.setTimeout(() => {
+      const attack = document.createElement("img");
+      attack.className = `pet-attack punch-king-pet-attack pet-${pet.key}-attack`;
+      attack.src = skin.attack;
+      attack.alt = "";
+      $("punchKingPetAttackLayer").appendChild(attack);
+      window.setTimeout(() => attack.remove(), 960);
+    }, delayMs);
+  });
+}
+
+function startPunchKingHoldAttack(event) {
+  if (event?.button != null && event.button !== 0) {
+    return;
+  }
+  event?.preventDefault?.();
+  if (!state.punchKing?.started) {
+    startPunchKingRun();
+  }
+  const run = state.punchKing;
+  if (!run?.active || run.submitting || run.resultOpen) {
+    return;
+  }
+  if (event?.currentTarget?.setPointerCapture && event.pointerId != null) {
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Ignore browsers that do not allow pointer capture in this context.
+    }
+  }
+  stopPunchKingHoldAttack();
+  attackPunchKing();
+  run.holdAttackTimer = window.setInterval(attackPunchKing, punchKingHoldAttackIntervalMs);
+}
+
+function handlePunchKingKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+  event.preventDefault();
+  if (!state.punchKing?.started) {
+    startPunchKingRun();
+    return;
+  }
+  attackPunchKing();
 }
 
 function punchKingUltimateDamage() {
   const power = combatPower(state.player);
-  const base = Math.max(2_000, Math.floor(power / 180) + displayLevel(state.player) * 900);
+  const base = Math.max(5_000, Math.floor(power / 120) + displayLevel(state.player) * 1_200);
   return base + Math.floor(base * 0.45 * unlockedPetCount(state.player));
 }
 
@@ -2580,10 +3099,24 @@ function usePunchKingUltimate() {
     return;
   }
   run.ultimateActive = true;
+  $("weeklyPunchKingScreen").classList.add("is-ultimate-playing");
   run.cooldownMs = Math.max(1, Number(state.player?.weeklyPunchKing?.ultimateCooldownSeconds || 30)) * 1000;
-  run.score += punchKingUltimateDamage();
+  const ultimateDamage = punchKingUltimateDamage();
   const video = $("punchKingUltimateVideo");
   const src = punchKingUltimateVideoSrc();
+  let scoreAdded = false;
+  let ultimateScoreDurationMs = punchKingUltimateScoreAnimationFallbackMs;
+  const readUltimateVideoRemainingMs = () => Number.isFinite(video.duration) && video.duration > 0
+    ? Math.max(1, (video.duration - Math.max(0, video.currentTime || 0)) * 1000)
+    : punchKingUltimateScoreAnimationFallbackMs;
+  const addUltimateScoreForVideo = () => {
+    if (scoreAdded) {
+      return;
+    }
+    scoreAdded = true;
+    ultimateScoreDurationMs = readUltimateVideoRemainingMs();
+    addPunchKingScore(ultimateDamage, { animated: true, durationMs: ultimateScoreDurationMs });
+  };
   video.classList.remove("is-fading");
   video.src = src;
   video.currentTime = 0;
@@ -2593,6 +3126,13 @@ function usePunchKingUltimate() {
   video.classList.add("is-playing");
   let settled = false;
   const finish = () => {
+    addUltimateScoreForVideo();
+    if (state.punchKing === run && run.pendingScore > 0) {
+      run.displayScore += run.pendingScore;
+      run.pendingScore = 0;
+      run.scoreAnimationRemainingMs = 0;
+      updatePunchKingHud(run);
+    }
     if (settled) {
       return;
     }
@@ -2600,16 +3140,33 @@ function usePunchKingUltimate() {
     video.classList.add("is-fading");
     window.setTimeout(() => {
       video.classList.remove("is-playing", "is-fading");
+      $("weeklyPunchKingScreen").classList.remove("is-ultimate-playing");
       if (state.punchKing === run) {
         run.ultimateActive = false;
       }
     }, punchKingUltimateFadeMs);
   };
+  video.onloadedmetadata = () => {
+    ultimateScoreDurationMs = readUltimateVideoRemainingMs();
+  };
+  video.onplaying = addUltimateScoreForVideo;
   video.onended = finish;
-  video.onerror = finish;
+  video.onerror = () => {
+    ultimateScoreDurationMs = 1;
+    addUltimateScoreForVideo();
+    finish();
+  };
   const playPromise = video.play?.();
   if (playPromise?.catch) {
-    playPromise.catch(finish);
+    playPromise.then?.(addUltimateScoreForVideo);
+    playPromise.catch(() => {
+      ultimateScoreDurationMs = 1;
+      addUltimateScoreForVideo();
+      finish();
+    });
+  }
+  if (Number.isFinite(video.duration) && video.duration > 0) {
+    ultimateScoreDurationMs = readUltimateVideoRemainingMs();
   }
 }
 
@@ -2634,24 +3191,91 @@ async function finishPunchKingRun() {
     return;
   }
   run.submitting = true;
+  run.displayScore = run.score;
+  run.pendingScore = 0;
+  updatePunchKingHud(run);
   stopPunchKingLoop();
   const score = Math.max(0, Math.floor(run.score));
   try {
-    const previousGold = Number(state.player?.gold || 0);
-    const previousSp = Number(state.player?.skillPoints || 0);
+    const previousBest = Math.max(0, Number(run.previousBest || 0));
+    const previousRewardedGold = Math.max(0, Number(run.previousRewardedGold || 0));
+    const previousRewardedSkillPoints = Math.max(0, Number(run.previousRewardedSkillPoints || 0));
     const player = await requestWithLoginRetry(() => api("/api/player/adventures/punch-king/submit", {
       method: "POST",
       body: JSON.stringify({ score }),
     }));
     setServerPlayer(player, { resetDisplayGold: true });
     render();
-    resetPunchKingUi();
-    const goldGain = Math.max(0, Number(player.gold || 0) - previousGold);
-    const spGain = Math.max(0, Number(player.skillPoints || 0) - previousSp);
-    setMessage(`펀치킹 점수 ${formatCompactNumber(score)}점 · 추가 보상 ${goldGain.toLocaleString("ko-KR")}G / SP ${spGain.toLocaleString("ko-KR")}`);
+    const nextPunchKing = player.weeklyPunchKing || {};
+    const goldGain = Math.max(0, Number(nextPunchKing.rewardedGold || 0) - previousRewardedGold);
+    const spGain = Math.max(0, Number(nextPunchKing.rewardedSkillPoints || 0) - previousRewardedSkillPoints);
+    resetPunchKingUi({ keepResult: true });
+    showPunchKingResult({
+      score,
+      previousBest,
+      goldGain,
+      spGain,
+    });
   } catch (error) {
-    setMessage(error.message || "펀치킹 점수 제출에 실패했어요.");
+    showPunchKingSubmitError(score, error.message || "펀치킹 점수 제출에 실패했어요.");
   }
+}
+
+function setPunchKingResultVisible(visible) {
+  $("punchKingResultPanel").classList.toggle("hidden", !visible);
+  if (state.punchKing) {
+    state.punchKing.resultOpen = visible;
+  }
+}
+
+function showPunchKingResult({ score, previousBest, goldGain, spGain }) {
+  const isNewBest = score > previousBest;
+  $("punchKingResultBadge").textContent = isNewBest ? "NEW" : "OK";
+  $("punchKingResultTitle").textContent = isNewBest ? "최고 기록 갱신!" : "도전 종료";
+  $("punchKingResultPreviousBest").textContent = formatCompactNumber(previousBest);
+  $("punchKingResultScore").textContent = formatCompactNumber(score);
+  $("punchKingResultSummary").textContent = isNewBest
+    ? "축하해요! 더 높은 기록 기준으로 보상을 정산했어요."
+    : "기존 최고 기록을 넘으면 추가 보상을 받을 수 있어요.";
+  renderPunchKingRewardList(goldGain, spGain, isNewBest);
+  setPunchKingResultVisible(true);
+  setMessage(isNewBest
+    ? `펀치킹 최고 기록 갱신! 추가 보상 ${goldGain.toLocaleString("ko-KR")}G / SP ${spGain.toLocaleString("ko-KR")}`
+    : `펀치킹 점수 ${formatCompactNumber(score)}점`);
+}
+
+function showPunchKingSubmitError(score, message) {
+  $("punchKingResultBadge").textContent = "!";
+  $("punchKingResultTitle").textContent = "기록 제출 실패";
+  $("punchKingResultPreviousBest").textContent = "-";
+  $("punchKingResultScore").textContent = formatCompactNumber(score);
+  $("punchKingResultSummary").textContent = message;
+  $("punchKingResultRewards").replaceChildren();
+  setPunchKingResultVisible(true);
+  setMessage(message);
+}
+
+function renderPunchKingRewardList(goldGain, spGain, isNewBest) {
+  const container = $("punchKingResultRewards");
+  container.replaceChildren();
+  const rewards = [];
+  if (goldGain > 0) {
+    rewards.push(`${goldGain.toLocaleString("ko-KR")}G`);
+  }
+  if (spGain > 0) {
+    rewards.push(`SP ${spGain.toLocaleString("ko-KR")}`);
+  }
+  const title = document.createElement("strong");
+  title.textContent = isNewBest ? "추가 지급 보상" : "추가 지급 보상 없음";
+  container.append(title);
+  const body = document.createElement("span");
+  body.textContent = rewards.length ? rewards.join(" · ") : "이번 도전에서 새로 지급된 보상은 없어요.";
+  container.append(body);
+}
+
+function closePunchKingResultPanel() {
+  setPunchKingResultVisible(false);
+  resetPunchKingUi();
 }
 
 function renderRewardPanel(player) {
@@ -2780,16 +3404,16 @@ function renderVipShopItem(player) {
   const active = Boolean(vip.active);
   const price = iapDisplayAmount("vipMonthly", vip.priceWon || vipMonthlyPriceWon);
   $("vipMembershipShop").classList.toggle("is-active", active);
-  $("vipMembershipCopy").textContent = active
-    ? "매일 혜택과 펫 스킨 해금이 적용 중이에요"
-    : "매일 SP, 던전권, 보스권, 자동사냥권, 스킵권 지급";
+  $("vipMembershipCopy").innerHTML = active
+    ? "매일 혜택과 펫 스킨 해금이<br>적용 중이에요"
+    : "매일 SP, 던전권, 보스권<br>자동사냥권 지급";
   $("vipMembershipStatus").textContent = active
-    ? `활성 · ${vip.expiresAt ? remain(vip.expiresAt) : "기간 확인 중"}`
+    ? `활성 · ${vipMembershipRemainingLabel(vip)}`
     : `${price} · 월간 멤버십`;
-  $("buyVipMembership").disabled = active && !state.reviewToolsEnabled;
+  $("buyVipMembership").disabled = active;
   $("buyVipMembership").innerHTML = active
-    ? "<span>활성 상태</span>"
-    : `<span>구독하기</span><small>${price}</small>`;
+    ? "<span>구독중</span>"
+    : "<span>구독하기</span>";
 }
 
 function renderPetSkinShop(player) {
@@ -3111,9 +3735,8 @@ function renderDailyMissionDetail() {
     eventDetailHeading("일일 미션", mission.completedToday ? "오늘 완료" : `${mission.currentDay || 1}일차 진행 중`),
     eventProgressRow("자동사냥", `${secondsLabel(mission.autoHuntProgressSeconds)} / ${secondsLabel(mission.autoHuntRequiredSeconds)}`, huntPercent),
     eventProgressRow("던전 탐험", `${mission.dungeonRuns || 0} / ${mission.dungeonRunsRequired || 2}회`, dungeonPercent),
-    eventDetailReward("오늘 보상", "골드 300G", mission.rewardPending ? "수령함에 준비됨" : mission.completedToday ? "수령함에서 받아요" : "미션 완료 후 수령함에 생성"),
+    eventDetailReward("오늘 보상", "골드 300G", mission.rewardPending ? "수령함에 준비됨" : mission.completedToday ? "수령함에서 받아요" : "진행 중"),
     eventDetailReward("7일 추가 보상", "골드 1,000G · SP 1개", `${mission.completedDays || 0} / 7일 완료`),
-    dailyMissionSkipButton(mission),
   );
 }
 
@@ -3129,8 +3752,11 @@ function openDailyMissionModal() {
   renderDailyMissionModal(mission);
 }
 
-function closeDailyMissionModal() {
+function closeDailyMissionModal(options = {}) {
   $("dailyMissionModal").classList.add("hidden");
+  if (options.returnToEventHub) {
+    openEventHubModal("events");
+  }
 }
 
 function dailyMissionDays(mission = state.player?.dailyMission) {
@@ -3158,9 +3784,7 @@ function renderDailyMissionModal(mission = state.player?.dailyMission) {
   state.dailyMissionSelectedDay = selectedDay.day;
   $("dailyMissionCycle").textContent = `${Number(mission.cycle || 1).toLocaleString("ko-KR")}회차`;
   $("dailyMissionProgress").textContent = `${Number(mission.completedDays || 0)} / 7일 완료`;
-  $("dailyMissionSummary").textContent = mission.completedToday
-    ? "오늘 일일 미션을 완료했어요. 보상은 수령함에서 받을 수 있어요."
-    : "자동사냥 1시간과 던전 탐험 2회를 완료하면 오늘 보상이 열려요.";
+  $("dailyMissionSummary").textContent = "7일 미션 완료 시 추가 보상을 받을 수 있어요.";
   renderDailyMissionDayTabs(days);
   renderDailyMissionSelectedDay(selectedDay, mission);
 }
@@ -3189,12 +3813,13 @@ function renderDailyMissionSelectedDay(day, mission) {
       ? mission.completedToday ? "오늘 완료" : "진행 중"
       : "잠김";
   const list = $("dailyMissionList");
+  const rewardRows = dailyMissionRewardRowsForDay(day, mission);
   if (day.completed && !day.current) {
-    list.replaceChildren(dailyMissionRewardRow("일일 미션 완료", "골드 300G", "수령함에서 확인"));
+    list.replaceChildren(...rewardRows);
     return;
   }
   if (day.locked) {
-    list.replaceChildren(dailyMissionRewardRow("아직 열리지 않음", "이전 일차를 완료하면 열려요", `${day.day}일차 대기`));
+    list.replaceChildren(...rewardRows);
     return;
   }
   const huntPercent = progressPercent(mission.autoHuntProgressSeconds, mission.autoHuntRequiredSeconds);
@@ -3202,13 +3827,46 @@ function renderDailyMissionSelectedDay(day, mission) {
   const rows = [
     dailyMissionProgressMissionRow("자동사냥 1시간", `${secondsLabel(mission.autoHuntProgressSeconds)} / ${secondsLabel(mission.autoHuntRequiredSeconds)}`, huntPercent, mission.completedToday),
     dailyMissionProgressMissionRow("던전 탐험 2회", `${mission.dungeonRuns || 0} / ${mission.dungeonRunsRequired || 2}회`, dungeonPercent, mission.completedToday),
-    dailyMissionRewardRow("오늘 보상", "골드 300G", mission.rewardPending ? "수령함에 준비됨" : mission.completedToday ? "수령함에서 받아요" : "완료 후 수령함 생성"),
-    dailyMissionRewardRow("7일 완료 추가 보상", "골드 1,000G · SP 1개", mission.finalRewardPending ? "수령함에 준비됨" : `${mission.completedDays || 0} / 7일 완료`),
+    ...rewardRows,
   ];
-  if (!mission.completedToday) {
-    rows.push(dailyMissionSkipButton(mission));
-  }
   list.replaceChildren(...rows);
+}
+
+function dailyMissionRewardRowsForDay(day, mission) {
+  const rows = [
+    dailyMissionRewardRow(`${day.day}일차 보상`, "골드 300G", dailyMissionDayRewardStatus(day, mission)),
+  ];
+  if (day.day === 7) {
+    rows.push(dailyMissionRewardRow("7일 완료 추가 보상", "골드 1,000G · SP 1개", dailyMissionFinalRewardStatus(mission)));
+  }
+  return rows;
+}
+
+function dailyMissionDayRewardStatus(day, mission) {
+  if (day.locked) {
+    return "이전 일차 완료 후 진행 가능";
+  }
+  if (day.completed && !day.current) {
+    return "수령함에서 확인";
+  }
+  if (mission.rewardPending) {
+    return "수령함에 준비됨";
+  }
+  if (mission.completedToday) {
+    return "수령함에서 받아요";
+  }
+  return "진행 중";
+}
+
+function dailyMissionFinalRewardStatus(mission) {
+  const completedDays = Number(mission?.completedDays || 0);
+  if (mission?.finalRewardPending) {
+    return "수령함에 준비됨";
+  }
+  if (completedDays >= 7) {
+    return "수령함에서 확인";
+  }
+  return `${completedDays} / 7일 완료`;
 }
 
 function dailyMissionProgressMissionRow(title, progressText, percent, completed) {
@@ -3275,43 +3933,14 @@ function eventDetailReward(title, reward, status) {
   return row;
 }
 
-function dailyMissionSkipButton(mission) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "event-detail-action";
-  button.disabled = mission.completedToday || Number(mission.dailyMissionSkipTickets || 0) < 1;
-  button.textContent = mission.completedToday
-    ? "오늘 미션 완료"
-    : Number(mission.dailyMissionSkipTickets || 0) > 0
-      ? `오늘 미션 스킵 · ${mission.dailyMissionSkipTickets}장 보유`
-      : "스킵권 없음";
-  button.addEventListener("click", () => skipDailyMission(button));
-  return button;
-}
-
-async function skipDailyMission(button) {
-  button.disabled = true;
-  try {
-    const player = await requestWithLoginRetry(() => api("/api/player/events/daily-mission/skip", { method: "POST" }));
-    setServerPlayer(player, { resetDisplayGold: true });
-    setMessage("일일 미션을 스킵했어요. 보상은 수령함에서 받을 수 있어요.");
-    render();
-    renderDailyMissionModal(state.player?.dailyMission);
-  } catch (error) {
-    setMessage(error.message || "일일 미션 스킵에 실패했어요.");
-  } finally {
-    button.disabled = false;
-  }
-}
-
 function renderVipEventDetail() {
   const vip = state.player?.vipMembership || {};
   const detail = $("eventHubDetail");
   detail.classList.remove("hidden");
   const price = iapDisplayAmount("vipMonthly", vip.priceWon || vipMonthlyPriceWon);
   detail.replaceChildren(
-    eventDetailHeading("VIP 멤버십", vip.active ? `활성 · ${vip.expiresAt ? remain(vip.expiresAt) : "기간 확인 중"}` : "구독 준비"),
-    eventDetailReward("일일 혜택", "SP 1 · 던전권 3 · 보스권 1 · 자동사냥 1시간 · 스킵권 1", vip.dailyRewardAvailable ? "수령함에서 받을 수 있어요" : "오늘 혜택 대기"),
+    eventDetailHeading("VIP 멤버십", vip.active ? `활성 · ${vipMembershipRemainingLabel(vip)}` : "구독 준비"),
+    eventDetailReward("일일 혜택", "SP 1 · 던전권 3 · 보스권 1\n자동사냥 1시간", vip.dailyRewardAvailable ? "수령함에서 받을 수 있어요" : "오늘 혜택 대기"),
     eventDetailReward("상시 혜택", "펫 스킨 전체 해금 · 전용 뱃지", vip.active ? "적용 중" : "구독 후 적용"),
     vipPurchaseButton(price, vip.active),
   );
@@ -3321,8 +3950,8 @@ function vipPurchaseButton(price, active) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "event-detail-action";
-  button.textContent = active ? "VIP 활성 상태" : `VIP 구독 · ${price}`;
-  button.disabled = active && !state.reviewToolsEnabled;
+  button.textContent = active ? "구독중" : `VIP 구독 · ${price}`;
+  button.disabled = active;
   button.addEventListener("click", () => runVipPurchaseFlow());
   return button;
 }
@@ -3447,10 +4076,13 @@ async function openRookieEventDetailFromHub() {
   window.setTimeout(() => requestRookieEventMissionNotificationAgreementIfNeeded(), 450);
 }
 
-function closeRookieEventModal() {
+function closeRookieEventModal(options = {}) {
   const modal = $("rookieEventModal");
   if (modal) {
     modal.classList.add("hidden");
+  }
+  if (options.returnToEventHub) {
+    openEventHubModal("events");
   }
 }
 
@@ -4015,6 +4647,18 @@ function remainingSecondsFrom(value) {
   return Math.max(0, Math.ceil((target - Date.now()) / 1000));
 }
 
+function remainingDaysLabel(value) {
+  const seconds = remainingSecondsFrom(value);
+  if (seconds <= 0) {
+    return "만료";
+  }
+  return `${Math.max(1, Math.ceil(seconds / 86400)).toLocaleString("ko-KR")}일 남음`;
+}
+
+function vipMembershipRemainingLabel(vip) {
+  return vip?.expiresAt ? remainingDaysLabel(vip.expiresAt) : "기간 확인 중";
+}
+
 function secondsLabel(seconds) {
   return timeRewardModalDurationLabel(seconds ?? 3600);
 }
@@ -4107,6 +4751,7 @@ function applyJob(job) {
   weapon.className = `hero-weapon ${meta.weapon}`;
   weapon.src = meta.arm;
   $("partyName").textContent = `${meta.name} (Lv.${displayLevel()})`;
+  $("partyName").classList.toggle("is-vip", Boolean(state.player?.vipMembership?.active));
 }
 
 function applyEffectTier(player) {
@@ -4457,7 +5102,7 @@ function showDummyAd(title, description, action) {
   $("adProgress").style.width = "100%";
   $("adSkip").disabled = false;
   $("adSkip").classList.add("ready");
-  $("adSkip").textContent = "광고 완료하고 보상 받기";
+  $("adSkip").textContent = action.adCompleteLabel || "광고 완료하고 보상 받기";
   $("adModal").classList.remove("hidden");
   window.clearInterval(state.adTimer);
 }
@@ -4475,7 +5120,7 @@ async function runRealFullScreenAd(title, description, action) {
   state.realAdInFlight = true;
   setMessage(isRealFullScreenAdLoaded(groupId) ? `${title} 여는 중...` : `${title} 준비 중...`);
   try {
-    const adSession = action.requiresReward === false
+    const adSession = action.skipAdSession || action.requiresReward === false
       ? null
       : await api("/api/player/ads/sessions", {
           method: "POST",
@@ -4484,7 +5129,7 @@ async function runRealFullScreenAd(title, description, action) {
     await loadRealFullScreenAd(groupId);
     markRealFullScreenAdConsumed(groupId);
     await showRealFullScreenAdWithRetry(groupId, action.requiresReward !== false);
-    setMessage("광고 시청 완료, 보상을 지급하는 중이에요.");
+    setMessage(action.afterAdMessage || "광고 시청 완료, 보상을 지급하는 중이에요.");
     if (typeof action.afterAd === "function") {
       await action.afterAd(adSession?.sessionToken);
     } else {
@@ -5772,13 +6417,20 @@ function playAttackMotion() {
   if (!shell) {
     return;
   }
+  const now = performance.now();
+  const motionMs = attackMotionMs();
+  if (state.attackTimer && now - state.attackMotionStartedAt < motionMs * 0.82) {
+    return;
+  }
   window.clearTimeout(state.attackTimer);
   shell.classList.remove("is-attacking");
   void shell.offsetWidth;
   shell.classList.add("is-attacking");
+  state.attackMotionStartedAt = now;
   state.attackTimer = window.setTimeout(() => {
     shell.classList.remove("is-attacking");
-  }, attackMotionMs() + 90);
+    state.attackTimer = null;
+  }, motionMs + 90);
 }
 
 function spawnProjectile() {
@@ -6020,15 +6672,22 @@ $("claimFriendInviteReward").addEventListener("click", () => run(
 
 $("useDungeonCoupon").addEventListener("click", useDungeonCoupon);
 $("challengeBossRaid").addEventListener("click", challengeBossRaid);
+$("practiceMiniGame").addEventListener("click", practiceMiniGameFlow);
 $("startMiniGame").addEventListener("click", startMiniGameFlow);
-$("miniGameStage").addEventListener("click", miniGameJump);
-$("miniGameJump").addEventListener("click", miniGameJump);
+$("miniGameScreen").addEventListener("click", handleMiniGameTap);
+$("miniGameResultPanel").addEventListener("click", (event) => event.stopPropagation());
 $("exitMiniGame").addEventListener("click", closeMiniGameScreen);
+$("miniGameContinueAd").addEventListener("click", continueMiniGameAfterAd);
+$("miniGameResultExit").addEventListener("click", closeMiniGameScreen);
 $("openWeeklyPunchKing").addEventListener("click", openWeeklyPunchKingScreen);
 $("exitWeeklyPunchKing").addEventListener("click", closeWeeklyPunchKingScreen);
-$("punchKingStart").addEventListener("click", startPunchKingRun);
-$("punchKingTarget").addEventListener("click", attackPunchKing);
+$("punchKingTarget").addEventListener("pointerdown", startPunchKingHoldAttack);
+$("punchKingTarget").addEventListener("pointerup", stopPunchKingHoldAttack);
+$("punchKingTarget").addEventListener("pointercancel", stopPunchKingHoldAttack);
+$("punchKingTarget").addEventListener("pointerleave", stopPunchKingHoldAttack);
+$("punchKingTarget").addEventListener("keydown", handlePunchKingKeydown);
 $("punchKingUltimate").addEventListener("click", usePunchKingUltimate);
+$("punchKingResultClose").addEventListener("click", closePunchKingResultPanel);
 $("openAdventureInfo").addEventListener("click", openAdventureInfoModal);
 $("closeAdventureInfoModal").addEventListener("click", closeAdventureInfoModal);
 $("adventureInfoModal").addEventListener("click", (event) => {
@@ -6136,7 +6795,7 @@ $("petSkinModal").addEventListener("click", (event) => {
 });
 
 $("rookieEventButton").addEventListener("click", openRookieEventModal);
-$("closeRookieEventModal").addEventListener("click", closeRookieEventModal);
+$("closeRookieEventModal").addEventListener("click", () => closeRookieEventModal({ returnToEventHub: true }));
 $("rookieEventFinalClaimButton").addEventListener("click", (event) => {
   openEventHubModal("rewards");
 });
@@ -6145,7 +6804,7 @@ $("rookieEventModal").addEventListener("click", (event) => {
     closeRookieEventModal();
   }
 });
-$("closeDailyMissionModal").addEventListener("click", closeDailyMissionModal);
+$("closeDailyMissionModal").addEventListener("click", () => closeDailyMissionModal({ returnToEventHub: true }));
 $("dailyMissionModal").addEventListener("click", (event) => {
   if (event.target.id === "dailyMissionModal") {
     closeDailyMissionModal();
@@ -6356,6 +7015,8 @@ function initializeDevPanel() {
     },
     "혜택 탭 신규 유저로 표시했어요. 게이지를 채우고 토스포인트 수령 버튼을 눌러보세요."
   ));
+
+  $("devMiniGameContinue").addEventListener("click", continueMiniGameForTest);
 
 	  $("devPromotionLog").addEventListener("click", () => showPromotionExecutionsForTest());
 
