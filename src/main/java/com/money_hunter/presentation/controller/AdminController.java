@@ -58,15 +58,15 @@ public class AdminController {
 	private static final long DUNGEON_ENTRY_HUNT_REQUIREMENT_SECONDS = 3_600L;
 	private static final long DAY_SECONDS = 86_400L;
 	private static final List<RewardPlan> FULL_POWER_DUNGEON_REWARDS = List.of(
-			new RewardPlan(RewardValueType.GOLD, 700, 1_000, 35),
+			new RewardPlan(RewardValueType.GOLD, 2_500, 4_000, 35),
 			new RewardPlan(RewardValueType.SKILL_POINT, 4, 4, 30),
-			new RewardPlan(RewardValueType.AUTO_HUNT_SECONDS, 2_400, 2_400, 25),
+			new RewardPlan(RewardValueType.AUTO_HUNT_SECONDS, 9_000, 9_000, 25),
 			new RewardPlan(RewardValueType.BOSS_TICKET, 1, 1, 10)
 	);
 	private static final List<RewardPlan> FULL_POWER_BOSS_REWARDS = List.of(
-			new RewardPlan(RewardValueType.GOLD, 2_500, 3_000, 35),
+			new RewardPlan(RewardValueType.GOLD, 10_000, 12_000, 35),
 			new RewardPlan(RewardValueType.SKILL_POINT, 3, 3, 40),
-			new RewardPlan(RewardValueType.AUTO_HUNT_SECONDS, 7_200, 7_200, 25)
+			new RewardPlan(RewardValueType.AUTO_HUNT_SECONDS, 28_800, 28_800, 25)
 	);
 
 	private final AdminAccessGuard adminAccessGuard;

@@ -27,10 +27,10 @@ public record EventRewardGrant(
 	}
 
 	public static EventRewardGrant dailyMissionFinal() {
-		return new EventRewardGrant(1_000, 1, 0, 0, 0, false, false, false);
+		return new EventRewardGrant(4_000, 1, 0, 0, 0, false, false, false);
 	}
 
 	public static EventRewardGrant vipDaily() {
-		return new EventRewardGrant(0, 1, 3_600, 3, 1, false, true, true);
+		return new EventRewardGrant(0, 1, 14_400, 3, 1, false, true, true);
 	}
 }

@@ -100,22 +100,22 @@ public class PlayerService {
 	private static final int DAILY_MISSION_DAYS = 7;
 	private static final long DAILY_MISSION_HUNT_REQUIRED_MILLIS = HOUR_MILLIS;
 	private static final int DAILY_MISSION_DUNGEON_RUNS_REQUIRED = 2;
-	private static final int DAILY_MISSION_GOLD_REWARD = 300;
+	private static final int DAILY_MISSION_GOLD_REWARD = 1_000;
 	private static final int VIP_MONTHLY_PRICE_WON = 9_900;
 	private static final Duration VIP_MONTHLY_DURATION = Duration.ofDays(30);
-	private static final int ADVENTURE_MINI_GAME_ENTRY_COST_GOLD = 100;
+	private static final long TUTORIAL_AUTO_HUNT_SECONDS = 3_600;
+	private static final int ADVENTURE_MINI_GAME_ENTRY_COST_GOLD = 300;
 	private static final int ADVENTURE_MINI_GAME_CLEAR_REWARD_SP = 1;
 	private static final int ADVENTURE_MINI_GAME_CLEAR_SECONDS = 90;
 	private static final Duration ADVENTURE_MINI_GAME_ENTRY_TTL = Duration.ofMinutes(8);
 	private static final int WEEKLY_PUNCH_KING_DURATION_SECONDS = 90;
 	private static final int WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS = 30;
-	private static final long WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR = 1_000L;
+	private static final long WEEKLY_PUNCH_KING_MAX_GOLD_REWARD = 30_000L;
 	private static final List<PunchKingSkillPointTier> WEEKLY_PUNCH_KING_SP_TIERS = List.of(
-			new PunchKingSkillPointTier(100_000, 1),
-			new PunchKingSkillPointTier(400_000, 2),
+			new PunchKingSkillPointTier(0, 1),
+			new PunchKingSkillPointTier(500_000, 2),
 			new PunchKingSkillPointTier(1_000_000, 3),
-			new PunchKingSkillPointTier(2_500_000, 5),
-			new PunchKingSkillPointTier(5_000_000, 8)
+			new PunchKingSkillPointTier(3_000_000, 4)
 	);
 	private static final int SKILL_UPGRADE_COST_INCREASE_LEVEL = 20;
 	private static final int BASE_SKILL_UPGRADE_COST = 1;
@@ -128,7 +128,7 @@ public class PlayerService {
 	private static final long MAX_COMBAT_POWER = 99_999_999L;
 	private static final double COMBAT_POWER_LEVEL_SCALE = 40.0;
 	private static final double COMBAT_POWER_SKILL_SCALE = 180.0;
-	private static final long PET_SKIN_PRICE_GOLD = 30_000L;
+	private static final long PET_SKIN_PRICE_GOLD = 100_000L;
 	private static final String[] MONSTER_KEYS = {"BOSS_ROCK", "BOSS_FROST", "BOSS_TREANT"};
 	private static final Set<String> PET_SKIN_KEYS = Set.of(
 			"FIRE_FOX",
@@ -187,18 +187,18 @@ public class PlayerService {
 			new RookieEventDayPlan(2, "채굴 감각", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_2h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 2, "사냥 2시간 진행하기"),
 					new RookieMissionPlan("monsters_35", RookieMissionType.MONSTERS, 35, "몬스터 35마리 처치하기"),
-					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
+					new RookieMissionPlan("mini_game_attempt_1", RookieMissionType.MINI_GAME_ATTEMPTS, 1, "순발력 훈련장 1회 도전")
 			)),
 			new RookieEventDayPlan(3, "성장 루틴", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("monsters_50", RookieMissionType.MONSTERS, 50, "몬스터 50마리 처치하기"),
 					new RookieMissionPlan("spend_sp_1", RookieMissionType.SKILL_POINTS_SPENT, 1, "스킬포인트 1개 사용하기")
 			)),
-		new RookieEventDayPlan(4, "빠른 전투", skillPointReward(), List.of(
-				new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
-				new RookieMissionPlan("monsters_60", RookieMissionType.MONSTERS, 60, "몬스터 60마리 처치하기"),
-				new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
-		)),
+			new RookieEventDayPlan(4, "빠른 전투", skillPointReward(), List.of(
+					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
+					new RookieMissionPlan("monsters_60", RookieMissionType.MONSTERS, 60, "몬스터 60마리 처치하기"),
+					new RookieMissionPlan("mini_game_attempt_1", RookieMissionType.MINI_GAME_ATTEMPTS, 1, "순발력 훈련장 1회 도전")
+			)),
 			new RookieEventDayPlan(5, "보상 축적", autoHuntReward(), List.of(
 					new RookieMissionPlan("hunt_3h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 3, "사냥 3시간 진행하기"),
 					new RookieMissionPlan("monsters_70", RookieMissionType.MONSTERS, 70, "몬스터 70마리 처치하기"),
@@ -212,7 +212,7 @@ public class PlayerService {
 			new RookieEventDayPlan(7, "동행 완성", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_4h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS * 4, "사냥 4시간 진행하기"),
 					new RookieMissionPlan("monsters_100", RookieMissionType.MONSTERS, 100, "몬스터 100마리 처치하기"),
-					new RookieMissionPlan("toss_point_claim_1", RookieMissionType.TOSS_POINT_CLAIMS, 1, "토스포인트 받기")
+					new RookieMissionPlan("mini_game_attempt_1", RookieMissionType.MINI_GAME_ATTEMPTS, 1, "순발력 훈련장 1회 도전")
 			))
 	);
 
@@ -221,6 +221,7 @@ public class PlayerService {
 		MONSTERS,
 		GOLD,
 		TOSS_POINT_CLAIMS,
+		MINI_GAME_ATTEMPTS,
 		SKILL_POINTS_SPENT,
 		LEVEL,
 		HOME_SHORTCUT_RETURN
@@ -265,52 +266,52 @@ public class PlayerService {
 	}
 
 	private static final List<DungeonCouponTier> DUNGEON_COUPON_TIERS = List.of(
-			new DungeonCouponTier(0, "초급 던전", "골드 100~300G · SP 1개 · 자동사냥 10분 · 보스 입장권 10%", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 100, 300, 35),
+			new DungeonCouponTier(0, "초급 던전", "골드 500~1,000G · SP 1개 · 자동사냥 30분 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 500, 1_000, 35),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 1, 1, 30),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 600, 600, 25),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
-			)),
-			new DungeonCouponTier(5_000_000, "숙련 던전", "골드 300~500G · SP 2개 · 자동사냥 20분 · 보스 입장권 10%", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 300, 500, 35),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 2, 2, 30),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_200, 1_200, 25),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
-			)),
-			new DungeonCouponTier(20_000_000, "정예 던전", "골드 500~700G · SP 3개 · 자동사냥 30분 · 보스 입장권 10%", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 500, 700, 35),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 30),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_800, 1_800, 25),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
 			)),
-			new DungeonCouponTier(60_000_000, "심층 던전", "골드 700~1,000G · SP 4개 · 자동사냥 40분 · 보스 입장권 10%", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 700, 1_000, 35),
+			new DungeonCouponTier(5_000_000, "숙련 던전", "골드 1,000~2,000G · SP 2개 · 자동사냥 1시간 30분 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 1_000, 2_000, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 2, 2, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 5_400, 5_400, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
+			)),
+			new DungeonCouponTier(20_000_000, "정예 던전", "골드 2,000~2,500G · SP 3개 · 자동사냥 2시간 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 2_000, 2_500, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 7_200, 7_200, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
+			)),
+			new DungeonCouponTier(60_000_000, "심층 던전", "골드 2,500~4,000G · SP 4개 · 자동사냥 2시간 30분 · 보스 입장권 10%", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 2_500, 4_000, 35),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 4, 4, 30),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 2_400, 2_400, 25),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 9_000, 9_000, 25),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.BOSS_TICKET, 1, 1, 10)
 			))
 	);
 
 	private static final List<BossRaidTier> BOSS_RAID_TIERS = List.of(
-			new BossRaidTier(0, "흑요석 골렘", "초급 보스", "골드 1,000~1,500G · SP 3개 · 자동사냥 30분", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 1_000, 1_500, 50),
+			new BossRaidTier(0, "흑요석 골렘", "초급 보스", "골드 4,000~6,000G · SP 3개 · 자동사냥 2시간", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 4_000, 6_000, 50),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 25),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 1_800, 1_800, 25)
-			)),
-			new BossRaidTier(5_000_000, "빙결 발톱수", "숙련 보스", "골드 1,500~2,000G · SP 3개 · 자동사냥 1시간", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 1_500, 2_000, 45),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 30),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 3_600, 3_600, 25)
-			)),
-			new BossRaidTier(20_000_000, "심록의 고목왕", "정예 보스", "골드 2,000~2,500G · SP 3개 · 자동사냥 1시간 30분", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 2_000, 2_500, 40),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 35),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 5_400, 5_400, 25)
-			)),
-			new BossRaidTier(60_000_000, "별무리 고대룡", "심층 보스", "골드 2,500~3,000G · SP 3개 · 자동사냥 2시간", List.of(
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 2_500, 3_000, 35),
-					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 40),
 					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 7_200, 7_200, 25)
+			)),
+			new BossRaidTier(5_000_000, "빙결 발톱수", "숙련 보스", "골드 6,000~8,000G · SP 3개 · 자동사냥 4시간", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 6_000, 8_000, 45),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 30),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 14_400, 14_400, 25)
+			)),
+			new BossRaidTier(20_000_000, "심록의 고목왕", "정예 보스", "골드 8,000~10,000G · SP 3개 · 자동사냥 6시간", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 8_000, 10_000, 40),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 21_600, 21_600, 25)
+			)),
+			new BossRaidTier(60_000_000, "별무리 고대룡", "심층 보스", "골드 10,000~12,000G · SP 3개 · 자동사냥 8시간", List.of(
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.GOLD, 10_000, 12_000, 35),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.SKILL_POINT, 3, 3, 40),
+					new DungeonCouponRewardPlan(DungeonCouponRewardType.AUTO_HUNT_SECONDS, 28_800, 28_800, 25)
 			))
 	);
 
@@ -697,9 +698,10 @@ public class PlayerService {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 미니게임 보상은 이미 받았어요.");
 		}
 		if (player.getGold() < ADVENTURE_MINI_GAME_ENTRY_COST_GOLD) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "미니게임 입장에는 100G가 필요해요.");
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "미니게임 입장에는 300G가 필요해요.");
 		}
 		player.startAdventureMiniGame(clock.instant(), today, ADVENTURE_MINI_GAME_ENTRY_COST_GOLD);
+		recordRookieEventMiniGameAttempt(player);
 		return toState(player);
 	}
 
@@ -1860,7 +1862,7 @@ public class PlayerService {
 					"일일 미션",
 					"7일 완료 추가 보상",
 					"일일 미션 7일 완료",
-					"골드 1,000G · SP 1개",
+					"골드 4,000G · SP 1개",
 					EventRewardGrant.dailyMissionFinal());
 		}
 	}
@@ -1882,7 +1884,7 @@ public class PlayerService {
 				"VIP 멤버십",
 				"VIP 오늘의 혜택",
 				"월간 정기 구독 일일 혜택",
-				"SP 1개 · 던전권 3장 · 보스권 1장 · 자동사냥 1시간",
+				"SP 1개 · 던전권 3장 · 보스권 1장 · 자동사냥 4시간",
 				EventRewardGrant.vipDaily());
 	}
 
@@ -2002,7 +2004,7 @@ public class PlayerService {
 		if (player.hasClaimedTutorialReward()) {
 			return;
 		}
-		player.setAutoHuntEndsAt(addCappedTime(player.getAutoHuntEndsAt(), economy.autoHuntAdSeconds(), now));
+		player.setAutoHuntEndsAt(addCappedTime(player.getAutoHuntEndsAt(), TUTORIAL_AUTO_HUNT_SECONDS, now));
 		player.clearAutoHuntEndNotification();
 		clearUnreadAutoHuntEndNotifications(player, now);
 		player.claimTutorialReward(now);
@@ -2172,7 +2174,9 @@ public class PlayerService {
 	}
 
 	private long weeklyPunchKingGoldReward(long score) {
-		return Math.max(0, score) / WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR;
+		long clampedScore = Math.max(0, Math.min(score, MAX_COMBAT_POWER));
+		return Math.min(WEEKLY_PUNCH_KING_MAX_GOLD_REWARD,
+				clampedScore * WEEKLY_PUNCH_KING_MAX_GOLD_REWARD / MAX_COMBAT_POWER);
 	}
 
 	private int weeklyPunchKingSkillPointReward(long score) {
@@ -2186,8 +2190,18 @@ public class PlayerService {
 	}
 
 	private long nextWeeklyPunchKingGoldRewardScore(long bestScore) {
-		return (Math.max(0, bestScore) / WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR + 1)
-				* WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR;
+		long currentReward = weeklyPunchKingGoldReward(bestScore);
+		if (currentReward >= WEEKLY_PUNCH_KING_MAX_GOLD_REWARD) {
+			return 0;
+		}
+		long targetReward = currentReward + 1;
+		return Math.max(1, (targetReward * MAX_COMBAT_POWER + WEEKLY_PUNCH_KING_MAX_GOLD_REWARD - 1)
+				/ WEEKLY_PUNCH_KING_MAX_GOLD_REWARD);
+	}
+
+	private long weeklyPunchKingGoldRewardScoreStep() {
+		return Math.max(1, (MAX_COMBAT_POWER + WEEKLY_PUNCH_KING_MAX_GOLD_REWARD - 1)
+				/ WEEKLY_PUNCH_KING_MAX_GOLD_REWARD);
 	}
 
 	private int nextWeeklyPunchKingSkillPointScore(long bestScore) {
@@ -2319,9 +2333,9 @@ public class PlayerService {
 		long cooldownSeconds = nextAvailableAt == null || !nextAvailableAt.isAfter(now)
 				? 0
 				: Math.max(0, Duration.between(now, nextAvailableAt).toSeconds());
-		boolean dungeonAvailable = dungeonHuntCompleted && (ticketCount > 0 || (remainingRuns > 0 && cooldownSeconds <= 0));
+		boolean dungeonAvailable = ticketCount > 0 || (dungeonHuntCompleted && remainingRuns > 0 && cooldownSeconds <= 0);
 		String unavailableReason = "";
-		if (!dungeonHuntCompleted) {
+		if (ticketCount < 1 && !dungeonHuntCompleted) {
 			unavailableReason = "사냥 1시간 필요";
 		} else if (ticketCount < 1 && remainingRuns <= 0) {
 			unavailableReason = "오늘 입장 완료";
@@ -2442,7 +2456,7 @@ public class PlayerService {
 					"직업 선택 후 열려요.",
 					"대기",
 					"",
-					"매일 300G · 7일 추가 보상",
+					"매일 1,000G · 7일 추가 보상",
 					false,
 					false,
 					false,
@@ -2454,12 +2468,12 @@ public class PlayerService {
 		return new EventSummaryResponse(
 				"daily_mission",
 				"일일 미션",
-				"자동사냥 1시간, 던전 2회 완료 시 매일 300G",
+				"자동사냥 1시간, 던전 2회 완료 시 매일 1,000G",
 				event.completedToday() ? "오늘 완료" : "진행 중",
 				event.completedDays() + " / 7일 · 사냥 "
 						+ formatDurationSeconds(event.autoHuntProgressSeconds()) + " / 1시간 · 던전 "
 						+ event.dungeonRuns() + " / " + event.dungeonRunsRequired(),
-				"300G · 7일 완료 시 1,000G + SP 1",
+				"1,000G · 7일 완료 시 4,000G + SP 1",
 				true,
 				true,
 				event.completedDays() >= DAILY_MISSION_DAYS,
@@ -2560,8 +2574,8 @@ public class PlayerService {
 					0,
 					WEEKLY_PUNCH_KING_DURATION_SECONDS,
 					WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS,
-					WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR,
-					WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR,
+					weeklyPunchKingGoldRewardScoreStep(),
+					nextWeeklyPunchKingGoldRewardScore(0),
 					nextWeeklyPunchKingSkillPointScore(0));
 		}
 		LocalDate weekStartDate = currentWeekStartDate();
@@ -2575,7 +2589,7 @@ public class PlayerService {
 				Math.max(0, player.getWeeklyPunchKingRewardedSkillPoints()),
 				WEEKLY_PUNCH_KING_DURATION_SECONDS,
 				WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS,
-				WEEKLY_PUNCH_KING_GOLD_REWARD_DIVISOR,
+				weeklyPunchKingGoldRewardScoreStep(),
 				nextWeeklyPunchKingGoldRewardScore(bestScore),
 				nextWeeklyPunchKingSkillPointScore(bestScore));
 	}
@@ -2629,6 +2643,14 @@ public class PlayerService {
 			return;
 		}
 		player.addRookieEventTossPointClaim();
+		completeRookieEventDayIfReady(player);
+	}
+
+	private void recordRookieEventMiniGameAttempt(Player player) {
+		if (!canProgressRookieEvent(player) || !currentRookieEventHasMission(player, RookieMissionType.MINI_GAME_ATTEMPTS)) {
+			return;
+		}
+		player.addRookieEventMiniGameAttempt();
 		completeRookieEventDayIfReady(player);
 	}
 
@@ -2769,22 +2791,22 @@ public class PlayerService {
 	private void requireDungeonEntryAvailable(Player player, Instant now, DungeonEntryMode entryMode) {
 		int runsToday = Math.max(0, player.getDungeonRunCount());
 		int freeDailyLimit = dungeonFreeDailyLimit();
-			int dailyLimit = dungeonDailyLimit();
-			if (!player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS)) {
-				throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 자동사냥 1시간을 완료해야 던전에 입장할 수 있어요.");
-			}
-			if (entryMode == DungeonEntryMode.TICKET) {
-				return;
-			}
-			if (entryMode == DungeonEntryMode.FREE && runsToday >= freeDailyLimit) {
-				throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장을 모두 사용했어요. 광고를 보고 추가 입장해 주세요.");
-			}
-			if (entryMode == DungeonEntryMode.AD && player.getDungeonCouponCount() > 0) {
-				throw new ResponseStatusException(HttpStatus.CONFLICT, "던전 입장권이 남아 있어요.");
-			}
-			if (entryMode == DungeonEntryMode.AD && runsToday < freeDailyLimit) {
-				throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장이 남아 있어요.");
-			}
+		int dailyLimit = dungeonDailyLimit();
+		if (entryMode == DungeonEntryMode.TICKET) {
+			return;
+		}
+		if (!player.dungeonEntryHuntRequirementCompleted(DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 자동사냥 1시간을 완료해야 던전에 입장할 수 있어요.");
+		}
+		if (entryMode == DungeonEntryMode.FREE && runsToday >= freeDailyLimit) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장을 모두 사용했어요. 광고를 보고 추가 입장해 주세요.");
+		}
+		if (entryMode == DungeonEntryMode.AD && player.getDungeonCouponCount() > 0) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "던전 입장권이 남아 있어요.");
+		}
+		if (entryMode == DungeonEntryMode.AD && runsToday < freeDailyLimit) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "무료 입장이 남아 있어요.");
+		}
 		if (runsToday >= dailyLimit) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 던전 입장을 모두 사용했어요.");
 		}
@@ -3030,10 +3052,11 @@ public class PlayerService {
 				case HUNT_MILLIS -> player.getRookieEventDailyHuntMillis();
 				case MONSTERS -> player.getRookieEventDailyMonsters();
 				case GOLD -> player.getRookieEventDailyGold();
-			case TOSS_POINT_CLAIMS -> player.getRookieEventDailySettlements();
-			case SKILL_POINTS_SPENT -> player.getRookieEventDailySkillPointsSpent();
-			case LEVEL -> player.getLevel();
-			case HOME_SHORTCUT_RETURN -> player.isRookieEventDailyHomeShortcutReturned() ? 1 : 0;
+				case TOSS_POINT_CLAIMS -> player.getRookieEventDailySettlements();
+				case SKILL_POINTS_SPENT -> player.getRookieEventDailySkillPointsSpent();
+				case MINI_GAME_ATTEMPTS -> player.getRookieEventDailyMiniGameAttempts();
+				case LEVEL -> player.getLevel();
+				case HOME_SHORTCUT_RETURN -> player.isRookieEventDailyHomeShortcutReturned() ? 1 : 0;
 		};
 	}
 
@@ -3044,7 +3067,8 @@ public class PlayerService {
 			case GOLD -> String.format("%,dG / %,dG", capped, mission.target());
 			case LEVEL -> capped + "레벨 / " + mission.target() + "레벨";
 			case HOME_SHORTCUT_RETURN -> capped >= mission.target() ? "확인 완료" : "홈 화면에서 다시 접속";
-			case TOSS_POINT_CLAIMS -> capped >= mission.target() ? "수령 완료" : "보상 수령 탭에서 받기";
+				case TOSS_POINT_CLAIMS -> capped >= mission.target() ? "수령 완료" : "보상 수령 탭에서 받기";
+				case MINI_GAME_ATTEMPTS -> capped >= mission.target() ? "도전 완료" : "도전 전";
 			default -> capped + " / " + mission.target();
 		};
 	}

@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.money_hunter.domain.GameEconomyPolicy;
 import com.money_hunter.infrastructure.config.EconomyProperties;
 import com.money_hunter.infrastructure.persistence.GameEconomyPolicyRepository;
+import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RuntimeEconomyService {
 	private static final Logger log = LoggerFactory.getLogger(RuntimeEconomyService.class);
+	private static final String GOLD_PER_TOSS_POINT_KEY = "goldPerTossPoint";
 	private static final List<PolicyDefinition> DEFINITIONS = List.of(
 			new PolicyDefinition("adRevenuePerRewardAdWon", "리워드 광고 1회 예상 매출", "원", 1, 10_000),
 			new PolicyDefinition("goldPerTossPoint", "토스포인트 1P당 골드", "골드", 1, 1_000_000),
@@ -45,13 +47,19 @@ public class RuntimeEconomyService {
 
 	private final EconomyProperties defaults;
 	private final GameEconomyPolicyRepository repository;
+	private final PlayerRepository playerRepository;
 	private final Clock clock = Clock.systemUTC();
 	private final AtomicReference<EconomyPolicySnapshot> cache = new AtomicReference<>();
 	private volatile Instant cacheLoadedAt = Instant.EPOCH;
 
-	public RuntimeEconomyService(EconomyProperties defaults, GameEconomyPolicyRepository repository) {
+	public RuntimeEconomyService(
+			EconomyProperties defaults,
+			GameEconomyPolicyRepository repository,
+			PlayerRepository playerRepository
+	) {
 		this.defaults = defaults;
 		this.repository = repository;
+		this.playerRepository = playerRepository;
 	}
 
 	@PostConstruct
@@ -88,14 +96,16 @@ public class RuntimeEconomyService {
 		GameEconomyPolicy row = ensureRow();
 		EconomyPolicySnapshot before = snapshot();
 		row.update(key, value, clock.instant());
-		EconomyPolicySnapshot after = merge(row);
-		after.validate();
-		repository.save(row);
-		cache.set(after);
-		cacheLoadedAt = Instant.now(clock);
-		log.info("운영 정책 변경: key={}, before={}, after={}", key, valueOf(before, key), valueOf(after, key));
-		return new PolicyChangeResult(key, valueOf(before, key), valueOf(after, key), false);
-	}
+			EconomyPolicySnapshot after = merge(row);
+			after.validate();
+			long scaledPlayers = rescalePlayerGoldBalancesIfNeeded(key, before, after);
+			repository.save(row);
+			cache.set(after);
+			cacheLoadedAt = Instant.now(clock);
+			log.info("운영 정책 변경: key={}, before={}, after={}, scaledPlayers={}",
+					key, valueOf(before, key), valueOf(after, key), scaledPlayers);
+			return new PolicyChangeResult(key, valueOf(before, key), valueOf(after, key), false);
+		}
 
 	@Transactional
 	public PolicyChangeResult reset(String key) {
@@ -103,13 +113,29 @@ public class RuntimeEconomyService {
 		GameEconomyPolicy row = ensureRow();
 		EconomyPolicySnapshot before = snapshot();
 		row.reset(key, clock.instant());
-		EconomyPolicySnapshot after = merge(row);
-		after.validate();
-		repository.save(row);
-		cache.set(after);
-		cacheLoadedAt = Instant.now(clock);
-		log.info("운영 정책 기본값 복원: key={}, before={}, after={}", key, valueOf(before, key), valueOf(after, key));
-		return new PolicyChangeResult(key, valueOf(before, key), valueOf(after, key), true);
+			EconomyPolicySnapshot after = merge(row);
+			after.validate();
+			long scaledPlayers = rescalePlayerGoldBalancesIfNeeded(key, before, after);
+			repository.save(row);
+			cache.set(after);
+			cacheLoadedAt = Instant.now(clock);
+			log.info("운영 정책 기본값 복원: key={}, before={}, after={}, scaledPlayers={}",
+					key, valueOf(before, key), valueOf(after, key), scaledPlayers);
+			return new PolicyChangeResult(key, valueOf(before, key), valueOf(after, key), true);
+		}
+
+	private long rescalePlayerGoldBalancesIfNeeded(String key, EconomyPolicySnapshot before, EconomyPolicySnapshot after) {
+		if (!GOLD_PER_TOSS_POINT_KEY.equals(key) || before.goldPerTossPoint() == after.goldPerTossPoint()) {
+			return 0;
+		}
+		long changed = playerRepository.findAll().stream()
+				.filter(player -> player.rescaleGoldForTossPointRate(before.goldPerTossPoint(), after.goldPerTossPoint()))
+				.count();
+		log.info("토스포인트 환산 기준 변경에 따른 골드 잔액 스케일링: before={}, after={}, players={}",
+				before.goldPerTossPoint(),
+				after.goldPerTossPoint(),
+				changed);
+		return changed;
 	}
 
 	private boolean isCacheStale() {

@@ -970,6 +970,34 @@ img {
   filter: saturate(0.82);
 }
 
+#autoHuntAd.can-add-time::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.66), 0 0 6px rgba(239, 68, 68, 0.78);
+  animation: auto-hunt-add-dot-pulse 1s ease-in-out infinite;
+}
+
+@keyframes auto-hunt-add-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.82);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.54), 0 0 5px rgba(239, 68, 68, 0.56);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0), 0 0 14px rgba(239, 68, 68, 0.98);
+  }
+}
+
 .action-metric {
   display: grid;
   grid-template-rows: auto auto;
@@ -2696,26 +2724,26 @@ img {
 }
 
 #dungeonCouponCard {
-	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-dungeon.png?v=20260610-01");
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-dungeon.png?v=20260611-05");
 	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-swords.png?v=20260610-01");
 }
 
 #bossRaidCard {
-	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-boss.png?v=20260610-01");
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-boss.png?v=20260611-05");
 	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-boss-custom.png?v=20260610-01");
 	--adventure-status-a: #8847d5;
 	--adventure-status-b: #5926a4;
 }
 
 #miniGameCard {
-	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-jump.png?v=20260610-01");
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-jump.png?v=20260611-05");
 	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-training-custom.png?v=20260610-01");
 	--adventure-status-a: #0da9b2;
 	--adventure-status-b: #006f7c;
 }
 
 #weeklyPunchKingCard {
-	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-punchking.png?v=20260610-01");
+	--adventure-main-icon: url("/assets/adventure/flexible-ui/icons/main-punchking.png?v=20260611-05");
 	--adventure-badge-icon: url("/assets/adventure/flexible-ui/icons/badge-punchking-crown.png?v=20260610-02");
 	--adventure-navy: #3c2108;
 	--adventure-status-a: #d63a2e;
@@ -2996,7 +3024,7 @@ img {
 	width: 20.09px;
 	aspect-ratio: 1.45 / 1;
 	flex: 0 0 auto;
-	background: url("/assets/adventure/flexible-ui/icons/ticket-gold.png?v=20260610-01") center / contain no-repeat;
+	background: url("/assets/adventure/flexible-ui/icons/ticket-gold.png?v=20260611-05") center / contain no-repeat;
 	filter: drop-shadow(0 0.57px 0.57px rgba(80, 45, 10, 0.22));
 }
 
@@ -5327,6 +5355,7 @@ img {
 .mini-game-stage {
   position: absolute;
   inset: 0;
+  --mini-game-ground-bottom: clamp(160px, 30%, 276px);
   overflow: hidden;
   min-height: 0;
   border: 0;
@@ -5343,7 +5372,7 @@ img {
 .mini-game-hero {
   position: absolute;
   left: 34px;
-  bottom: clamp(160px, 30.5%, 280px);
+  bottom: calc(var(--mini-game-ground-bottom) + 2px);
   width: 92px;
   height: 102px;
   object-fit: contain;
@@ -5354,13 +5383,29 @@ img {
 .mini-game-obstacle {
   position: absolute;
   left: 0;
-  bottom: clamp(156px, 30%, 276px);
-  width: 62px;
-  height: 64px;
+  bottom: var(--mini-game-ground-bottom);
+  width: 88px;
+  height: 90px;
   object-fit: contain;
   object-position: bottom center;
   filter: drop-shadow(0 7px 6px rgba(15, 23, 42, 0.24));
   pointer-events: none;
+}
+
+.mini-game-obstacle.is-dummy {
+  bottom: var(--mini-game-ground-bottom);
+  width: 88px;
+  height: 90px;
+}
+
+.mini-game-obstacle.is-arrow {
+  bottom: calc(var(--mini-game-ground-bottom) + 122px);
+  width: 150px;
+  height: 44px;
+  object-position: center;
+  filter:
+    drop-shadow(0 0 8px rgba(56, 189, 248, 0.46))
+    drop-shadow(0 7px 6px rgba(15, 23, 42, 0.22));
 }
 
 .mini-game-result {
@@ -5875,6 +5920,7 @@ img {
 }
 
 .punch-king-actions button {
+  --ultimate-ready-angle: 0deg;
   position: relative;
   display: grid;
   width: 76px;
@@ -5894,8 +5940,22 @@ img {
   pointer-events: auto;
 }
 
+.punch-king-actions button::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: 1;
+  border-radius: inherit;
+  background:
+    conic-gradient(from 0deg,
+      rgba(250, 204, 21, 0.96) var(--ultimate-ready-angle),
+      rgba(15, 23, 42, 0.48) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+  pointer-events: none;
+}
+
 .punch-king-actions button:disabled {
-  filter: grayscale(0.55) brightness(0.78);
   color: rgba(255, 255, 255, 0.84);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
   cursor: not-allowed;
@@ -5906,6 +5966,7 @@ img {
   left: 0;
   right: 0;
   bottom: 9px;
+  z-index: 2;
   font-size: 10px;
   line-height: 1;
   letter-spacing: 0;
@@ -5916,6 +5977,7 @@ img {
   left: 16px;
   right: 16px;
   bottom: 24px;
+  z-index: 2;
   display: grid;
   min-height: 18px;
   place-items: center;

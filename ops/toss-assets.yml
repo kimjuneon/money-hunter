@@ -16,6 +16,13 @@ ads:
     type: rewarded
     required_when: TOSS_REWARD_ADS_ENABLED=true
     status: live
+  mini_game_continue:
+    secret: TOSS_AD_GROUP_SKILL_POINT_ID
+    app_config_key: miniGameContinue
+    type: rewarded
+    required_when: TOSS_REWARD_ADS_ENABLED=true
+    status: live
+    note: Reuses the existing SP rewarded ad group.
   reward_claim:
     secret: TOSS_AD_GROUP_REWARD_CLAIM_ID
     app_config_key: rewardClaim
@@ -54,6 +61,11 @@ iap_products:
   skill_point_pack:
     secret: TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID
     app_config_key: skillPointPack
+    required_when: TOSS_PAYMENTS_ENABLED=true
+    status: live
+  vip_monthly:
+    secret: TOSS_IAP_VIP_MONTHLY_PRODUCT_ID
+    app_config_key: vipMonthly
     required_when: TOSS_PAYMENTS_ENABLED=true
     status: live
 

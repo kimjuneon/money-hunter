@@ -259,22 +259,27 @@ class ReviewProfileApiExposureTest {
 						.contentType(APPLICATION_JSON)
 						.content("{\"job\":\"WARRIOR\"}"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.goldPerTossPoint", is(100)))
-				.andExpect(jsonPath("$.rewardGoldThreshold", is(1000)))
+					.andExpect(jsonPath("$.goldPerTossPoint", is(724)))
+					.andExpect(jsonPath("$.rewardGoldThreshold", is(7240)))
 				.andReturn()
 				.getResponse()
 				.getContentAsString();
 			long baseGoldPerHour = readLong(before, "$.baseGoldPerHour");
+			transactionTemplate.executeWithoutResult(status -> {
+				Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+				player.setGold(7_240);
+			});
 
 			try {
-			economy.update("goldPerTossPoint", 200);
+				economy.update("goldPerTossPoint", 200);
 
-			mockMvc.perform(get("/api/player"))
-					.andExpect(status().isOk())
-						.andExpect(jsonPath("$.goldPerTossPoint", is(200)))
-						.andExpect(jsonPath("$.rewardGoldThreshold", is(2000)))
-						.andExpect(jsonPath("$.baseGoldPerHour", is((int) baseGoldPerHour)))
-						.andExpect(jsonPath("$.goldPerHour", is((int) baseGoldPerHour)));
+				mockMvc.perform(get("/api/player"))
+						.andExpect(status().isOk())
+							.andExpect(jsonPath("$.goldPerTossPoint", is(200)))
+							.andExpect(jsonPath("$.rewardGoldThreshold", is(2000)))
+							.andExpect(jsonPath("$.gold", is(2000)))
+							.andExpect(jsonPath("$.baseGoldPerHour", is((int) baseGoldPerHour)))
+							.andExpect(jsonPath("$.goldPerHour", is((int) baseGoldPerHour)));
 		} finally {
 			economy.reset("goldPerTossPoint");
 		}
@@ -531,6 +536,78 @@ class ReviewProfileApiExposureTest {
 		}
 
 	@Test
+	void dungeonTicketCanBeUsedWithoutOneHourHuntProgress() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			Player player = playerRepository.findByUserKey("test-player").orElseThrow();
+			player.addDungeonCoupons(1);
+		});
+
+		mockMvc.perform(get("/api/player"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.dungeonCoupon.count", is(1)))
+				.andExpect(jsonPath("$.dungeonCoupon.dungeonHuntRequirementCompleted", is(false)))
+				.andExpect(jsonPath("$.dungeonCoupon.dungeonAvailable", is(true)));
+
+		mockMvc.perform(post("/api/player/dungeon/run"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.state.dungeonCoupon.count", is(0)))
+				.andExpect(jsonPath("$.state.dungeonCoupon.dungeonRunsToday", is(0)));
+	}
+
+	@Test
+	void weeklyPunchKingRewardsUseLinearGoldAndSteppedSkillPoints() throws Exception {
+		mockMvc.perform(post("/api/player/test/reset"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/player/job")
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
+						.contentType(APPLICATION_JSON)
+						.content("{\"score\":499999}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gold", is(149)))
+				.andExpect(jsonPath("$.skillPoints", is(1)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(149)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedSkillPoints", is(1)));
+
+		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
+						.contentType(APPLICATION_JSON)
+						.content("{\"score\":500000}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gold", is(150)))
+				.andExpect(jsonPath("$.skillPoints", is(2)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(150)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedSkillPoints", is(2)));
+
+		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
+						.contentType(APPLICATION_JSON)
+						.content("{\"score\":3000000}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gold", is(900)))
+				.andExpect(jsonPath("$.skillPoints", is(4)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(900)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedSkillPoints", is(4)));
+
+		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
+						.contentType(APPLICATION_JSON)
+						.content("{\"score\":99999999}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gold", is(30000)))
+				.andExpect(jsonPath("$.skillPoints", is(4)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(30000)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedSkillPoints", is(4)));
+	}
+
+	@Test
 	void dailyMissionCreatesInboxRewardsAndFinalRewardStartsNextCycleWhenClaimed() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());
@@ -550,10 +627,10 @@ class ReviewProfileApiExposureTest {
 				.getContentAsString();
 
 		Number dailyRewardId = firstRewardId(dailyResponse, "daily_mission");
-		mockMvc.perform(post("/api/player/event-rewards/" + dailyRewardId + "/claim"))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.gold", is(300)))
-				.andExpect(jsonPath("$.eventHub.rewards[0].claimed", is(true)));
+				mockMvc.perform(post("/api/player/event-rewards/" + dailyRewardId + "/claim"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.gold", is(1000)))
+					.andExpect(jsonPath("$.eventHub.rewards[0].claimed", is(true)));
 
 			String cycleResponse = mockMvc.perform(post("/api/player/test/events/daily-mission/complete-cycle"))
 					.andExpect(status().isOk())
@@ -564,10 +641,10 @@ class ReviewProfileApiExposureTest {
 
 			assertTrue(rewardClaimable(cycleResponse, "daily-mission:cycle:1:final"));
 			Number finalRewardId = firstRewardIdByKey(cycleResponse, "daily-mission:cycle:1:final");
-			mockMvc.perform(post("/api/player/event-rewards/" + finalRewardId + "/claim"))
-					.andExpect(status().isOk())
-				.andExpect(jsonPath("$.gold", is(1300)))
-				.andExpect(jsonPath("$.skillPoints", is(1)))
+				mockMvc.perform(post("/api/player/event-rewards/" + finalRewardId + "/claim"))
+						.andExpect(status().isOk())
+					.andExpect(jsonPath("$.gold", is(5000)))
+					.andExpect(jsonPath("$.skillPoints", is(1)))
 				.andExpect(jsonPath("$.dailyMission.cycle", is(2)))
 				.andExpect(jsonPath("$.dailyMission.completedDays", is(0)));
 	}
@@ -687,7 +764,7 @@ class ReviewProfileApiExposureTest {
 			Instant now = Instant.now();
 			player.setAutoHuntEndsAt(null);
 			player.setLastSettledAt(now);
-		player.addGold(1_800);
+			player.addGold(13_032);
 		playerRepository.saveAndFlush(player);
 
 		mockMvc.perform(post("/api/player/reward/claim-after-ad")
@@ -708,12 +785,12 @@ class ReviewProfileApiExposureTest {
 				.andExpect(status().isOk());
 
 		Player player = playerRepository.findByUserKey("test-player").orElseThrow();
-		player.collectCombatGold(1_800_000_000L, 0);
+		player.collectCombatGold(13_032_000_000L, 0);
 		playerRepository.saveAndFlush(player);
 
 		AdminPlayerResponse response = adminPlayerService.get("test-player");
-		assertEquals(1_800, response.cumulativeGoldEarned());
-		assertEquals(1_800, response.totalSettledGold());
+		assertEquals(13_032, response.cumulativeGoldEarned());
+		assertEquals(13_032, response.totalSettledGold());
 		assertEquals(18, response.totalSettledWon());
 	}
 

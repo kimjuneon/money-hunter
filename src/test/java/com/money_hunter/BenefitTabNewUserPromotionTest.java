@@ -68,7 +68,7 @@ class BenefitTabNewUserPromotionTest {
 		login("benefit-first-user", "/benefit");
 		playerService.chooseJob("benefit-first-user", JobType.WARRIOR);
 
-		addGold("benefit-first-user", 1_000);
+		addGold("benefit-first-user", 7_240);
 		playerService.claimRewardAfterAd("benefit-first-user", "benefit-claim-1");
 
 		assertThat(tossPromotionClient.executions())
@@ -78,7 +78,7 @@ class BenefitTabNewUserPromotionTest {
 				.extracting(ExecutedPromotion::amount)
 				.containsExactly(10, 30);
 
-		addGold("benefit-first-user", 1_000);
+		addGold("benefit-first-user", 7_240);
 		playerService.claimRewardAfterAd("benefit-first-user", "benefit-claim-2");
 
 		assertThat(tossPromotionClient.executions())
@@ -92,7 +92,7 @@ class BenefitTabNewUserPromotionTest {
 		playerService.chooseJob("existing-user", JobType.WARRIOR);
 		login("existing-user", "/benefit");
 
-		addGold("existing-user", 1_000);
+		addGold("existing-user", 7_240);
 		playerService.claimRewardAfterAd("existing-user", "existing-claim-1");
 
 		assertThat(tossPromotionClient.executions())
@@ -106,7 +106,7 @@ class BenefitTabNewUserPromotionTest {
 		playerService.chooseJob("benefit-failure-user", JobType.WARRIOR);
 		tossPromotionClient.failPromotionCode("BENEFIT_NEW_USER_PROMOTION");
 
-		addGold("benefit-failure-user", 1_000);
+		addGold("benefit-failure-user", 7_240);
 		RewardClaimResponse response = playerService.claimRewardAfterAd("benefit-failure-user", "benefit-failure-claim");
 
 		assertThat(response.status()).isEqualTo(RewardClaimStatus.GRANTED);

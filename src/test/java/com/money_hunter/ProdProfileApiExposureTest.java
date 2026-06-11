@@ -25,7 +25,8 @@ import org.springframework.test.web.servlet.MockMvc;
 		"money-hunter.app.toss-login-enabled=false",
 		"money-hunter.app.toss-user-key-enabled=false",
 		"money-hunter.app.real-reward-ads-enabled=false",
-		"money-hunter.app.real-banner-ads-enabled=false"
+		"money-hunter.app.real-banner-ads-enabled=false",
+		"money-hunter.ads.mode=live"
 })
 @AutoConfigureMockMvc
 @SpringBootTest
@@ -53,7 +54,11 @@ class ProdProfileApiExposureTest {
 						"real-reward-ads-disabled",
 						"real-toss-point-rewards-disabled"
 				)))
-				.andExpect(jsonPath("$.releaseBlockers", not(hasItem("real-banner-ads-disabled"))));
+				.andExpect(jsonPath("$.releaseBlockers", not(hasItem("real-banner-ads-disabled"))))
+				.andExpect(jsonPath("$.adMode", is("live")))
+				.andExpect(jsonPath("$.adGroupIds.skillPoint", is("ait.v2.live.d0b17dc03f08403a")))
+				.andExpect(jsonPath("$.adGroupIds.miniGameContinue", is("ait.v2.live.d0b17dc03f08403a")))
+				.andExpect(jsonPath("$.iapProductIds.vipMonthly", is("sub.sav.mq97d6o7.080f36174a")));
 	}
 
 	@Test

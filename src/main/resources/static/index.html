@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260606-01" />
+    <link rel="stylesheet" href="/styles.css?v=20260611-04" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -240,7 +240,7 @@
               <div class="mini-game-visual" aria-hidden="true">순</div>
               <div class="mini-game-copy">
                 <strong>순발력 훈련장</strong>
-                <p id="miniGameTitle">100G 입장 · 2분 버티기</p>
+                <p id="miniGameTitle">300G 입장 · 2분 버티기</p>
                 <small id="miniGameStatus">클리어 시 SP 1개</small>
               </div>
               <div class="adventure-card-actions">
@@ -445,7 +445,7 @@
           <p id="jobCopy" class="modal-copy">능력치는 동일해요. 마음에 드는 공격 모션을 고르세요.</p>
 	          <div id="tutorialReward" class="tutorial-reward">
 	            <strong>시작 보상</strong>
-	            <span>선택 즉시 자동사냥 <b id="tutorialRewardTime">확인 중</b>이 지급돼요. 튜토리얼 완료 시 SP 1개도 받아요.</span>
+	            <span>튜토리얼 완료 시 자동사냥 <b id="tutorialRewardTime">1시간</b>과 SP 1개를 받아요.</span>
 	          </div>
           <div class="job-select-grid">
             <button class="job-select warrior" type="button" data-job="WARRIOR">
@@ -488,8 +488,7 @@
           <button id="closeTimeRewardOverflowModal" class="modal-close" type="button" aria-label="닫기">×</button>
           <p class="modal-kicker">TIME LIMIT</p>
           <h2 id="timeRewardOverflowTitle">자동사냥 시간이 거의 가득 찼어요</h2>
-          <p id="timeRewardOverflowBody">자동사냥은 최대 2시간까지 충전할 수 있어요.
-현재 1시간 36분이 남아 있어, 광고를 보면 24분만 추가돼요.</p>
+          <p id="timeRewardOverflowBody">자동사냥 충전 가능 시간을 확인하고 있어요.</p>
           <button id="confirmTimeRewardOverflowAd" class="time-reward-overflow-primary" type="button">광고 보고 충전하기</button>
         </div>
       </section>
@@ -713,7 +712,7 @@
         <div id="miniGameStage" class="mini-game-stage">
           <div class="mini-game-skyline" aria-hidden="true"></div>
           <img id="miniGameHero" class="mini-game-hero" src="/assets/warrior.png?v=20260525-03" alt="" />
-          <img id="miniGameObstacle" class="mini-game-obstacle" src="/assets/boss-rock.png" alt="" aria-hidden="true" />
+          <img id="miniGameObstacle" class="mini-game-obstacle" src="/assets/mini-game/training-dummy.png?v=20260610-01" alt="" aria-hidden="true" />
           <div class="mini-game-ground" aria-hidden="true"></div>
           <div id="miniGameStartPrompt" class="mini-game-start-prompt" aria-live="polite">
             <strong id="miniGameMessage">화면을 클릭해서 시작하세요!</strong>
@@ -848,7 +847,7 @@
         <div class="dev-section-title">상태 세팅</div>
 	        <div class="dev-grid">
           <button id="devBattlePreset" class="dev-primary" type="button">전투 테스트 세팅</button>
-          <button id="devAutoHunt" type="button">자동사냥 +1h</button>
+          <button id="devAutoHunt" type="button">자동사냥 +4h</button>
           <button id="devSkillPoint" type="button">SP +1</button>
           <button id="devLevelUp" type="button">레벨 +1</button>
           <button id="devLevelDown" type="button">레벨 -1</button>
@@ -878,6 +877,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260606-01"></script>
+    <script src="/app.js?v=20260611-04"></script>
   </body>
 </html>

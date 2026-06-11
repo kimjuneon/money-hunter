@@ -1,5 +1,6 @@
 package com.money_hunter.domain;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -163,6 +164,9 @@ public class Player {
 
 	@Column(nullable = false)
 	private int rookieEventDailySkillPointsSpent = 0;
+
+	@Column(nullable = false)
+	private int rookieEventDailyMiniGameAttempts = 0;
 
 	@Column(nullable = false)
 	private boolean rookieEventDailySkillPointHelpClaimed = false;
@@ -461,6 +465,11 @@ public class Player {
 
 	public void addRookieEventTossPointClaim() {
 		this.rookieEventDailySettlements += 1;
+		touch();
+	}
+
+	public void addRookieEventMiniGameAttempt() {
+		this.rookieEventDailyMiniGameAttempts += 1;
 		touch();
 	}
 
@@ -814,6 +823,33 @@ public class Player {
 		spendGold(entryCostGold);
 		this.adventureMiniGameEntryStartedAt = now;
 		touch();
+	}
+
+	public boolean rescaleGoldForTossPointRate(int oldGoldPerPoint, int newGoldPerPoint) {
+		if (oldGoldPerPoint <= 0 || newGoldPerPoint <= 0 || oldGoldPerPoint == newGoldPerPoint) {
+			return false;
+		}
+		long scaledGold = scaledValue(gold, oldGoldPerPoint, newGoldPerPoint);
+		long scaledHitRemainderMicros = scaledValue(hitGoldRemainderMicros, oldGoldPerPoint, newGoldPerPoint);
+		long scaledDefeatRemainderMicros = scaledValue(defeatGoldRemainderMicros, oldGoldPerPoint, newGoldPerPoint);
+		Long scaledAutoHuntEndSettledGold = autoHuntEndSettledGold == null
+				? null
+				: scaledValue(autoHuntEndSettledGold, oldGoldPerPoint, newGoldPerPoint);
+		boolean changed = scaledGold != gold
+				|| scaledHitRemainderMicros != hitGoldRemainderMicros
+				|| scaledDefeatRemainderMicros != defeatGoldRemainderMicros
+				|| (autoHuntEndSettledGold == null
+						? scaledAutoHuntEndSettledGold != null
+						: !autoHuntEndSettledGold.equals(scaledAutoHuntEndSettledGold));
+		if (!changed) {
+			return false;
+		}
+		this.gold = scaledGold;
+		this.hitGoldRemainderMicros = scaledHitRemainderMicros;
+		this.defeatGoldRemainderMicros = scaledDefeatRemainderMicros;
+		this.autoHuntEndSettledGold = scaledAutoHuntEndSettledGold;
+		touch();
+		return true;
 	}
 
 	public boolean adventureMiniGameEntryActive(LocalDate today, Instant now, Duration ttl) {
@@ -1216,6 +1252,7 @@ public class Player {
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;
+		this.rookieEventDailyMiniGameAttempts = 0;
 		this.rookieEventDailySkillPointHelpClaimed = false;
 		this.rookieEventDailyHomeShortcutReturned = false;
 		this.rookieEventMissionNotificationAgreedAt = null;
@@ -1272,7 +1309,7 @@ public class Player {
 	}
 
 	private int nextLevelExperience(int level) {
-		return 1000 + level * level * 500;
+		return (1000 + level * level * 500) * 4;
 	}
 
 	private void resetRookieEventDailyProgress(LocalDate today) {
@@ -1282,9 +1319,21 @@ public class Player {
 		this.rookieEventDailyGold = 0;
 		this.rookieEventDailySettlements = 0;
 		this.rookieEventDailySkillPointsSpent = 0;
+		this.rookieEventDailyMiniGameAttempts = 0;
 		this.rookieEventDailySkillPointHelpClaimed = false;
 		this.rookieEventDailyHomeShortcutReturned = false;
 		touch();
+	}
+
+	private long scaledValue(long value, int oldGoldPerPoint, int newGoldPerPoint) {
+		if (value <= 0) {
+			return 0;
+		}
+		BigInteger scaled = BigInteger.valueOf(value)
+				.multiply(BigInteger.valueOf(newGoldPerPoint))
+				.divide(BigInteger.valueOf(oldGoldPerPoint));
+		BigInteger max = BigInteger.valueOf(Long.MAX_VALUE);
+		return scaled.compareTo(max) > 0 ? Long.MAX_VALUE : scaled.longValue();
 	}
 
 	private Instant oneDayEarlier(Instant instant) {

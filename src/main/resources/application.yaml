@@ -53,17 +53,17 @@ money-hunter:
   ads:
     mode: ${TOSS_AD_MODE:test}
     auto-hunt-reward-ad-group-id: ${TOSS_AD_GROUP_AUTO_HUNT_ID:}
-    skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:}
+    skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:ait.v2.live.d0b17dc03f08403a}
     reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:}
     dungeon-additional-reward-ad-group-id: ${TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID:}
-    mini-game-continue-reward-ad-group-id: ${TOSS_AD_GROUP_MINI_GAME_CONTINUE_ID:}
+    mini-game-continue-reward-ad-group-id: ${TOSS_AD_GROUP_MINI_GAME_CONTINUE_ID:${TOSS_AD_GROUP_SKILL_POINT_ID:ait.v2.live.d0b17dc03f08403a}}
     job-change-interstitial-ad-group-id: ${TOSS_AD_GROUP_JOB_CHANGE_ID:}
     banner-ad-group-id: ${TOSS_AD_GROUP_BANNER_ID:}
   iap:
     flare-pet-product-id: ${TOSS_IAP_FLARE_PET_PRODUCT_ID:}
     aqua-pet-product-id: ${TOSS_IAP_AQUA_PET_PRODUCT_ID:}
     skill-point-pack-product-id: ${TOSS_IAP_SKILL_POINT_PACK_PRODUCT_ID:}
-    vip-monthly-product-id: ${TOSS_IAP_VIP_MONTHLY_PRODUCT_ID:}
+    vip-monthly-product-id: ${TOSS_IAP_VIP_MONTHLY_PRODUCT_ID:sub.sav.mq97d6o7.080f36174a}
   share-reward:
     module-id: ${TOSS_SHARE_REWARD_MODULE_ID:}
     message: ${TOSS_SHARE_REWARD_MESSAGE:친구에게 공유하고 SP 1개를 받아요}
@@ -117,21 +117,21 @@ money-hunter:
         - http://192.168.*:*
   economy:
     ad-revenue-per-reward-ad-won: 60
-    gold-per-toss-point: 100
+    gold-per-toss-point: 724
     companion-price-won: 4900
     skill-point-pack-price-won: 999
     skill-point-pack-amount: 10
     friend-invite-reward-skill-points: 1
     friend-invite-limit: 5
     max-character-slots: 3
-    auto-hunt-ad-seconds: 1800
+    auto-hunt-ad-seconds: 14400
     auto-hunt-ad-cooldown-seconds: 180
-    max-ad-seconds: 14400
+    max-ad-seconds: 43200
     dungeon-free-daily-limit: 3
     dungeon-additional-daily-limit: 2
     dungeon-reentry-cooldown-seconds: 1800
     skill-point-ad-cooldown-seconds: 1800
-    reward-gold-threshold: 1000
+    reward-gold-threshold: 7240
     reward-point-amount: 10
     anomaly-limit-per-rule: 20
     anomaly-ad-events-per-hour-warning: 20

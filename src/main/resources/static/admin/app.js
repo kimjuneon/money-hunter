@@ -28,15 +28,15 @@ const maxGoldPerHour = 6000;
 const dungeonEntryHuntRequiredSeconds = 3600;
 const daySeconds = 86400;
 const fullPowerDungeonRewards = [
-  { type: "GOLD", minAmount: 700, maxAmount: 1000, weight: 35 },
+  { type: "GOLD", minAmount: 2500, maxAmount: 4000, weight: 35 },
   { type: "SKILL_POINT", minAmount: 4, maxAmount: 4, weight: 30 },
-  { type: "AUTO_HUNT_SECONDS", minAmount: 2400, maxAmount: 2400, weight: 25 },
+  { type: "AUTO_HUNT_SECONDS", minAmount: 9000, maxAmount: 9000, weight: 25 },
   { type: "BOSS_TICKET", minAmount: 1, maxAmount: 1, weight: 10 },
 ];
 const fullPowerBossRewards = [
-  { type: "GOLD", minAmount: 2500, maxAmount: 3000, weight: 35 },
+  { type: "GOLD", minAmount: 10000, maxAmount: 12000, weight: 35 },
   { type: "SKILL_POINT", minAmount: 3, maxAmount: 3, weight: 40 },
-  { type: "AUTO_HUNT_SECONDS", minAmount: 7200, maxAmount: 7200, weight: 25 },
+  { type: "AUTO_HUNT_SECONDS", minAmount: 28800, maxAmount: 28800, weight: 25 },
 ];
 const hourPolicyKeys = new Set([
   "autoHuntAdSeconds",
@@ -783,7 +783,7 @@ function renderEconomyPanel(data) {
       </div>
       <p class="note">
         대기 중 포인트 ${formatNumber(pendingPoints)}P(예상 지급액 ${formatNumber(pendingWon)}원)는 실제 생성된 보상 수령 대기 기록의 합계예요.
-        정책값을 바꿔도 이미 대기 중인 기록은 재계산하지 않고, 새 보상 신청부터 변경된 기준이 적용돼요.
+        토스포인트 환산 기준을 바꾸면 보유 골드는 같은 포인트 가치가 되도록 자동 보정되고, 이미 대기 중인 보상 기록은 재계산하지 않아요.
       </p>
     </section>
   `;
@@ -1782,7 +1782,7 @@ function policyGroups() {
     {
       title: "보상 기준",
       description: "토스포인트 수령 가능 기준",
-      keys: ["rewardPointAmount"],
+      keys: ["goldPerTossPoint", "rewardPointAmount"],
     },
     {
       title: "광고 보상",

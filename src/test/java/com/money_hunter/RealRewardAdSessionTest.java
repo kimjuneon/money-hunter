@@ -160,7 +160,7 @@ class RealRewardAdSessionTest {
 				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].key", is("home_shortcut_return")))
 				.andExpect(jsonPath("$.rookieEvent.days[0].missions[2].label", is("머니헌터 홈 화면에 추가하고 다시 접속하기")))
 				.andExpect(jsonPath("$.rookieEvent.days[1].rewardLabel", is("자동전투 1시간")))
-				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].label", is("토스포인트 받기")))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].label", is("순발력 훈련장 1회 도전")))
 					.andExpect(jsonPath("$.rookieEvent.days[2].rewardLabel", is("자동전투 1시간")))
 				.andExpect(jsonPath("$.rookieEvent.days[5].missions[2].label", is("10레벨 달성하기")));
 	}
@@ -238,7 +238,37 @@ class RealRewardAdSessionTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.rookieEvent.completedDays", is(1)))
 				.andExpect(jsonPath("$.rookieEvent.days[0].rewardClaimed", is(true)))
-				.andExpect(jsonPath("$.skillPoints", is(1)));
+					.andExpect(jsonPath("$.skillPoints", is(1)));
+	}
+
+	@Test
+	void rookieEventMiniGameAttemptMissionProgressesOnTrainingStart() throws Exception {
+		mockMvc.perform(post("/api/player/job")
+						.with(user("rookie-event-mini-game-user"))
+						.contentType(APPLICATION_JSON)
+						.content("{\"job\":\"WARRIOR\"}"))
+				.andExpect(status().isOk());
+
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey("rookie-event-mini-game-user").orElseThrow();
+			player.overrideRookieEventForTest(
+					Instant.now().minus(Duration.ofDays(1)),
+					LocalDate.now().minusDays(1),
+					1,
+					1,
+					false,
+					7);
+			player.setGold(300);
+		});
+
+		mockMvc.perform(post("/api/player/adventures/mini-game/start")
+						.with(user("rookie-event-mini-game-user")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.rookieEvent.currentDay", is(2)))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].key", is("mini_game_attempt_1")))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].completed", is(true)))
+				.andExpect(jsonPath("$.rookieEvent.days[1].missions[2].progressText", is("도전 완료")))
+				.andExpect(jsonPath("$.gold", is(0)));
 	}
 
 	@Test
