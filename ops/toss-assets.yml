@@ -111,10 +111,10 @@ smart_messages:
     template_set_secret: TOSS_DUNGEON_EXPLORE_AVAILABLE_TEMPLATE_SET_CODE
     batch_size_env: TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_BATCH_SIZE
     required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_DUNGEON_EXPLORE_AVAILABLE_SMART_MESSAGE_ENABLED=true
-    status: waiting_approval
+    status: live
   battle_ready_daily:
     enabled_env: TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_ENABLED
     template_set_secret: TOSS_BATTLE_READY_DAILY_TEMPLATE_SET_CODE
     batch_size_env: TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_BATCH_SIZE
     required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_BATTLE_READY_DAILY_SMART_MESSAGE_ENABLED=true
-    status: waiting_approval
+    status: live
