@@ -2,9 +2,9 @@ package com.money_hunter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class RookieEventMissionSmartMessageTest {
 	private static final String USER_KEY = "rookie-event-message-user";
 	private static final String TEMPLATE_SET_CODE = "gold-hunter-GOLD_HUNTER_ROOKIE_MISSION_ARRIVED_V1";
+	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
 	@Autowired
 	private PlayerService playerService;
@@ -73,7 +74,7 @@ class RookieEventMissionSmartMessageTest {
 				TEMPLATE_SET_CODE,
 				Map.of("day", "1")));
 		var player = playerRepository.findByUserKey(USER_KEY).orElseThrow();
-		assertThat(player.getRookieEventMissionMessageSentDate()).isEqualTo(LocalDate.now(Clock.systemUTC()));
+		assertThat(player.getRookieEventMissionMessageSentDate()).isEqualTo(todayInSeoul());
 		assertThat(player.getRookieEventMissionMessageSentDay()).isEqualTo(1);
 
 		assertThat(playerService.publishRookieEventMissionNotifications()).isZero();
@@ -87,7 +88,7 @@ class RookieEventMissionSmartMessageTest {
 		playerService.markRookieEventMissionNotificationAgreed(USER_KEY);
 		transactionTemplate.executeWithoutResult(status -> {
 			var player = playerRepository.findByUserKey(USER_KEY).orElseThrow();
-			player.completeRookieEventDay(LocalDate.now(Clock.systemUTC()), Instant.now(), 7);
+			player.completeRookieEventDay(todayInSeoul(), Instant.now(), 7);
 		});
 
 		assertThat(playerService.publishRookieEventMissionNotifications()).isZero();
@@ -97,8 +98,12 @@ class RookieEventMissionSmartMessageTest {
 	private void startRookieEvent(String userKey) {
 		transactionTemplate.executeWithoutResult(status -> {
 			var player = playerRepository.findByUserKey(userKey).orElseThrow();
-			player.startRookieEvent(Instant.now().minusSeconds(60), LocalDate.now(Clock.systemUTC()));
+			player.startRookieEvent(Instant.now().minusSeconds(60), todayInSeoul());
 		});
+	}
+
+	private LocalDate todayInSeoul() {
+		return LocalDate.now(SEOUL_ZONE);
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
