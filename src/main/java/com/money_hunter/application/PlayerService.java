@@ -2175,8 +2175,9 @@ public class PlayerService {
 
 	private long weeklyPunchKingGoldReward(long score) {
 		long clampedScore = Math.max(0, Math.min(score, MAX_COMBAT_POWER));
+		double rewardRatio = Math.sqrt((double) clampedScore / MAX_COMBAT_POWER);
 		return Math.min(WEEKLY_PUNCH_KING_MAX_GOLD_REWARD,
-				clampedScore * WEEKLY_PUNCH_KING_MAX_GOLD_REWARD / MAX_COMBAT_POWER);
+				(long) Math.floor(WEEKLY_PUNCH_KING_MAX_GOLD_REWARD * rewardRatio));
 	}
 
 	private int weeklyPunchKingSkillPointReward(long score) {
@@ -2195,13 +2196,12 @@ public class PlayerService {
 			return 0;
 		}
 		long targetReward = currentReward + 1;
-		return Math.max(1, (targetReward * MAX_COMBAT_POWER + WEEKLY_PUNCH_KING_MAX_GOLD_REWARD - 1)
-				/ WEEKLY_PUNCH_KING_MAX_GOLD_REWARD);
+		double targetRatio = (double) targetReward / WEEKLY_PUNCH_KING_MAX_GOLD_REWARD;
+		return Math.max(1, (long) Math.ceil(targetRatio * targetRatio * MAX_COMBAT_POWER));
 	}
 
 	private long weeklyPunchKingGoldRewardScoreStep() {
-		return Math.max(1, (MAX_COMBAT_POWER + WEEKLY_PUNCH_KING_MAX_GOLD_REWARD - 1)
-				/ WEEKLY_PUNCH_KING_MAX_GOLD_REWARD);
+		return nextWeeklyPunchKingGoldRewardScore(0);
 	}
 
 	private int nextWeeklyPunchKingSkillPointScore(long bestScore) {

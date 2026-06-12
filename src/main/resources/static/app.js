@@ -65,6 +65,12 @@ const state = {
   showDummyBanner: false,
   bgmMuted: false,
   bgmStarted: false,
+  activeScreenBgm: null,
+  screenAudio: {},
+  sfxPool: {},
+  sfxBuffers: {},
+  sfxBufferPromises: {},
+  activeSfxSources: new Set(),
   soundContext: null,
   pageVisible: !document.hidden,
   featureTutorialStarted: false,
@@ -134,6 +140,7 @@ const state = {
 	    remainingMs: 0,
 	    heroY: 0,
 	    velocityY: 0,
+	    jumpQueuedUntil: 0,
 	    obstacleX: 0,
 	    obstacleSpeed: 0,
 	    lastFrameAt: 0,
@@ -377,20 +384,54 @@ const punchKingUltimateVideos = {
   ROGUE: `/assets/punchking/thief-ultimate-skill.mp4?v=${punchKingAssetVersion}`,
 };
 const punchKingMonsterImage = `/assets/punchking/monster-transparent.png?v=${punchKingAssetVersion}`;
+const punchKingBackgroundImage = "/assets/punchking/weekly-punchking-background.png?v=20260610-02";
+const punchKingUltimateButtonImage = "/assets/punchking/ultimate-skill-button.png?v=20260610-02";
+const gameAudioAssetVersion = "20260612-03";
+const gameAudio = {
+  miniGameBgm: `/assets/audio/mini-game-bgm.m4a?v=${gameAudioAssetVersion}`,
+  jump: [
+    `/assets/audio/jump-1.m4a?v=${gameAudioAssetVersion}`,
+    `/assets/audio/jump-2.m4a?v=${gameAudioAssetVersion}`,
+  ],
+  punchKingBgm: `/assets/audio/punch-king-bgm.mp3?v=${gameAudioAssetVersion}`,
+  punchKingAttack: {
+    WARRIOR: `/assets/audio/attack-warrior.mp3?v=${gameAudioAssetVersion}`,
+    ARCHER: `/assets/audio/attack-ranged.mp3?v=${gameAudioAssetVersion}`,
+    MAGE: `/assets/audio/attack-mage.mp3?v=${gameAudioAssetVersion}`,
+    ROGUE: `/assets/audio/attack-ranged.mp3?v=${gameAudioAssetVersion}`,
+  },
+};
+const miniGameBgmVolume = 0.48;
+const miniGameJumpSfxVolume = 0.7;
+const punchKingBgmVolume = 0.5;
+const punchKingUltimateBgmVolume = 0.32;
+const punchKingAttackSfxVolume = 0.5;
 const miniGameGravity = 0.00215;
 const miniGameJumpVelocity = 0.84;
+const miniGameJumpGroundTolerance = 10;
+const miniGameJumpBufferMs = 140;
 const miniGameBaseObstacleSpeed = 0.3;
 const miniGameMaxObstacleSpeed = 0.68;
 const miniGameObstacleAccelerationPower = 1.55;
-const miniGameHeroX = 72;
-const miniGameAssetVersion = "20260611-01";
-const miniGameDummyObstacleImage = `/assets/mini-game/training-dummy.png?v=${miniGameAssetVersion}`;
-const miniGameArrowObstacleImage = `/assets/mini-game/arrow.png?v=${miniGameAssetVersion}`;
+const miniGameHeroMetrics = {
+  left: 34,
+  width: 92,
+  height: 102,
+  bottomOffset: 2,
+  hitbox: { left: 14, right: 14, top: 16, bottom: 12 },
+};
+const miniGameAssetVersion = "20260611-02";
+const miniGameBackgroundImage = "/assets/mini-game/jump-map-game.jpg?v=20260611-03";
+const miniGameDummyObstacleImage = `/assets/mini-game/training-dummy-game.png?v=${miniGameAssetVersion}`;
+const miniGameArrowObstacleImage = `/assets/mini-game/arrow-game.png?v=${miniGameAssetVersion}`;
 const miniGameArrowObstacleChance = 0.2;
 const miniGameObstacleTypes = {
   dummy: {
     image: miniGameDummyObstacleImage,
     className: "is-dummy",
+    width: 88,
+    height: 90,
+    bottomOffset: 0,
     exitOffset: 96,
     hitbox: { left: 0.28, right: 0.2, top: 0.2, bottom: 0.09 },
     failMessage: "허수아비에 부딪혔어요.",
@@ -398,13 +439,16 @@ const miniGameObstacleTypes = {
   arrow: {
     image: miniGameArrowObstacleImage,
     className: "is-arrow",
+    width: 150,
+    height: 44,
+    bottomOffset: 122,
     exitOffset: 176,
     hitbox: { left: 0.08, right: 0.05, top: 0.28, bottom: 0.28 },
     failMessage: "공중 화살에 맞았어요.",
   },
 };
-const miniGameMapSize = { width: 941, height: 1672 };
-const miniGameGroundImageY = 1170;
+const miniGameMapSize = { width: 720, height: 1280 };
+const miniGameGroundImageY = 896;
 const miniGameBackgroundPositionY = 0.58;
 const punchKingMinAttackIntervalMs = 450;
 const punchKingHoldAttackIntervalMs = 500;
@@ -1009,11 +1053,12 @@ function positionFeatureTutorial() {
 
 function syncBgmState() {
   const audio = $("bgmAudio");
-  audio.volume = 0.35;
+  audio.volume = 0.42;
   audio.muted = !canPlaySound();
   $("muteToggle").classList.toggle("is-muted", state.bgmMuted);
   $("muteToggle").textContent = state.bgmMuted ? "♪" : "♫";
   $("muteToggle").setAttribute("aria-label", state.bgmMuted ? "BGM 켜기" : "BGM 음소거");
+  syncScreenAudioState();
 }
 
 function canPlaySound() {
@@ -1021,7 +1066,10 @@ function canPlaySound() {
 }
 
 function resumeAudioContext() {
-  state.soundContext?.resume?.().catch(() => {});
+  const context = audioContext();
+  if (context?.state === "suspended") {
+    context.resume?.().catch(() => {});
+  }
 }
 
 function playBgmWithRetry(audio, retry = false) {
@@ -1041,9 +1089,316 @@ function playBgmWithRetry(audio, retry = false) {
   state.bgmStarted = true;
 }
 
+function gameAudioElement(key, src, options = {}) {
+  if (!state.screenAudio[key]) {
+    const audio = new Audio(src);
+    audio.preload = options.preload || "auto";
+    audio.loop = Boolean(options.loop);
+    audio.volume = Number(options.volume ?? 0.55);
+    state.screenAudio[key] = audio;
+  }
+  return state.screenAudio[key];
+}
+
+function playScreenBgm(key, src, options = {}) {
+  const audio = gameAudioElement(key, src, {
+    loop: true,
+    preload: "auto",
+    volume: options.volume ?? 0.45,
+  });
+  state.activeScreenBgm = key;
+  $("bgmAudio").pause?.();
+  audio.loop = true;
+  audio.volume = Number(options.volume ?? audio.volume ?? 0.45);
+  audio.muted = !canPlaySound();
+  if (!canPlaySound()) {
+    return;
+  }
+  resumeAudioContext();
+  audio.play?.().catch(() => {});
+}
+
+function stopScreenBgm(key, options = {}) {
+  const audio = state.screenAudio[key];
+  if (!audio) {
+    return;
+  }
+  audio.pause?.();
+  if (options.reset !== false) {
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // Some WebViews do not allow seeking before metadata is ready.
+    }
+  }
+  if (state.activeScreenBgm === key) {
+    state.activeScreenBgm = null;
+  }
+  if (!state.activeScreenBgm && canPlaySound()) {
+    startBgm({ retry: true });
+  }
+}
+
+function setScreenBgmVolume(key, volume) {
+  const audio = state.screenAudio?.[key];
+  if (!audio) {
+    return;
+  }
+  audio.volume = Math.max(0, Math.min(1, Number(volume || 0)));
+}
+
+function duckPunchKingBgmForUltimate() {
+  setScreenBgmVolume("punchKing", punchKingUltimateBgmVolume);
+}
+
+function restorePunchKingBgmAfterUltimate(options = {}) {
+  const audio = state.screenAudio?.punchKing;
+  if (!audio) {
+    return;
+  }
+  audio.volume = punchKingBgmVolume;
+  audio.muted = !canPlaySound();
+  if (options.ensurePlaying === false || state.activeScreenBgm !== "punchKing" || !canPlaySound()) {
+    return;
+  }
+  resumeAudioContext();
+  audio.play?.().catch(() => {});
+}
+
+function clearPunchKingUltimateBgmRestoreTimer(run = state.punchKing) {
+  if (!run?.ultimateBgmRestoreTimer) {
+    return;
+  }
+  window.clearTimeout(run.ultimateBgmRestoreTimer);
+  run.ultimateBgmRestoreTimer = 0;
+}
+
+function syncScreenAudioState() {
+  Object.entries(state.screenAudio || {}).forEach(([key, audio]) => {
+    audio.muted = !canPlaySound();
+    if (!canPlaySound()) {
+      audio.pause?.();
+      return;
+    }
+    if (state.activeScreenBgm === key && audio.loop) {
+      audio.play?.().catch(() => {});
+    }
+  });
+}
+
+function preloadGameAudio(src) {
+  try {
+    const audio = new Audio(src);
+    audio.preload = "auto";
+    audio.load?.();
+  } catch {
+    // Audio preloading is best-effort.
+  }
+}
+
+function decodeSfxArrayBuffer(context, arrayBuffer) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (buffer) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(buffer);
+    };
+    const fail = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(error);
+    };
+    try {
+      const decodePromise = context.decodeAudioData(arrayBuffer, done, fail);
+      if (decodePromise?.then) {
+        decodePromise.then(done).catch(fail);
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
+function preloadSfxBuffer(src) {
+  if (!src) {
+    return Promise.resolve(null);
+  }
+  const context = audioContext();
+  if (!context) {
+    return Promise.resolve(null);
+  }
+  if (state.sfxBuffers[src]) {
+    return Promise.resolve(state.sfxBuffers[src]);
+  }
+  if (state.sfxBufferPromises[src]) {
+    return state.sfxBufferPromises[src];
+  }
+  state.sfxBufferPromises[src] = fetch(src, { cache: "force-cache" })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Audio preload failed: ${response.status}`);
+      }
+      return response.arrayBuffer();
+    })
+    .then((arrayBuffer) => decodeSfxArrayBuffer(context, arrayBuffer))
+    .then((buffer) => {
+      state.sfxBuffers[src] = buffer;
+      return buffer;
+    })
+    .catch(() => null)
+    .finally(() => {
+      delete state.sfxBufferPromises[src];
+    });
+  return state.sfxBufferPromises[src];
+}
+
+function preloadSfxBuffers(sources = []) {
+  Array.from(new Set(sources.filter(Boolean))).forEach((src) => {
+    preloadSfxBuffer(src);
+  });
+}
+
+function playBufferedSfx(src, options = {}) {
+  const context = audioContext();
+  const buffer = state.sfxBuffers[src];
+  if (!context || !buffer) {
+    return false;
+  }
+  if (context.state === "closed") {
+    return false;
+  }
+  const source = context.createBufferSource();
+  const gain = context.createGain();
+  const cleanup = () => {
+    if (source._moneyHunterSfxCleaned) {
+      return;
+    }
+    source._moneyHunterSfxCleaned = true;
+    if (source._moneyHunterSfxCleanupTimer) {
+      window.clearTimeout(source._moneyHunterSfxCleanupTimer);
+      source._moneyHunterSfxCleanupTimer = 0;
+    }
+    state.activeSfxSources.delete(source);
+    try {
+      source.disconnect();
+    } catch {
+      // The node may already be disconnected.
+    }
+    try {
+      gain.disconnect();
+    } catch {
+      // The node may already be disconnected.
+    }
+  };
+  gain.gain.value = Math.max(0, Math.min(1, Number(options.volume ?? 0.75)));
+  source.buffer = buffer;
+  source.connect(gain).connect(context.destination);
+  state.activeSfxSources.add(source);
+  source.onended = cleanup;
+  source._moneyHunterSfxGain = gain;
+  source._moneyHunterSfxCleanupTimer = window.setTimeout(
+    cleanup,
+    Math.max(120, Math.ceil(buffer.duration * 1000) + 180),
+  );
+  try {
+    source.start(0);
+  } catch {
+    cleanup();
+    return false;
+  }
+  if (context.state === "suspended") {
+    context.resume?.().catch(cleanup);
+  }
+  return true;
+}
+
+function playHtmlSfx(key, src, options = {}) {
+  const poolSize = Math.max(1, Number(options.poolSize || 3));
+  const maxPoolSize = Math.max(poolSize, Number(options.maxPoolSize || Math.min(12, poolSize * 2)));
+  if (!state.sfxPool[key]) {
+    state.sfxPool[key] = Array.from({ length: poolSize }, () => {
+      const audio = new Audio(src);
+      audio.preload = "auto";
+      audio.volume = Number(options.volume ?? 0.75);
+      audio.load?.();
+      return audio;
+    });
+  }
+  const pool = state.sfxPool[key];
+  let audio = pool.find((item) => item.paused || item.ended);
+  if (!audio && pool.length < maxPoolSize) {
+    audio = new Audio(src);
+    audio.preload = "auto";
+    audio.volume = Number(options.volume ?? 0.75);
+    audio.load?.();
+    pool.push(audio);
+  }
+  if (!audio) {
+    audio = pool.reduce((oldest, item) => (
+      Number(item._moneyHunterLastUsedAt || 0) < Number(oldest._moneyHunterLastUsedAt || 0)
+        ? item
+        : oldest
+    ), pool[0]);
+    audio.pause?.();
+  }
+  audio._moneyHunterLastUsedAt = performance?.now?.() || Date.now();
+  audio.muted = !canPlaySound();
+  audio.volume = Number(options.volume ?? audio.volume ?? 0.75);
+  try {
+    audio.currentTime = 0;
+  } catch {
+    // Some mobile WebViews only allow reset after playback starts.
+  }
+  audio.play?.().catch(() => {});
+}
+
+function playSfx(key, src, options = {}) {
+  if (!canPlaySound()) {
+    return;
+  }
+  if (playBufferedSfx(src, options)) {
+    return;
+  }
+  preloadSfxBuffer(src);
+  playHtmlSfx(key, src, options);
+}
+
+function stopActiveSfx() {
+  state.activeSfxSources?.forEach((source) => {
+    if (source._moneyHunterSfxCleanupTimer) {
+      window.clearTimeout(source._moneyHunterSfxCleanupTimer);
+      source._moneyHunterSfxCleanupTimer = 0;
+    }
+    try {
+      source.stop(0);
+    } catch {
+      // The source may already have ended.
+    }
+    try {
+      source.disconnect?.();
+      source._moneyHunterSfxGain?.disconnect?.();
+    } catch {
+      // Ignore disconnected nodes.
+    }
+  });
+  state.activeSfxSources?.clear?.();
+  Object.values(state.sfxPool || {}).flat().forEach((audio) => {
+    audio.pause?.();
+  }
+  );
+}
+
 function startBgm(options = {}) {
   syncBgmState();
   if (!canPlaySound()) {
+    return;
+  }
+  if (state.activeScreenBgm) {
     return;
   }
   const audio = $("bgmAudio");
@@ -1058,6 +1413,9 @@ function toggleBgmMute() {
   state.bgmMuted = !state.bgmMuted;
   storeValue(bgmMutedStorageKey, String(state.bgmMuted));
   syncBgmState();
+  if (state.bgmMuted) {
+    stopActiveSfx();
+  }
   if (!state.bgmMuted) {
     state.bgmStarted = false;
     startBgm();
@@ -1076,6 +1434,8 @@ function syncPageSoundState(visible = !document.hidden) {
     return;
   }
   audio.pause?.();
+  syncScreenAudioState();
+  stopActiveSfx();
   state.soundContext?.suspend?.().catch(() => {});
 }
 
@@ -1100,7 +1460,7 @@ function audioContext() {
   if (!AudioContextType) {
     return null;
   }
-  if (!state.soundContext) {
+  if (!state.soundContext || state.soundContext.state === "closed") {
     state.soundContext = new AudioContextType();
   }
   return state.soundContext;
@@ -2214,6 +2574,21 @@ function scheduleAdventureImagePreloads() {
 	setTimeout(preload, 900);
 }
 
+function preloadAdventurePanelAssets() {
+  if (!preloadAdventurePanelAssets.done) {
+    preloadAdventurePanelAssets.done = true;
+    preloadMiniGameAssets();
+    [
+      punchKingBackgroundImage,
+      punchKingMonsterImage,
+      punchKingUltimateButtonImage,
+    ].forEach(preloadImage);
+  }
+  const hero = jobMeta[state.player?.job || state.selectedJob || "WARRIOR"] || jobMeta.WARRIOR;
+  [hero.image, hero.arm].filter(Boolean).forEach(preloadImage);
+  preloadPunchKingVideos();
+}
+
 function setAdventureActionScene(kind, scene) {
 	const fallback = adventureSceneSpecs[kind]?.fallback || adventureAssets.dungeon;
 	const image = scene?.image || fallback;
@@ -2372,13 +2747,15 @@ function openMiniGameScreen(options = {}) {
   const unlimitedContinue = Boolean(options.unlimitedContinue);
   const hero = jobMeta[state.player?.job || state.selectedJob || "WARRIOR"] || jobMeta.WARRIOR;
   const totalMs = Math.max(1, Number(miniGame.clearSeconds || 90)) * 1000;
+  preloadMiniGameAssets();
+  playScreenBgm("miniGame", gameAudio.miniGameBgm, { volume: miniGameBgmVolume });
   $("miniGameHero").src = hero.miniGameImage || hero.image;
   setMiniGameResultVisible(false);
   $("miniGameScreen").classList.remove("is-running");
   $("miniGameStartPrompt").classList.remove("hidden");
   $("miniGameScreen").classList.remove("hidden");
   updateMiniGameGroundLine();
-  const stageWidth = $("miniGameStage").clientWidth || $("miniGameScreen").clientWidth || window.innerWidth || 360;
+  const stageWidth = miniGameStageWidth();
   state.miniGame = {
     active: false,
     started: false,
@@ -2387,6 +2764,7 @@ function openMiniGameScreen(options = {}) {
     remainingMs: totalMs,
     heroY: 0,
     velocityY: 0,
+    jumpQueuedUntil: 0,
     obstacleX: Math.max(280, stageWidth) + 90,
     obstacleSpeed: miniGameBaseObstacleSpeed,
     lastFrameAt: performance.now(),
@@ -2397,6 +2775,10 @@ function openMiniGameScreen(options = {}) {
     continueUsed: false,
     unlimitedContinue,
     obstacleType: "dummy",
+    stageWidth,
+    clockKey: "",
+    heroEl: $("miniGameHero"),
+    obstacleEl: $("miniGameObstacle"),
   };
   resetMiniGameObstacle(state.miniGame, stageWidth);
   $("miniGameHero").style.transform = "translateY(0)";
@@ -2404,7 +2786,11 @@ function openMiniGameScreen(options = {}) {
   $("miniGameStartCopy").textContent = practice
     ? "연습 모드에서는 SP 보상이 지급되지 않아요."
     : "장애물을 피하고 1분 30초를 버티면 SP 1개를 받아요.";
-  updateMiniGameClock();
+  updateMiniGameClock(state.miniGame, true);
+}
+
+function miniGameStageWidth() {
+  return $("miniGameStage").clientWidth || $("miniGameScreen").clientWidth || window.innerWidth || 360;
 }
 
 function updateMiniGameGroundLine() {
@@ -2434,21 +2820,40 @@ function miniGameObstacleDefinition(type = "dummy") {
 function applyMiniGameObstacleType(game, type = chooseMiniGameObstacleType()) {
   const key = miniGameObstacleTypes[type] ? type : "dummy";
   const definition = miniGameObstacleDefinition(key);
-  const obstacle = $("miniGameObstacle");
+  const obstacle = game.obstacleEl || $("miniGameObstacle");
   game.obstacleType = key;
-  obstacle.src = definition.image;
-  obstacle.dataset.obstacle = key;
-  Object.values(miniGameObstacleTypes).forEach((obstacleType) => {
-    obstacle.classList.remove(obstacleType.className);
-  });
-  obstacle.classList.add(definition.className);
+  if (obstacle.dataset.obstacle !== key) {
+    obstacle.src = definition.image;
+    obstacle.dataset.obstacle = key;
+    Object.values(miniGameObstacleTypes).forEach((obstacleType) => {
+      obstacle.classList.remove(obstacleType.className);
+    });
+    obstacle.classList.add(definition.className);
+  }
   obstacle.style.transform = `translateX(${game.obstacleX}px)`;
 }
 
-function resetMiniGameObstacle(game, stageWidth = $("miniGameStage").clientWidth || 360) {
+function preloadMiniGameAssets() {
+  if (preloadMiniGameAssets.done) {
+    return;
+  }
+  preloadMiniGameAssets.done = true;
+  [
+    miniGameBackgroundImage,
+    ...Object.values(miniGameObstacleTypes).map((definition) => definition.image),
+  ].forEach(preloadImage);
+  [
+    gameAudio.miniGameBgm,
+    ...gameAudio.jump,
+  ].forEach(preloadGameAudio);
+  preloadSfxBuffers(gameAudio.jump);
+}
+
+function resetMiniGameObstacle(game, stageWidth = miniGameStageWidth()) {
   if (!game) {
     return;
   }
+  game.stageWidth = stageWidth;
   game.obstacleX = Math.max(280, stageWidth) + 80 + Math.random() * 140;
   applyMiniGameObstacleType(game);
 }
@@ -2466,15 +2871,21 @@ function stopMiniGameLoop() {
 
 function closeMiniGameScreen() {
   stopMiniGameLoop();
+  stopScreenBgm("miniGame");
   setMiniGameResultVisible(false);
   $("miniGameScreen").classList.remove("is-running");
   $("miniGameScreen").classList.add("hidden");
+  render();
 }
 
 function handleMiniGameTap(event) {
+  if (event?.type === "pointerdown" && event.button > 0) {
+    return;
+  }
   if (event?.target?.closest("button, .mini-game-result, .mini-game-top")) {
     return;
   }
+  event?.preventDefault?.();
   const game = state.miniGame;
   if (!game || game.resultOpen || game.clearing) {
     return;
@@ -2502,10 +2913,41 @@ function startMiniGameRun() {
 
 function miniGameJump() {
   const game = state.miniGame;
-  if (!game?.active || game.resultOpen || game.clearing || game.heroY > 2) {
+  if (!game?.active || game.resultOpen || game.clearing) {
     return;
   }
+  if (!canStartMiniGameJump(game)) {
+    if (game.velocityY <= 0) {
+      game.jumpQueuedUntil = performance.now() + miniGameJumpBufferMs;
+    }
+    return;
+  }
+  startMiniGameJump(game);
+}
+
+function canStartMiniGameJump(game) {
+  return Boolean(game)
+    && (game.heroY <= 0 || (game.heroY <= miniGameJumpGroundTolerance && game.velocityY <= 0));
+}
+
+function startMiniGameJump(game = state.miniGame) {
+  if (!game) {
+    return;
+  }
+  game.heroY = Math.max(0, Math.min(game.heroY || 0, miniGameJumpGroundTolerance));
   game.velocityY = miniGameJumpVelocity;
+  game.jumpQueuedUntil = 0;
+  playMiniGameJumpSfx();
+}
+
+function playMiniGameJumpSfx() {
+  const index = Math.random() < 0.5 ? 0 : 1;
+  const src = gameAudio.jump[index] || gameAudio.jump[0];
+  playSfx(`miniGameJump${index}`, src, {
+    volume: miniGameJumpSfxVolume,
+    poolSize: 5,
+    maxPoolSize: 12,
+  });
 }
 
 function tickMiniGame(now) {
@@ -2514,6 +2956,10 @@ function tickMiniGame(now) {
     return;
   }
   const delta = Math.min(40, Math.max(0, now - game.lastFrameAt));
+  if (delta <= 0) {
+    game.rafId = requestAnimationFrame(tickMiniGame);
+    return;
+  }
   game.lastFrameAt = now;
   game.remainingMs = Math.max(0, game.remainingMs - delta);
   const elapsedRatio = Math.max(0, Math.min(1, 1 - game.remainingMs / miniGameTotalMs(game)));
@@ -2522,16 +2968,23 @@ function tickMiniGame(now) {
   game.obstacleX -= game.obstacleSpeed * delta;
   const obstacleDefinition = miniGameObstacleDefinition(game.obstacleType);
   if (game.obstacleX < -obstacleDefinition.exitOffset) {
-    resetMiniGameObstacle(game, $("miniGameStage").clientWidth || 360);
+    resetMiniGameObstacle(game, game.stageWidth || miniGameStageWidth());
   }
   game.velocityY -= miniGameGravity * delta;
   game.heroY = Math.max(0, game.heroY + game.velocityY * delta);
   if (game.heroY <= 0) {
     game.heroY = 0;
     game.velocityY = 0;
+    if (game.jumpQueuedUntil && now <= game.jumpQueuedUntil) {
+      startMiniGameJump(game);
+    } else {
+      game.jumpQueuedUntil = 0;
+    }
+  } else if (game.jumpQueuedUntil && now > game.jumpQueuedUntil) {
+    game.jumpQueuedUntil = 0;
   }
-  $("miniGameHero").style.transform = `translateY(${-game.heroY}px)`;
-  $("miniGameObstacle").style.transform = `translateX(${game.obstacleX}px)`;
+  (game.heroEl || $("miniGameHero")).style.transform = `translate3d(0, ${-game.heroY}px, 0)`;
+  (game.obstacleEl || $("miniGameObstacle")).style.transform = `translate3d(${game.obstacleX}px, 0, 0)`;
   updateMiniGameClock(game);
   if (miniGameCollided()) {
     failMiniGame(miniGameObstacleDefinition(game.obstacleType).failMessage);
@@ -2544,26 +2997,31 @@ function tickMiniGame(now) {
   game.rafId = requestAnimationFrame(tickMiniGame);
 }
 
-function miniGameCollided() {
-  const hero = $("miniGameHero").getBoundingClientRect();
-  const obstacle = $("miniGameObstacle").getBoundingClientRect();
-  const obstacleHitboxOffset = miniGameObstacleDefinition(state.miniGame?.obstacleType).hitbox;
+function miniGameCollided(game = state.miniGame) {
+  if (!game) {
+    return false;
+  }
+  const obstacleDefinition = miniGameObstacleDefinition(game.obstacleType);
+  const heroHitboxOffset = miniGameHeroMetrics.hitbox;
+  const obstacleHitboxOffset = obstacleDefinition.hitbox;
+  const heroBottom = miniGameHeroMetrics.bottomOffset + game.heroY;
+  const obstacleBottom = obstacleDefinition.bottomOffset;
   const heroHitbox = {
-    left: hero.left + 14,
-    right: hero.right - 14,
-    top: hero.top + 16,
-    bottom: hero.bottom - 12,
+    left: miniGameHeroMetrics.left + heroHitboxOffset.left,
+    right: miniGameHeroMetrics.left + miniGameHeroMetrics.width - heroHitboxOffset.right,
+    top: heroBottom + miniGameHeroMetrics.height - heroHitboxOffset.top,
+    bottom: heroBottom + heroHitboxOffset.bottom,
   };
   const obstacleHitbox = {
-    left: obstacle.left + obstacle.width * obstacleHitboxOffset.left,
-    right: obstacle.right - obstacle.width * obstacleHitboxOffset.right,
-    top: obstacle.top + obstacle.height * obstacleHitboxOffset.top,
-    bottom: obstacle.bottom - obstacle.height * obstacleHitboxOffset.bottom,
+    left: game.obstacleX + obstacleDefinition.width * obstacleHitboxOffset.left,
+    right: game.obstacleX + obstacleDefinition.width - obstacleDefinition.width * obstacleHitboxOffset.right,
+    top: obstacleBottom + obstacleDefinition.height - obstacleDefinition.height * obstacleHitboxOffset.top,
+    bottom: obstacleBottom + obstacleDefinition.height * obstacleHitboxOffset.bottom,
   };
   return heroHitbox.left < obstacleHitbox.right
     && heroHitbox.right > obstacleHitbox.left
-    && heroHitbox.bottom > obstacleHitbox.top
-    && heroHitbox.top < obstacleHitbox.bottom;
+    && heroHitbox.bottom < obstacleHitbox.top
+    && heroHitbox.top > obstacleHitbox.bottom;
 }
 
 function failMiniGame(message) {
@@ -2646,8 +3104,15 @@ function miniGameRunStats(game = state.miniGame) {
   };
 }
 
-function updateMiniGameClock(game = state.miniGame) {
+function updateMiniGameClock(game = state.miniGame, force = false) {
   const { survivedSeconds, remainingSeconds } = miniGameRunStats(game);
+  const clockKey = `${survivedSeconds}:${remainingSeconds}`;
+  if (!force && game?.clockKey === clockKey) {
+    return;
+  }
+  if (game) {
+    game.clockKey = clockKey;
+  }
   $("miniGameTimer").textContent = stopwatchLabel(remainingSeconds);
   $("miniGameSurvived").textContent = preciseDurationLabel(survivedSeconds);
 }
@@ -2673,13 +3138,14 @@ function resumeMiniGameAfterAd(options = {}) {
   if (options.unlimitedContinue) {
     game.unlimitedContinue = true;
   }
-  const stageWidth = $("miniGameStage").clientWidth || 360;
+  const stageWidth = miniGameStageWidth();
   updateMiniGameGroundLine();
   game.active = true;
   game.started = true;
   game.resultOpen = false;
   game.heroY = 0;
   game.velocityY = 0;
+  game.jumpQueuedUntil = 0;
   game.obstacleSpeed = miniGameBaseObstacleSpeed;
   resetMiniGameObstacle(game, stageWidth);
   game.lastFrameAt = performance.now();
@@ -2687,7 +3153,7 @@ function resumeMiniGameAfterAd(options = {}) {
   $("miniGameStartPrompt").classList.add("hidden");
   $("miniGameHero").style.transform = "translateY(0)";
   setMiniGameResultVisible(false);
-  updateMiniGameClock(game);
+  updateMiniGameClock(game, true);
   tickMiniGame(performance.now());
 }
 
@@ -2702,13 +3168,14 @@ function prepareMiniGameResumeAfterAd(options = {}) {
   if (options.unlimitedContinue) {
     game.unlimitedContinue = true;
   }
-  const stageWidth = $("miniGameStage").clientWidth || 360;
+  const stageWidth = miniGameStageWidth();
   updateMiniGameGroundLine();
   game.active = false;
   game.started = false;
   game.resultOpen = false;
   game.heroY = 0;
   game.velocityY = 0;
+  game.jumpQueuedUntil = 0;
   game.obstacleSpeed = miniGameBaseObstacleSpeed;
   resetMiniGameObstacle(game, stageWidth);
   game.lastFrameAt = performance.now();
@@ -2718,7 +3185,7 @@ function prepareMiniGameResumeAfterAd(options = {}) {
   $("miniGameStartCopy").textContent = `남은 시간 ${preciseDurationLabel(miniGameRunStats(game).remainingSeconds)}부터 이어서 도전해요.`;
   $("miniGameHero").style.transform = "translateY(0)";
   setMiniGameResultVisible(false);
-  updateMiniGameClock(game);
+  updateMiniGameClock(game, true);
 }
 
 function continueMiniGameAfterAd() {
@@ -2767,15 +3234,19 @@ function openWeeklyPunchKingScreen() {
     setMessage("직업 선택 후 주간 펀치킹에 도전할 수 있어요.");
     return;
   }
-  preloadPunchKingVideos();
   resetPunchKingUi();
+  preloadPunchKingVideos();
+  preloadPunchKingAudio();
+  playScreenBgm("punchKing", gameAudio.punchKingBgm, { volume: punchKingBgmVolume });
   $("weeklyPunchKingScreen").classList.remove("hidden");
 }
 
 function closeWeeklyPunchKingScreen() {
   stopPunchKingLoop();
+  stopScreenBgm("punchKing");
   setPunchKingResultVisible(false);
   $("weeklyPunchKingScreen").classList.add("hidden");
+  render();
 }
 
 function resetPunchKingUi(options = {}) {
@@ -2869,11 +3340,14 @@ function startPunchKingRun() {
   $("weeklyPunchKingScreen").classList.add("is-running");
   $("punchKingStartPrompt").classList.add("hidden");
   $("punchKingUltimate").disabled = true;
+  preparePunchKingUltimateVideo({ forceLoad: true, resetTime: true });
   tickPunchKing(performance.now());
 }
 
 function stopPunchKingLoop() {
   stopPunchKingHoldAttack();
+  clearPunchKingUltimateBgmRestoreTimer();
+  restorePunchKingBgmAfterUltimate({ ensurePlaying: false });
   if (state.punchKing?.attackTimer) {
     window.clearTimeout(state.punchKing.attackTimer);
     state.punchKing.attackTimer = 0;
@@ -2893,6 +3367,7 @@ function stopPunchKingLoop() {
   const video = $("punchKingUltimateVideo");
   video.pause?.();
   video.classList.remove("is-playing", "is-fading");
+  clearPunchKingUltimateFallbackEffects();
   $("weeklyPunchKingScreen").classList.remove("is-ultimate-playing");
 }
 
@@ -3041,6 +3516,7 @@ function attackPunchKing() {
 
 function playPunchKingAttackMotion() {
   const run = state.punchKing;
+  playPunchKingAttackSfx();
   if (run?.hitTimer) {
     window.clearTimeout(run.hitTimer);
     run.hitTimer = 0;
@@ -3075,6 +3551,12 @@ function playPunchKingAttackMotion() {
     run.hitTimer = hitTimer;
     run.attackTimer = attackTimer;
   }
+}
+
+function playPunchKingAttackSfx() {
+  const job = activeJob();
+  const src = gameAudio.punchKingAttack[job] || gameAudio.punchKingAttack.WARRIOR;
+  playSfx(`punchKingAttack${job}`, src, { volume: punchKingAttackSfxVolume, poolSize: 4 });
 }
 
 function spawnPunchKingProjectile() {
@@ -3167,18 +3649,134 @@ function punchKingUltimateDamage() {
   return base + Math.floor(base * 0.45 * unlockedPetCount(state.player));
 }
 
-function usePunchKingUltimate() {
+function shouldMutePunchKingUltimateVideo() {
+  return !canPlaySound();
+}
+
+function shouldUsePunchKingUltimateFallback() {
+  return !window.HTMLVideoElement;
+}
+
+function configureInlinePunchKingVideo(video) {
+  if (!video) {
+    return;
+  }
+  video.controls = false;
+  video.disablePictureInPicture = true;
+  video.disableRemotePlayback = true;
+  video.playsInline = true;
+  video.autoplay = false;
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
+  video.setAttribute("x5-playsinline", "");
+  video.setAttribute("x5-video-player-type", "h5-page");
+  video.setAttribute("x5-video-player-fullscreen", "false");
+  video.setAttribute("x-webkit-airplay", "deny");
+  video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
+  if (video.dataset.inlineGuarded) {
+    return;
+  }
+  video.dataset.inlineGuarded = "true";
+  video.addEventListener("webkitbeginfullscreen", () => {
+    window.setTimeout(() => video.webkitExitFullscreen?.(), 0);
+  });
+}
+
+function clearPunchKingUltimateFallbackEffects() {
+  document.querySelectorAll(".punch-king-mobile-ultimate").forEach((effect) => effect.remove());
+}
+
+function playPunchKingUltimateFallback(run, ultimateDamage, options = {}) {
+  const durationMs = punchKingUltimateScoreAnimationFallbackMs;
+  clearPunchKingUltimateBgmRestoreTimer(run);
+  duckPunchKingBgmForUltimate();
+  clearPunchKingUltimateFallbackEffects();
+  const effect = document.createElement("span");
+  effect.className = `punch-king-mobile-ultimate ${state.player?.job || state.selectedJob || "WARRIOR"}`;
+  $("punchKingSkillEffectLayer").appendChild(effect);
+  if (options.addScore !== false) {
+    addPunchKingScore(ultimateDamage, { animated: true, durationMs });
+  }
+  window.setTimeout(() => {
+    effect.remove();
+    $("weeklyPunchKingScreen").classList.remove("is-ultimate-playing");
+    if (state.punchKing === run) {
+      run.ultimateActive = false;
+    }
+    restorePunchKingBgmAfterUltimate();
+  }, durationMs);
+}
+
+function resetPunchKingVideoTime(video) {
+  try {
+    video.currentTime = 0;
+  } catch {
+    video.addEventListener("loadedmetadata", () => {
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Some mobile webviews only allow seeking after playback starts.
+      }
+    }, { once: true });
+  }
+}
+
+function normalizedMediaSrc(src) {
+  try {
+    return new URL(src, location.href).href;
+  } catch {
+    return String(src || "");
+  }
+}
+
+function preparePunchKingUltimateVideo(options = {}) {
+  const video = $("punchKingUltimateVideo");
+  const src = punchKingUltimateVideoSrc();
+  const targetSrc = normalizedMediaSrc(src);
+  const currentSrc = video.currentSrc || (video.getAttribute("src") ? normalizedMediaSrc(video.getAttribute("src")) : "");
+  const shouldLoad = options.forceLoad || !currentSrc || currentSrc !== targetSrc || video.readyState === 0;
+  configureInlinePunchKingVideo(video);
+  video.preload = "auto";
+  video.muted = shouldMutePunchKingUltimateVideo();
+  if (!video.muted) {
+    video.removeAttribute("muted");
+  }
+  video.volume = 1;
+  if (currentSrc !== targetSrc) {
+    video.setAttribute("src", src);
+  }
+  if (shouldLoad) {
+    video.load?.();
+  }
+  if (options.resetTime) {
+    resetPunchKingVideoTime(video);
+  }
+  return video;
+}
+
+function usePunchKingUltimate(event) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
   const run = state.punchKing;
   if (!run?.active || run.cooldownMs > 0 || run.ultimateActive) {
     return;
   }
   run.ultimateActive = true;
+  duckPunchKingBgmForUltimate();
   $("weeklyPunchKingScreen").classList.add("is-ultimate-playing");
   run.cooldownTotalMs = Math.max(1, Number(state.player?.weeklyPunchKing?.ultimateCooldownSeconds || 30)) * 1000;
   run.cooldownMs = run.cooldownTotalMs;
   const ultimateDamage = punchKingUltimateDamage();
   const video = $("punchKingUltimateVideo");
-  const src = punchKingUltimateVideoSrc();
+  configureInlinePunchKingVideo(video);
+  if (shouldUsePunchKingUltimateFallback()) {
+    video.pause?.();
+    video.removeAttribute("src");
+    video.load?.();
+    video.classList.remove("is-playing", "is-fading");
+    playPunchKingUltimateFallback(run, ultimateDamage);
+    return;
+  }
   let scoreAdded = false;
   let ultimateScoreDurationMs = punchKingUltimateScoreAnimationFallbackMs;
   const readUltimateVideoRemainingMs = () => Number.isFinite(video.duration) && video.duration > 0
@@ -3192,20 +3790,49 @@ function usePunchKingUltimate() {
     ultimateScoreDurationMs = readUltimateVideoRemainingMs();
     addPunchKingScore(ultimateDamage, { animated: true, durationMs: ultimateScoreDurationMs });
   };
+  const scheduleBgmRestoreSafety = () => {
+    clearPunchKingUltimateBgmRestoreTimer(run);
+    const hasDuration = Number.isFinite(video.duration) && video.duration > 0;
+    const remainingMs = hasDuration
+      ? Math.max(1, (video.duration - Math.max(0, video.currentTime || 0)) * 1000)
+      : 12_000;
+    run.ultimateBgmRestoreTimer = window.setTimeout(() => {
+      if (state.punchKing === run && run.ultimateActive && !settled) {
+        finish();
+        return;
+      }
+      restorePunchKingBgmAfterUltimate();
+    }, remainingMs + punchKingUltimateFadeMs + 900);
+  };
   video.classList.remove("is-fading");
-  video.src = src;
-  video.currentTime = 0;
-  video.muted = !canPlaySound();
-  video.volume = 0.9;
-  video.playsInline = true;
+  video.pause?.();
+  preparePunchKingUltimateVideo({ resetTime: true });
+  video.muted = shouldMutePunchKingUltimateVideo();
+  if (!video.muted) {
+    video.removeAttribute("muted");
+  }
+  video.volume = 1;
   video.classList.add("is-playing");
   let settled = false;
+  const playFallback = () => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    clearPunchKingUltimateBgmRestoreTimer(run);
+    video.pause?.();
+    video.removeAttribute("src");
+    video.load?.();
+    video.classList.remove("is-playing", "is-fading");
+    playPunchKingUltimateFallback(run, ultimateDamage, { addScore: !scoreAdded });
+  };
   const finish = () => {
     addUltimateScoreForVideo();
     if (settled) {
       return;
     }
     settled = true;
+    clearPunchKingUltimateBgmRestoreTimer(run);
     video.classList.add("is-fading");
     window.setTimeout(() => {
       video.classList.remove("is-playing", "is-fading");
@@ -3213,30 +3840,33 @@ function usePunchKingUltimate() {
       if (state.punchKing === run) {
         run.ultimateActive = false;
       }
+      restorePunchKingBgmAfterUltimate();
+      preparePunchKingUltimateVideo({ resetTime: true });
     }, punchKingUltimateFadeMs);
   };
   video.onloadedmetadata = () => {
     ultimateScoreDurationMs = readUltimateVideoRemainingMs();
+    scheduleBgmRestoreSafety();
   };
   video.onplaying = addUltimateScoreForVideo;
   video.onended = finish;
+  video.onpause = () => {
+    if (video.ended) {
+      finish();
+    }
+  };
   video.onerror = () => {
-    ultimateScoreDurationMs = 1;
-    addUltimateScoreForVideo();
-    finish();
+    playFallback();
   };
   const playPromise = video.play?.();
   if (playPromise?.catch) {
     playPromise.then?.(addUltimateScoreForVideo);
-    playPromise.catch(() => {
-      ultimateScoreDurationMs = 1;
-      addUltimateScoreForVideo();
-      finish();
-    });
+    playPromise.catch(playFallback);
   }
   if (Number.isFinite(video.duration) && video.duration > 0) {
     ultimateScoreDurationMs = readUltimateVideoRemainingMs();
   }
+  scheduleBgmRestoreSafety();
 }
 
 function punchKingUltimateVideoSrc() {
@@ -3244,14 +3874,29 @@ function punchKingUltimateVideoSrc() {
 }
 
 function preloadPunchKingVideos() {
-  Object.values(punchKingUltimateVideos).forEach((src) => {
+  const currentSrc = punchKingUltimateVideoSrc();
+  preparePunchKingUltimateVideo({ forceLoad: true, resetTime: true });
+  if (shouldMutePunchKingUltimateVideo()) {
+    return;
+  }
+  const sources = shouldMutePunchKingUltimateVideo()
+    ? [punchKingUltimateVideoSrc()]
+    : Object.values(punchKingUltimateVideos).filter((src) => src !== currentSrc);
+  sources.forEach((src) => {
     const video = document.createElement("video");
-    video.preload = "auto";
+    configureInlinePunchKingVideo(video);
+    video.preload = "metadata";
     video.muted = true;
-    video.playsInline = true;
     video.src = src;
     video.load();
   });
+}
+
+function preloadPunchKingAudio() {
+  preloadGameAudio(gameAudio.punchKingBgm);
+  const attackSources = Array.from(new Set(Object.values(gameAudio.punchKingAttack)));
+  attackSources.forEach(preloadGameAudio);
+  preloadSfxBuffers(attackSources);
 }
 
 async function finishPunchKingRun() {
@@ -3473,9 +4118,7 @@ function renderVipShopItem(player) {
   const active = Boolean(vip.active);
   const price = iapDisplayAmount("vipMonthly", vip.priceWon || vipMonthlyPriceWon);
   $("vipMembershipShop").classList.toggle("is-active", active);
-  $("vipMembershipCopy").innerHTML = active
-    ? "매일 혜택과 펫 스킨 해금이<br>적용 중이에요"
-    : "매일 SP, 던전권, 보스권<br>자동사냥권 지급";
+  $("openVipBenefitModal").textContent = active ? "적용 혜택보기" : "혜택 상세보기";
   $("vipMembershipStatus").textContent = active
     ? `활성 · ${vipMembershipRemainingLabel(vip)}`
     : `${price} · 월간 멤버십`;
@@ -3810,7 +4453,7 @@ function renderDailyMissionDetail() {
     eventDetailHeading("일일 미션", mission.completedToday ? "오늘 완료" : `${mission.currentDay || 1}일차 진행 중`),
     eventProgressRow("자동사냥", `${secondsLabel(mission.autoHuntProgressSeconds)} / ${secondsLabel(mission.autoHuntRequiredSeconds)}`, huntPercent),
     eventProgressRow("던전 탐험", `${mission.dungeonRuns || 0} / ${mission.dungeonRunsRequired || 2}회`, dungeonPercent),
-    eventDetailReward("오늘 보상", "골드 1,000G", mission.rewardPending ? "수령함에 준비됨" : mission.completedToday ? "수령함에서 받아요" : "진행 중"),
+    eventDetailReward("오늘 보상", "골드 1,000G", mission.rewardPending ? "지급 완료" : mission.completedToday ? "지급 완료" : "진행 중"),
     eventDetailReward("7일 추가 보상", "골드 4,000G · SP 1개", `${mission.completedDays || 0} / 7일 완료`),
   );
 }
@@ -3922,13 +4565,13 @@ function dailyMissionDayRewardStatus(day, mission) {
     return "이전 일차 완료 후 진행 가능";
   }
   if (day.completed && !day.current) {
-    return "수령함에서 확인";
+    return "지급 완료";
   }
   if (mission.rewardPending) {
-    return "수령함에 준비됨";
+    return "지급 완료";
   }
   if (mission.completedToday) {
-    return "수령함에서 받아요";
+    return "지급 완료";
   }
   return "진행 중";
 }
@@ -3936,10 +4579,10 @@ function dailyMissionDayRewardStatus(day, mission) {
 function dailyMissionFinalRewardStatus(mission) {
   const completedDays = Number(mission?.completedDays || 0);
   if (mission?.finalRewardPending) {
-    return "수령함에 준비됨";
+    return "지급 완료";
   }
   if (completedDays >= 7) {
-    return "수령함에서 확인";
+    return "지급 완료";
   }
   return `${completedDays} / 7일 완료`;
 }
@@ -4029,6 +4672,14 @@ function vipPurchaseButton(price, active) {
   button.disabled = active;
   button.addEventListener("click", () => runVipPurchaseFlow());
   return button;
+}
+
+function openVipBenefitModal() {
+  $("vipBenefitModal").classList.remove("hidden");
+}
+
+function closeVipBenefitModal() {
+  $("vipBenefitModal").classList.add("hidden");
 }
 
 function renderEventRewardInbox(rewards) {
@@ -4807,6 +5458,9 @@ function showContentPanel(panel) {
   document.querySelector(".content-scroll")?.scrollTo({ top: 0 });
   if (showShop) {
     loadIapProductInfo();
+  }
+  if (showAdventure) {
+    preloadAdventurePanelAssets();
   }
 }
 
@@ -6427,11 +7081,18 @@ function shouldSyncCombat(now = Date.now()) {
   return !state.combatSyncInFlight && (!state.lastCombatSyncAt || now - state.lastCombatSyncAt >= combatSyncIntervalMs);
 }
 
-async function syncCombatState() {
+function combatVisualsPaused() {
+  return !$("miniGameScreen").classList.contains("hidden")
+    || !$("weeklyPunchKingScreen").classList.contains("hidden")
+    || !$("adventureActionModal").classList.contains("hidden");
+}
+
+async function syncCombatState(options = {}) {
   const player = state.player;
   if (!player || player.onboardingRequired || state.combatSyncInFlight) {
     return;
   }
+  const visual = options.visual !== false;
   state.combatSyncInFlight = true;
   const beforeLevel = displayLevel(player);
   const beforeMonsterSignature = monsterSignature(displayMonster(player));
@@ -6439,14 +7100,16 @@ async function syncCombatState() {
     const next = await api("/api/player/combat/hit", { method: "POST" });
     const impactJob = activeJob();
     setServerPlayer(next);
-    if (beforeMonsterSignature !== monsterSignature(displayMonster(next))) {
+    if (visual && beforeMonsterSignature !== monsterSignature(displayMonster(next))) {
       scheduleMonsterImpact(true, impactJob);
     }
-    if (displayLevel(next) > beforeLevel) {
+    if (visual && displayLevel(next) > beforeLevel) {
       showLevelUpModal(displayLevel(next), displayLevel(next) - beforeLevel);
       setMessage(`Lv.${displayLevel(next)} 달성! 스킬 포인트 1개를 얻었어요.`);
     }
-    render();
+    if (visual) {
+      render();
+    }
   } catch (error) {
     setMessage(error.message);
   } finally {
@@ -6454,14 +7117,15 @@ async function syncCombatState() {
   }
 }
 
-function simulateHit() {
+function simulateHit(options = {}) {
   const player = state.player;
   if (!player || player.onboardingRequired || !isActive(player.autoHuntEndsAt)) {
     return;
   }
   const now = Date.now();
+  const visual = options.visual !== false;
   if (shouldSyncCombat(now)) {
-    syncCombatState();
+    syncCombatState({ visual });
   }
   const interval = attackIntervalMillis(player);
   if (now - state.lastHitAt < interval) {
@@ -6472,6 +7136,9 @@ function simulateHit() {
   accrueLocalCombatGold(now);
   const gainedGold = Math.max(0, Math.floor(state.displayGold) - beforeDisplayGold);
   const localCombat = applyLocalMonsterHit(player);
+  if (!visual) {
+    return;
+  }
   playAttackMotion();
   spawnProjectile();
   spawnSkillEffect();
@@ -6752,14 +7419,19 @@ $("useDungeonCoupon").addEventListener("click", useDungeonCoupon);
 $("challengeBossRaid").addEventListener("click", challengeBossRaid);
 $("practiceMiniGame").addEventListener("click", practiceMiniGameFlow);
 $("startMiniGame").addEventListener("click", startMiniGameFlow);
-$("miniGameScreen").addEventListener("click", handleMiniGameTap);
+$("miniGameScreen").addEventListener("pointerdown", handleMiniGameTap);
 $("miniGameResultPanel").addEventListener("click", (event) => event.stopPropagation());
 $("exitMiniGame").addEventListener("click", closeMiniGameScreen);
 $("miniGameContinueAd").addEventListener("click", continueMiniGameAfterAd);
 $("miniGameResultExit").addEventListener("click", closeMiniGameScreen);
 window.addEventListener("resize", () => {
   if (!$("miniGameScreen").classList.contains("hidden")) {
-    updateMiniGameGroundLine();
+    window.requestAnimationFrame(() => {
+      updateMiniGameGroundLine();
+      if (state.miniGame) {
+        state.miniGame.stageWidth = miniGameStageWidth();
+      }
+    });
   }
 });
 $("openWeeklyPunchKing").addEventListener("click", openWeeklyPunchKingScreen);
@@ -6869,6 +7541,8 @@ function handlePetShopAction(slot) {
 
 $("changePetOneSkin").addEventListener("click", () => handlePetShopAction(1));
 $("changePetTwoSkin").addEventListener("click", () => handlePetShopAction(2));
+$("openVipBenefitModal").addEventListener("click", openVipBenefitModal);
+$("closeVipBenefitModal").addEventListener("click", closeVipBenefitModal);
 $("buyVipMembership").addEventListener("click", runVipPurchaseFlow);
 $("closePetSkinModal").addEventListener("click", closePetSkinModal);
 $("petSkinModal").addEventListener("click", (event) => {
@@ -7181,7 +7855,12 @@ initializeDevPanel();
 markBenefitTabEntryIfNeeded();
 applyRuntimeSafeAreaFallback();
 syncBgmState();
-document.addEventListener("pointerdown", () => startBgm(), { once: true, passive: true });
+function unlockAudioPlayback() {
+  resumeAudioContext();
+  startBgm();
+}
+document.addEventListener("pointerdown", unlockAudioPlayback, { once: true, passive: true });
+document.addEventListener("touchstart", unlockAudioPlayback, { once: true, passive: true });
 document.addEventListener("visibilitychange", () => handlePageVisibility(!document.hidden));
 window.addEventListener("focus", () => handlePageVisibility(true));
 window.addEventListener("resize", () => applyRuntimeSafeAreaFallback(), { passive: true });
@@ -7197,8 +7876,11 @@ window.addEventListener("pageshow", () => {
 
 setInterval(() => {
   if (state.player) {
-    simulateHit();
-    render();
+    const visual = !combatVisualsPaused();
+    simulateHit({ visual });
+    if (visual) {
+      render();
+    }
   }
 }, 250);
 

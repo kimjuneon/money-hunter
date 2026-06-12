@@ -1463,6 +1463,30 @@ img {
   box-shadow: 0 8px 13px rgba(88, 28, 135, 0.16);
 }
 
+.vip-membership-shop-item .vip-benefit-detail-button {
+  justify-self: start;
+  display: inline-grid;
+  width: auto;
+  min-width: 0;
+  min-height: 18px;
+  margin: 2px 0 0;
+  padding: 0 7px;
+  border: 1px solid rgba(245, 158, 11, 0.58);
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #92400e;
+  font-size: 9.5px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.vip-membership-shop-item.is-active .vip-benefit-detail-button {
+  border-color: rgba(22, 163, 74, 0.48);
+  background: #ecfdf5;
+  color: #166534;
+}
+
 .job-change-shop-item {
 	grid-template-columns: 56px minmax(0, 1fr) 74px;
 	margin-top: 6px;
@@ -3085,7 +3109,7 @@ img {
 	bottom: 7.2%;
 	z-index: 3;
 	display: block !important;
-	height: 20.4%;
+	height: 22%;
 	margin: 0;
 }
 
@@ -3567,6 +3591,7 @@ img {
 .adventure-reward-modal,
 .adventure-info-modal,
 .adventure-action-modal,
+.vip-benefit-modal,
 .pet-easter-modal,
 .home-shortcut-guide-modal,
 .rookie-event-modal,
@@ -4460,6 +4485,7 @@ img {
 .time-reward-overflow-card h2,
 .adventure-reward-card h2,
 .adventure-info-card h2,
+.vip-benefit-card h2,
 .pet-easter-card h2 {
   margin: 8px 0 9px;
   color: #0f172a;
@@ -4471,6 +4497,7 @@ img {
 .time-reward-overflow-card > p:not(.modal-kicker),
 .adventure-reward-card > p:not(.modal-kicker),
 .adventure-info-card > p:not(.modal-kicker),
+.vip-benefit-card > p:not(.modal-kicker),
 .pet-easter-card > p:not(.modal-kicker) {
   margin: 0 auto 18px;
   max-width: 310px;
@@ -4526,6 +4553,46 @@ img {
 	font-size: 13px;
 	font-weight: 900;
 	text-align: center;
+}
+
+.vip-benefit-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: 26px 18px 18px;
+  border: 2px solid rgba(245, 158, 11, 0.48);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff7ed, #ffffff 46%, #f8fafc);
+  color: var(--ink);
+  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.32);
+}
+
+.vip-benefit-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.vip-benefit-list div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.vip-benefit-list strong {
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.vip-benefit-list span {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.35;
 }
 
 .adventure-info-list {
@@ -5290,10 +5357,21 @@ img {
 .mini-game-screen {
   overflow: hidden;
   padding: 0;
+  background: #124559;
+}
+
+.mini-game-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   background:
     linear-gradient(180deg, rgba(15, 23, 42, 0.02), rgba(15, 23, 42, 0.22)),
-    url("/assets/mini-game/jump-map.png?v=20260610-01") center 58% / cover no-repeat,
+    url("/assets/mini-game/jump-map-game.jpg?v=20260611-03") center 58% / cover no-repeat,
     linear-gradient(180deg, #0f5fb8 0%, #38bdf8 48%, #124559 100%);
+  pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .mini-game-top {
@@ -5355,6 +5433,7 @@ img {
 .mini-game-stage {
   position: absolute;
   inset: 0;
+  z-index: 1;
   --mini-game-ground-bottom: clamp(160px, 30%, 276px);
   overflow: hidden;
   min-height: 0;
@@ -5362,7 +5441,10 @@ img {
   border-radius: 0;
   background: transparent;
   box-shadow: inset 0 -120px 130px rgba(8, 47, 73, 0.18);
-  touch-action: manipulation;
+  contain: layout paint;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .mini-game-skyline {
@@ -5378,6 +5460,9 @@ img {
   object-fit: contain;
   object-position: bottom center;
   filter: drop-shadow(0 9px 6px rgba(15, 23, 42, 0.22));
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 .mini-game-obstacle {
@@ -5390,6 +5475,14 @@ img {
   object-position: bottom center;
   filter: drop-shadow(0 7px 6px rgba(15, 23, 42, 0.24));
   pointer-events: none;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.mini-game-screen.is-running .mini-game-hero,
+.mini-game-screen.is-running .mini-game-obstacle {
+  filter: none;
 }
 
 .mini-game-obstacle.is-dummy {
@@ -5406,6 +5499,18 @@ img {
   filter:
     drop-shadow(0 0 8px rgba(56, 189, 248, 0.46))
     drop-shadow(0 7px 6px rgba(15, 23, 42, 0.22));
+}
+
+.mini-game-screen.is-running .mini-game-obstacle.is-arrow {
+  filter: none;
+}
+
+.mini-game-screen.is-running .mini-game-stage {
+  box-shadow: none;
+}
+
+.mini-game-screen.is-running .mini-game-timeboard span {
+  backdrop-filter: none;
 }
 
 .mini-game-result {
@@ -5881,11 +5986,21 @@ img {
   position: absolute;
   inset: 0;
   z-index: 4;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   opacity: 0;
   pointer-events: none;
+  transform: translateZ(0);
+}
+
+.punch-king-ultimate-video::-webkit-media-controls,
+.punch-king-ultimate-video::-webkit-media-controls-panel,
+.punch-king-ultimate-video::-webkit-media-controls-play-button,
+.punch-king-ultimate-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  opacity: 0 !important;
 }
 
 .punch-king-ultimate-video.is-playing {
@@ -5895,6 +6010,34 @@ img {
 .punch-king-ultimate-video.is-fading {
   opacity: 0;
   transition: opacity 1s ease;
+}
+
+.punch-king-mobile-ultimate {
+  position: absolute;
+  inset: -10%;
+  z-index: 9;
+  display: block;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 58% 42%, rgba(255, 255, 255, 0.96) 0 7%, rgba(250, 204, 21, 0.8) 8% 18%, rgba(249, 115, 22, 0) 38%),
+    radial-gradient(circle at 54% 45%, rgba(59, 130, 246, 0.7), rgba(59, 130, 246, 0) 42%),
+    conic-gradient(from 26deg at 58% 44%, rgba(255, 255, 255, 0), rgba(255, 237, 213, 0.96), rgba(248, 113, 113, 0), rgba(125, 211, 252, 0.86), rgba(255, 255, 255, 0));
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: scale(0.72) rotate(-7deg);
+  animation: punchKingMobileUltimate 1.2s ease-out forwards;
+}
+
+.punch-king-mobile-ultimate.ARCHER {
+  filter: hue-rotate(80deg) saturate(1.15);
+}
+
+.punch-king-mobile-ultimate.MAGE {
+  filter: hue-rotate(210deg) saturate(1.2);
+}
+
+.punch-king-mobile-ultimate.ROGUE {
+  filter: hue-rotate(145deg) saturate(1.15);
 }
 
 .punch-king-screen.is-ultimate-playing .punch-king-actions {
@@ -6263,6 +6406,25 @@ img {
   0% { transform: translateX(0) rotate(0deg) scale(1); }
   45% { transform: translateX(8px) rotate(1deg) scale(1.008); }
   100% { transform: translateX(0) rotate(0deg) scale(1); }
+}
+
+@keyframes punchKingMobileUltimate {
+  0% {
+    opacity: 0;
+    transform: scale(0.58) rotate(-10deg);
+  }
+  18% {
+    opacity: 0.98;
+    transform: scale(0.9) rotate(-3deg);
+  }
+  54% {
+    opacity: 0.78;
+    transform: scale(1.08) rotate(4deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.26) rotate(12deg);
+  }
 }
 
 @keyframes punchKingImpactFlash {

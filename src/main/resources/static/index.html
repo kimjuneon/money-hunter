@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>머니헌터 - 캐릭터를 키우고, 돈을 벌어보세요</title>
     <meta name="description" content="캐릭터를 키우고, 돈을 벌어보세요." />
-    <link rel="stylesheet" href="/styles.css?v=20260611-04" />
+    <link rel="stylesheet" href="/styles.css?v=20260612-02" />
   </head>
   <body>
     <main class="game-shell" data-job="WARRIOR" data-panel="skill">
@@ -364,7 +364,7 @@
             <div class="vip-shop-icon" aria-hidden="true"></div>
             <div class="shop-copy">
               <strong>VIP 멤버십</strong>
-              <p id="vipMembershipCopy">매일 SP, 던전권, 보스권<br>자동사냥권 지급</p>
+              <button id="openVipBenefitModal" class="vip-benefit-detail-button" type="button">혜택 상세 보기</button>
               <small id="vipMembershipStatus">월간 구독 준비 중</small>
             </div>
             <button id="buyVipMembership" class="vip-membership-button shop-buy-button" type="button">
@@ -501,6 +501,18 @@
           <p id="paymentDescription">결제를 완료하면 선택한 상품이 지급돼요.</p>
           <strong id="paymentAmount" class="payment-amount">₩4,900</strong>
           <button id="confirmPayment" type="button">결제하기</button>
+        </div>
+      </section>
+
+      <section id="vipBenefitModal" class="vip-benefit-modal hidden" role="dialog" aria-modal="true" aria-labelledby="vipBenefitTitle">
+        <div class="vip-benefit-card">
+          <button id="closeVipBenefitModal" class="modal-close" type="button" aria-label="닫기">×</button>
+          <p class="modal-kicker">VIP MEMBERSHIP</p>
+          <h2 id="vipBenefitTitle">VIP 혜택</h2>
+          <div class="vip-benefit-list">
+            <div><strong>일일 혜택</strong><span>SP 1 · 던전권 3 · 보스권 1 · 자동사냥 4시간</span></div>
+            <div><strong>상시 혜택</strong><span>펫 스킨 전체 해금 · 전용 뱃지</span></div>
+          </div>
         </div>
       </section>
 
@@ -712,7 +724,7 @@
         <div id="miniGameStage" class="mini-game-stage">
           <div class="mini-game-skyline" aria-hidden="true"></div>
           <img id="miniGameHero" class="mini-game-hero" src="/assets/warrior.png?v=20260525-03" alt="" />
-          <img id="miniGameObstacle" class="mini-game-obstacle" src="/assets/mini-game/training-dummy.png?v=20260610-01" alt="" aria-hidden="true" />
+          <img id="miniGameObstacle" class="mini-game-obstacle" src="/assets/mini-game/training-dummy-game.png?v=20260611-02" alt="" aria-hidden="true" />
           <div class="mini-game-ground" aria-hidden="true"></div>
           <div id="miniGameStartPrompt" class="mini-game-start-prompt" aria-live="polite">
             <strong id="miniGameMessage">화면을 클릭해서 시작하세요!</strong>
@@ -773,7 +785,7 @@
             <div id="punchKingProjectileLayer" class="projectile-layer punch-king-projectile-layer" aria-hidden="true"></div>
             <div id="punchKingSkillEffectLayer" class="skill-effect-layer punch-king-skill-effect-layer" aria-hidden="true"></div>
             <div id="punchKingPetAttackLayer" class="pet-attack-layer punch-king-pet-attack-layer" aria-hidden="true"></div>
-            <video id="punchKingUltimateVideo" class="punch-king-ultimate-video" playsinline preload="auto"></video>
+            <video id="punchKingUltimateVideo" class="punch-king-ultimate-video" playsinline webkit-playsinline x5-playsinline preload="metadata" controlslist="nodownload nofullscreen noremoteplayback" disablepictureinpicture></video>
             <div id="punchKingStartPrompt" class="punch-king-start-prompt" aria-live="polite">
               <strong>화면을 클릭해서 시작하세요!</strong>
               <span>화면을 누르고 있으면 0.5초마다 자동 공격해요.</span>
@@ -877,6 +889,6 @@
       </div>
     </aside>
 
-    <script src="/app.js?v=20260611-04"></script>
+    <script src="/app.js?v=20260612-04"></script>
   </body>
 </html>

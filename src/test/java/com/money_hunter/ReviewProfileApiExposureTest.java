@@ -562,7 +562,7 @@ class ReviewProfileApiExposureTest {
 	}
 
 	@Test
-	void weeklyPunchKingRewardsUseLinearGoldAndSteppedSkillPoints() throws Exception {
+	void weeklyPunchKingRewardsUseCurvedGoldAndSteppedSkillPoints() throws Exception {
 		mockMvc.perform(post("/api/player/test/reset"))
 				.andExpect(status().isOk());
 		mockMvc.perform(post("/api/player/job")
@@ -572,29 +572,29 @@ class ReviewProfileApiExposureTest {
 
 		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
 						.contentType(APPLICATION_JSON)
-						.content("{\"score\":499999}"))
+				.content("{\"score\":499999}"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.gold", is(149)))
+				.andExpect(jsonPath("$.gold", is(2121)))
 				.andExpect(jsonPath("$.skillPoints", is(1)))
-				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(149)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(2121)))
 				.andExpect(jsonPath("$.weeklyPunchKing.rewardedSkillPoints", is(1)));
 
 		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
 						.contentType(APPLICATION_JSON)
 						.content("{\"score\":500000}"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.gold", is(150)))
+				.andExpect(jsonPath("$.gold", is(2121)))
 				.andExpect(jsonPath("$.skillPoints", is(2)))
-				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(150)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(2121)))
 				.andExpect(jsonPath("$.weeklyPunchKing.rewardedSkillPoints", is(2)));
 
 		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
 						.contentType(APPLICATION_JSON)
 						.content("{\"score\":3000000}"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.gold", is(900)))
+				.andExpect(jsonPath("$.gold", is(5196)))
 				.andExpect(jsonPath("$.skillPoints", is(4)))
-				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(900)))
+				.andExpect(jsonPath("$.weeklyPunchKing.rewardedGold", is(5196)))
 				.andExpect(jsonPath("$.weeklyPunchKing.rewardedSkillPoints", is(4)));
 
 		mockMvc.perform(post("/api/player/adventures/punch-king/submit")
