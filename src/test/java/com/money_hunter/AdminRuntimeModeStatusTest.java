@@ -8,6 +8,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import com.jayway.jsonpath.JsonPath;
@@ -75,6 +77,35 @@ class AdminRuntimeModeStatusTest {
 		assertEquals(
 				List.of("보상 수령, 혜택 탭 테스트 프로모션 코드"),
 				JsonPath.read(response, "$.runtimeStatusItems[?(@.key == 'point-rewards')].detail"));
+	}
+
+	@Test
+	void adminRevenueStoresAppInTossDailyMetricAndShowsItInReport() throws Exception {
+		String token = loginToken();
+		String today = LocalDate.now(ZoneId.of("Asia/Seoul")).toString();
+
+		mockMvc.perform(post("/api/admin/revenue/app-in-toss-metrics")
+						.header("Authorization", "Bearer " + token)
+						.contentType(APPLICATION_JSON)
+						.content("""
+								{"date":"%s","adImpressions":82,"adWatchRatePercent":15.95,"ecpmWon":14595}
+								""".formatted(today)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.date").value(today))
+				.andExpect(jsonPath("$.adImpressions").value(82))
+				.andExpect(jsonPath("$.adWatchRatePercent").value(15.95))
+				.andExpect(jsonPath("$.ecpmWon").value(14595.00))
+				.andExpect(jsonPath("$.estimatedRevenueWon").value(1197));
+
+		mockMvc.perform(get("/api/admin/revenue")
+						.header("Authorization", "Bearer " + token)
+						.param("days", "7"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.points[6].date").value(today))
+				.andExpect(jsonPath("$.points[6].appInTossAdImpressions").value(82))
+				.andExpect(jsonPath("$.points[6].appInTossAdWatchRatePercent").value(15.95))
+				.andExpect(jsonPath("$.points[6].appInTossEcpmWon").value(14595.00))
+				.andExpect(jsonPath("$.points[6].appInTossEstimatedRevenueWon").value(1197));
 	}
 
 	@Test

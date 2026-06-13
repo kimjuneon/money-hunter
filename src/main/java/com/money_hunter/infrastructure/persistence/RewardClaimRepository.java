@@ -19,10 +19,20 @@ public interface RewardClaimRepository extends JpaRepository<RewardClaim, Long> 
 
 	long countByCreatedAtAfter(Instant createdAt);
 
+	long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant startedAt, Instant endedAt);
+
 	long countByStatus(RewardClaimStatus status);
 
 	@Query("select coalesce(sum(r.pointAmount), 0) from RewardClaim r where r.createdAt >= :from")
 	long sumPointAmountSince(@Param("from") Instant from);
+
+	@Query("""
+			select coalesce(sum(r.pointAmount), 0)
+			from RewardClaim r
+			where r.createdAt >= :startedAt
+				and r.createdAt < :endedAt
+			""")
+	long sumPointAmountBetween(@Param("startedAt") Instant startedAt, @Param("endedAt") Instant endedAt);
 
 	@Query("select coalesce(sum(r.pointAmount), 0) from RewardClaim r where r.status = :status")
 	long sumPointAmountByStatus(@Param("status") RewardClaimStatus status);

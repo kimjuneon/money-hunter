@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>머니헌터 관리자</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=20260608-01" />
+    <link rel="stylesheet" href="/admin/styles.css?v=20260614-04" />
   </head>
   <body>
     <main id="loginView" class="login-shell">
@@ -38,6 +38,7 @@
           <button class="nav-item" data-view="eventView">이벤트 관리</button>
           <button class="nav-item" data-view="policyView">정책값</button>
           <button class="nav-item" data-view="playerView">유저 관리</button>
+          <button class="nav-item" data-view="revenueView">수익</button>
 	          <button class="nav-item" data-view="paymentView">결제</button>
 	          <button class="nav-item" data-view="anomalyView">이상징후</button>
 	          <button class="nav-item" data-view="auditView">감사 로그</button>
@@ -196,6 +197,35 @@
           </section>
         </section>
 
+        <section id="revenueView" class="view hidden">
+          <section class="panel revenue-panel">
+            <div class="panel-head">
+              <div>
+                <h3>수익</h3>
+                <p>광고 eCPM 관련 참고 지표와 인앱결제 추정 매출을 함께 확인해요.</p>
+              </div>
+              <label class="compact-select">
+                <span>기간</span>
+                <select id="revenuePeriodSelect">
+                  <option value="7">7일</option>
+                  <option value="14">14일</option>
+                  <option value="30" selected>30일</option>
+                  <option value="90">90일</option>
+                </select>
+              </label>
+            </div>
+            <div id="revenueSummaryGrid" class="metric-grid"></div>
+            <div id="revenueDiagnosisPanel"></div>
+            <div id="appInTossMetricPanel"></div>
+            <div id="revenueReferencePanel" class="revenue-reference-grid"></div>
+            <div id="revenueTrendPanel"></div>
+            <div class="revenue-detail-grid">
+              <div id="revenueIapPanel"></div>
+              <div id="revenueAdPanel"></div>
+            </div>
+          </section>
+        </section>
+
         <section id="auditView" class="view hidden">
           <section class="panel">
             <div class="panel-head">
@@ -307,6 +337,6 @@
       </section>
     </main>
 
-    <script src="/admin/app.js?v=20260608-01"></script>
+    <script src="/admin/app.js?v=20260614-04"></script>
   </body>
 </html>

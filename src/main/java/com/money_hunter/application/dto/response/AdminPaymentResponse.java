@@ -30,6 +30,7 @@ public record AdminPaymentResponse(
 		return switch (productType == null ? "" : productType) {
 			case "FLARE_PET", "AQUA_PET" -> "동료 펫";
 			case "SKILL_POINT_PACK" -> "SP 패키지";
+			case "VIP_MONTHLY" -> "VIP 멤버십";
 			default -> productType == null || productType.isBlank() ? "알 수 없는 상품" : productType;
 		};
 	}

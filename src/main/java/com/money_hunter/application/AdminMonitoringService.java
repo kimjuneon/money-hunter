@@ -1,5 +1,7 @@
 package com.money_hunter.application;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -15,13 +17,18 @@ import java.util.stream.Collectors;
 
 import com.money_hunter.domain.AdminAnomalyCase;
 import com.money_hunter.domain.AdminAnomalyStatus;
+import com.money_hunter.domain.AdEventType;
+import com.money_hunter.domain.AppInTossAdDailyMetric;
 import com.money_hunter.domain.RewardClaimStatus;
 import com.money_hunter.infrastructure.config.AdProperties;
 import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.infrastructure.config.PromotionProperties;
+import com.money_hunter.infrastructure.persistence.AdRewardSessionRepository;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
+import com.money_hunter.infrastructure.persistence.AppInTossAdDailyMetricRepository;
 import com.money_hunter.infrastructure.persistence.AdminAnomalyActionRepository;
 import com.money_hunter.infrastructure.persistence.AdminAnomalyCaseRepository;
+import com.money_hunter.infrastructure.persistence.IapOrderRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
 import org.springframework.data.domain.PageRequest;
@@ -34,10 +41,21 @@ public class AdminMonitoringService {
 	private static final String MODE_TEST = "TEST";
 	private static final String MODE_OFF = "OFF";
 	private static final String MODE_CHECK = "CHECK";
+	private static final long VIP_MONTHLY_PRICE_WON = 9_900L;
+	private static final int LOYAL_MIN_LEVEL = 3;
+	private static final long LOYAL_MIN_REWARD_AD_EVENTS = 10L;
+	private static final List<AdEventType> LOYAL_REWARD_AD_TYPES = List.of(
+			AdEventType.AUTO_HUNT,
+			AdEventType.SKILL_POINT,
+			AdEventType.REWARD_CLAIM,
+			AdEventType.DUNGEON_ADDITIONAL_ENTRY);
 
 	private final PlayerRepository playerRepository;
 	private final AdEventRepository adEventRepository;
+	private final AdRewardSessionRepository adRewardSessionRepository;
+	private final AppInTossAdDailyMetricRepository appInTossAdDailyMetricRepository;
 	private final RewardClaimRepository rewardClaimRepository;
+	private final IapOrderRepository iapOrderRepository;
 	private final AdminAnomalyCaseRepository anomalyCaseRepository;
 	private final AdminAnomalyActionRepository anomalyActionRepository;
 	private final RuntimeEconomyService economy;
@@ -49,7 +67,10 @@ public class AdminMonitoringService {
 	public AdminMonitoringService(
 			PlayerRepository playerRepository,
 			AdEventRepository adEventRepository,
+			AdRewardSessionRepository adRewardSessionRepository,
+			AppInTossAdDailyMetricRepository appInTossAdDailyMetricRepository,
 			RewardClaimRepository rewardClaimRepository,
+			IapOrderRepository iapOrderRepository,
 			AdminAnomalyCaseRepository anomalyCaseRepository,
 			AdminAnomalyActionRepository anomalyActionRepository,
 			RuntimeEconomyService economy,
@@ -59,7 +80,10 @@ public class AdminMonitoringService {
 	) {
 		this.playerRepository = playerRepository;
 		this.adEventRepository = adEventRepository;
+		this.adRewardSessionRepository = adRewardSessionRepository;
+		this.appInTossAdDailyMetricRepository = appInTossAdDailyMetricRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
+		this.iapOrderRepository = iapOrderRepository;
 		this.anomalyCaseRepository = anomalyCaseRepository;
 		this.anomalyActionRepository = anomalyActionRepository;
 		this.economy = economy;
@@ -70,7 +94,9 @@ public class AdminMonitoringService {
 
 	public AdminOverview overview() {
 		Instant now = Instant.now(clock);
-		Instant today = LocalDate.now(SEOUL).atStartOfDay(SEOUL).toInstant();
+		LocalDate todayDate = LocalDate.now(SEOUL);
+		Instant today = startOfDay(todayDate);
+		Instant tomorrow = startOfDay(todayDate.plusDays(1));
 		long adEventsToday = adEventRepository.countByOccurredAtAfter(today);
 		long rewardAdEventsToday = adEventsToday;
 		long rewardClaimsToday = rewardClaimRepository.countByCreatedAtAfter(today);
@@ -79,6 +105,11 @@ public class AdminMonitoringService {
 		long pendingRewardPoints = rewardClaimRepository.sumPointAmountByStatus(RewardClaimStatus.PENDING_PROMOTION_GRANT);
 		long estimatedAdRevenueWonToday = rewardAdEventsToday * economy.adRevenuePerRewardAdWon();
 		long estimatedRewardCostWonToday = rewardPointsToday;
+		long appEnteredUsersToday = playerRepository.countByLastAccessedAtGreaterThanEqual(today);
+		long onboardedEnteredUsersToday = playerRepository
+				.countByJobIsNotNullAndLastAccessedAtGreaterThanEqualAndLastAccessedAtLessThan(today, tomorrow);
+		long activeUsersToday = countLoyalActiveUsersForReferenceDate(todayDate);
+		long visitorOnlyUsersToday = countNonLoyalVisitorsForReferenceDate(todayDate, today, tomorrow);
 
 		return new AdminOverview(
 				now,
@@ -92,6 +123,10 @@ public class AdminMonitoringService {
 					playerRepository.countByCreatedAtGreaterThanEqual(today),
 					playerRepository.countByAutoHuntEndsAtAfter(now),
 					playerRepository.totalGold(),
+				appEnteredUsersToday,
+				onboardedEnteredUsersToday,
+				activeUsersToday,
+				visitorOnlyUsersToday,
 				rewardAdEventsToday,
 				rewardClaimsToday,
 				rewardPointsToday,
@@ -271,9 +306,90 @@ public class AdminMonitoringService {
 			Instant endedAt = day.plusDays(1).atStartOfDay(SEOUL).toInstant();
 			long newPlayers = playerRepository.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(startedAt, endedAt);
 			cumulative += newPlayers;
-			points.add(new AdminPlayerGrowthPoint(day.toString(), newPlayers, cumulative));
+			long appEnteredUsers = playerRepository.countByLastAccessedAtGreaterThanEqualAndLastAccessedAtLessThan(startedAt, endedAt);
+			long onboardedEnteredUsers = playerRepository
+					.countByJobIsNotNullAndLastAccessedAtGreaterThanEqualAndLastAccessedAtLessThan(startedAt, endedAt);
+			long activeUsers = countLoyalActiveUsersForReferenceDate(day);
+			long visitorOnlyUsers = countNonLoyalVisitorsForReferenceDate(day, startedAt, endedAt);
+			points.add(new AdminPlayerGrowthPoint(
+					day.toString(),
+					newPlayers,
+					cumulative,
+					appEnteredUsers,
+					onboardedEnteredUsers,
+					activeUsers,
+					visitorOnlyUsers));
 		}
 		return new AdminPlayerGrowthReport(Instant.now(clock), safeDays, points);
+	}
+
+	public AdminRevenueReport revenue(int days) {
+		int safeDays = Math.max(7, Math.min(days, 90));
+		LocalDate today = LocalDate.now(SEOUL);
+		LocalDate firstDay = today.minusDays(safeDays - 1L);
+		Instant periodStartedAt = firstDay.atStartOfDay(SEOUL).toInstant();
+		Instant periodEndedAt = today.plusDays(1).atStartOfDay(SEOUL).toInstant();
+		Map<LocalDate, AppInTossAdDailyMetric> appInTossMetrics = appInTossAdDailyMetricRepository
+				.findByMetricDateBetweenOrderByMetricDateAsc(firstDay, today)
+				.stream()
+				.collect(Collectors.toMap(AppInTossAdDailyMetric::getMetricDate, Function.identity()));
+		List<AdminRevenuePoint> points = new ArrayList<>();
+
+		for (int offset = 0; offset < safeDays; offset++) {
+			LocalDate day = firstDay.plusDays(offset);
+			Instant startedAt = day.atStartOfDay(SEOUL).toInstant();
+			Instant endedAt = day.plusDays(1).atStartOfDay(SEOUL).toInstant();
+			points.add(revenuePoint(day, startedAt, endedAt, appInTossMetrics.get(day)));
+		}
+
+		AdminRevenueSummary todaySummary = points.isEmpty()
+				? emptyRevenueSummary()
+				: summaryFromPoint(points.get(points.size() - 1));
+		AdminRevenueSummary periodSummary = summaryFromPoints(points);
+		return new AdminRevenueReport(
+				Instant.now(clock),
+				safeDays,
+				todaySummary,
+				periodSummary,
+				points,
+				iapProductBreakdown(periodStartedAt, periodEndedAt),
+				adEventBreakdown(periodStartedAt, periodEndedAt),
+				List.of(
+						new AdminRevenueReferenceMetric(
+								"실제 eCPM",
+								"앱인토스 콘솔의 일별 노출, 광고 시청률, eCPM 3개 값만 입력하면 실제 콘솔 기준 변동을 함께 볼 수 있어요."),
+						new AdminRevenueReferenceMetric(
+								"광고 세션 완료율",
+								"앱에서 광고 세션을 만든 뒤 보상 완료 API까지 도달한 비율이에요. 콘솔 광고 시청률 하락 원인을 확인하는 내부 퍼널 지표예요."),
+						new AdminRevenueReferenceMetric(
+								"충성 활성 사용자",
+								loyalActiveUserDefinition()),
+						new AdminRevenueReferenceMetric(
+								"트래픽 품질",
+								"방문/저관여 비율, 충성 활성당 광고, 보상 전환을 같이 보면 유저 믹스 변화와 광고 위치 문제를 나눠 볼 수 있어요.")));
+	}
+
+	public AdminAppInTossAdMetric saveAppInTossAdMetric(
+			LocalDate date,
+			long adImpressions,
+			BigDecimal adWatchRatePercent,
+			BigDecimal ecpmWon,
+			String note
+	) {
+		LocalDate today = LocalDate.now(SEOUL);
+		if (date.isAfter(today)) {
+			throw new IllegalArgumentException("미래 날짜의 앱인토스 지표는 입력할 수 없어요.");
+		}
+		Instant now = Instant.now(clock);
+		AppInTossAdDailyMetric metric = appInTossAdDailyMetricRepository.findByMetricDate(date)
+				.orElseGet(() -> new AppInTossAdDailyMetric(date, now));
+		metric.update(
+				adImpressions,
+				normalizeDecimal(adWatchRatePercent, 2),
+				normalizeDecimal(ecpmWon, 2),
+				note,
+				now);
+		return toAppInTossAdMetric(appInTossAdDailyMetricRepository.save(metric));
 	}
 
 	public AdminServerMetrics serverMetrics() {
@@ -295,6 +411,222 @@ public class AdminMonitoringService {
 				runtime.freeMemory(),
 				runtime.totalMemory(),
 				runtime.maxMemory());
+	}
+
+	private AdminRevenuePoint revenuePoint(
+			LocalDate date,
+			Instant startedAt,
+			Instant endedAt,
+			AppInTossAdDailyMetric appInTossMetric
+	) {
+		long adEventCount = adEventRepository.countByOccurredAtGreaterThanEqualAndOccurredAtLessThan(startedAt, endedAt);
+		long adSessionStartedCount = adRewardSessionRepository
+				.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(startedAt, endedAt);
+		long adSessionCompletedCount = adRewardSessionRepository
+				.countByCreatedAtGreaterThanEqualAndCreatedAtLessThanAndCompletedAtIsNotNull(startedAt, endedAt);
+		long rewardClaimCount = rewardClaimRepository.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(startedAt, endedAt);
+		long rewardCostWon = rewardClaimRepository.sumPointAmountBetween(startedAt, endedAt);
+		long iapOrderCount = iapOrderRepository.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(startedAt, endedAt);
+		long estimatedAdRevenueWon = adEventCount * economy.adRevenuePerRewardAdWon();
+		long estimatedIapRevenueWon = estimatedIapRevenue(startedAt, endedAt);
+		long estimatedGrossRevenueWon = estimatedAdRevenueWon + estimatedIapRevenueWon;
+		long appEnteredUsers = playerRepository.countByLastAccessedAtGreaterThanEqualAndLastAccessedAtLessThan(startedAt, endedAt);
+		long activeUsers = countLoyalActiveUsersForReferenceDate(date);
+		long visitorOnlyUsers = countNonLoyalVisitorsForReferenceDate(date, startedAt, endedAt);
+		return new AdminRevenuePoint(
+				date.toString(),
+				estimatedAdRevenueWon,
+				estimatedIapRevenueWon,
+				estimatedGrossRevenueWon,
+				rewardCostWon,
+				estimatedGrossRevenueWon - rewardCostWon,
+				adEventCount,
+				adSessionStartedCount,
+				adSessionCompletedCount,
+				rewardClaimCount,
+				iapOrderCount,
+				appEnteredUsers,
+				activeUsers,
+				visitorOnlyUsers,
+				appInTossMetric == null ? null : appInTossMetric.getAdImpressions(),
+				appInTossMetric == null ? null : appInTossMetric.getAdWatchRatePercent(),
+				appInTossMetric == null ? null : appInTossMetric.getEcpmWon(),
+				appInTossEstimatedRevenueWon(appInTossMetric));
+	}
+
+	private long countLoyalActiveUsersForReferenceDate(LocalDate referenceDate) {
+		LocalDate firstAccessDay = referenceDate.minusDays(1);
+		LocalDate secondAccessDay = referenceDate.minusDays(2);
+		LocalDate thirdAccessDay = referenceDate.minusDays(3);
+		return playerRepository.countLoyalActiveUsersByReferenceDay(
+				startOfDay(firstAccessDay),
+				startOfDay(firstAccessDay.plusDays(1)),
+				startOfDay(secondAccessDay),
+				startOfDay(secondAccessDay.plusDays(1)),
+				startOfDay(thirdAccessDay),
+				startOfDay(thirdAccessDay.plusDays(1)),
+				LOYAL_MIN_LEVEL,
+				LOYAL_MIN_REWARD_AD_EVENTS,
+				LOYAL_REWARD_AD_TYPES,
+				AdEventType.DUNGEON_RUN);
+	}
+
+	private long countNonLoyalVisitorsForReferenceDate(LocalDate referenceDate, Instant visitedAtStartedAt, Instant visitedAtEndedAt) {
+		LocalDate firstAccessDay = referenceDate.minusDays(1);
+		LocalDate secondAccessDay = referenceDate.minusDays(2);
+		LocalDate thirdAccessDay = referenceDate.minusDays(3);
+		return playerRepository.countNonLoyalVisitorsByReferenceDay(
+				visitedAtStartedAt,
+				visitedAtEndedAt,
+				startOfDay(firstAccessDay),
+				startOfDay(firstAccessDay.plusDays(1)),
+				startOfDay(secondAccessDay),
+				startOfDay(secondAccessDay.plusDays(1)),
+				startOfDay(thirdAccessDay),
+				startOfDay(thirdAccessDay.plusDays(1)),
+				LOYAL_MIN_LEVEL,
+				LOYAL_MIN_REWARD_AD_EVENTS,
+				LOYAL_REWARD_AD_TYPES,
+				AdEventType.DUNGEON_RUN);
+	}
+
+	private String loyalActiveUserDefinition() {
+		return "기준일인 오늘은 제외하고 직전 3일 동안 매일 접속했고, 레벨 " + LOYAL_MIN_LEVEL
+				+ " 이상이며, 토스포인트 보상 수령 이력, 리워드 광고 이벤트 " + LOYAL_MIN_REWARD_AD_EVENTS
+				+ "회 이상, 주간 펀치킹 점수, 던전 탐험 이력을 모두 가진 유저예요. 접속은 로그인 세션 생성일 기준이에요.";
+	}
+
+	private Instant startOfDay(LocalDate day) {
+		return day.atStartOfDay(SEOUL).toInstant();
+	}
+
+	private BigDecimal normalizeDecimal(BigDecimal value, int scale) {
+		return value == null ? BigDecimal.ZERO : value.max(BigDecimal.ZERO).setScale(scale, RoundingMode.HALF_UP);
+	}
+
+	private Long appInTossEstimatedRevenueWon(AppInTossAdDailyMetric metric) {
+		if (metric == null) {
+			return null;
+		}
+		return metric.getEcpmWon()
+				.multiply(BigDecimal.valueOf(metric.getAdImpressions()))
+				.divide(BigDecimal.valueOf(1000), 0, RoundingMode.HALF_UP)
+				.longValue();
+	}
+
+	private AdminAppInTossAdMetric toAppInTossAdMetric(AppInTossAdDailyMetric metric) {
+		return new AdminAppInTossAdMetric(
+				metric.getMetricDate().toString(),
+				metric.getAdImpressions(),
+				metric.getAdWatchRatePercent(),
+				metric.getEcpmWon(),
+				appInTossEstimatedRevenueWon(metric),
+				metric.getNote(),
+				metric.getUpdatedAt());
+	}
+
+	private long estimatedIapRevenue(Instant startedAt, Instant endedAt) {
+		return iapOrderRepository.findProductCountsBetween(startedAt, endedAt)
+				.stream()
+				.mapToLong(row -> row.getOrderCount() * iapProductPrice(row.getProductType()))
+				.sum();
+	}
+
+	private AdminRevenueSummary summaryFromPoint(AdminRevenuePoint point) {
+		return new AdminRevenueSummary(
+				point.estimatedAdRevenueWon(),
+				point.estimatedIapRevenueWon(),
+				point.estimatedGrossRevenueWon(),
+				point.rewardCostWon(),
+				point.estimatedNetRevenueWon(),
+				point.adEventCount(),
+				point.adSessionStartedCount(),
+				point.adSessionCompletedCount(),
+				point.rewardClaimCount(),
+				point.iapOrderCount(),
+				point.appEnteredUsers(),
+				point.activeUsers(),
+				point.visitorOnlyUsers());
+	}
+
+	private AdminRevenueSummary summaryFromPoints(List<AdminRevenuePoint> points) {
+		return new AdminRevenueSummary(
+				points.stream().mapToLong(AdminRevenuePoint::estimatedAdRevenueWon).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::estimatedIapRevenueWon).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::estimatedGrossRevenueWon).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::rewardCostWon).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::estimatedNetRevenueWon).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::adEventCount).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::adSessionStartedCount).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::adSessionCompletedCount).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::rewardClaimCount).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::iapOrderCount).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::appEnteredUsers).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::activeUsers).sum(),
+				points.stream().mapToLong(AdminRevenuePoint::visitorOnlyUsers).sum());
+	}
+
+	private AdminRevenueSummary emptyRevenueSummary() {
+		return new AdminRevenueSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	}
+
+	private List<AdminIapProductRevenue> iapProductBreakdown(Instant startedAt, Instant endedAt) {
+		return iapOrderRepository.findProductCountsBetween(startedAt, endedAt)
+				.stream()
+				.map(row -> new AdminIapProductRevenue(
+						row.getProductType(),
+						iapProductLabel(row.getProductType()),
+						iapProductPrice(row.getProductType()),
+						row.getOrderCount(),
+						row.getGrantedCount(),
+						row.getOrderCount() * iapProductPrice(row.getProductType())))
+				.toList();
+	}
+
+	private List<AdminAdEventRevenue> adEventBreakdown(Instant startedAt, Instant endedAt) {
+		return adEventRepository.findTypeCountsBetween(startedAt, endedAt)
+				.stream()
+				.map(row -> new AdminAdEventRevenue(
+						row.getType() == null ? "" : row.getType().name(),
+						adEventLabel(row.getType()),
+						row.getEventCount(),
+						row.getEventCount() * economy.adRevenuePerRewardAdWon()))
+				.toList();
+	}
+
+	private long iapProductPrice(String productType) {
+		return switch (productType == null ? "" : productType) {
+			case "FLARE_PET", "AQUA_PET" -> economy.companionPriceWon();
+			case "SKILL_POINT_PACK" -> economy.skillPointPackPriceWon();
+			case "VIP_MONTHLY" -> VIP_MONTHLY_PRICE_WON;
+			default -> 0L;
+		};
+	}
+
+	private String iapProductLabel(String productType) {
+		return switch (productType == null ? "" : productType) {
+			case "FLARE_PET", "AQUA_PET" -> "동료 펫";
+			case "SKILL_POINT_PACK" -> "SP 패키지";
+			case "VIP_MONTHLY" -> "VIP 멤버십";
+			default -> productType == null || productType.isBlank() ? "알 수 없는 상품" : productType;
+		};
+	}
+
+	private String adEventLabel(AdEventType type) {
+		if (type == null) {
+			return "알 수 없는 이벤트";
+		}
+		return switch (type) {
+			case AUTO_HUNT -> "1시간 자동사냥";
+			case SKILL_POINT -> "SP 1개";
+			case REWARD_CLAIM -> "토스포인트 환급 전 광고";
+			case DUNGEON_ADDITIONAL_ENTRY -> "던전 추가 입장권";
+			case DUNGEON_COUPON -> "던전 입장권";
+			case DUNGEON_RUN -> "던전 실행";
+			case BOSS_RAID -> "보스 토벌";
+			case FRIEND_INVITE_REWARD -> "친구 초대 보상";
+			case DORMANT_SP_REWARD -> "휴면 복귀 SP 보상";
+		};
 	}
 
 	private AdminAnomaly timerAnomaly(Instant now, PlayerRepository.PlayerTimerSnapshot row, long timerGraceSeconds) {
@@ -514,10 +846,14 @@ public class AdminMonitoringService {
 			java.util.List<String> releaseBlockers,
 			long totalPlayers,
 			long onboardedPlayers,
-				long suspendedPlayers,
+			long suspendedPlayers,
 				long newPlayersToday,
 				long activeAutoHuntPlayers,
 				long totalGoldInCirculation,
+			long appEnteredUsersToday,
+			long onboardedEnteredUsersToday,
+			long activeUsersToday,
+			long visitorOnlyUsersToday,
 			long rewardAdEventsToday,
 			long rewardClaimsToday,
 			long rewardPointsToday,
@@ -602,7 +938,97 @@ public class AdminMonitoringService {
 	public record AdminPlayerGrowthPoint(
 			String date,
 			long newPlayers,
-			long totalPlayers
+			long totalPlayers,
+			long appEnteredUsers,
+			long onboardedEnteredUsers,
+			long activeUsers,
+			long visitorOnlyUsers
+	) {
+	}
+
+	public record AdminRevenueReport(
+			Instant generatedAt,
+			int days,
+			AdminRevenueSummary today,
+			AdminRevenueSummary period,
+			List<AdminRevenuePoint> points,
+			List<AdminIapProductRevenue> iapProducts,
+			List<AdminAdEventRevenue> adEvents,
+			List<AdminRevenueReferenceMetric> referenceMetrics
+	) {
+	}
+
+	public record AdminRevenueSummary(
+			long estimatedAdRevenueWon,
+			long estimatedIapRevenueWon,
+			long estimatedGrossRevenueWon,
+			long rewardCostWon,
+			long estimatedNetRevenueWon,
+			long adEventCount,
+			long adSessionStartedCount,
+			long adSessionCompletedCount,
+			long rewardClaimCount,
+			long iapOrderCount,
+			long appEnteredUsers,
+			long activeUsers,
+			long visitorOnlyUsers
+	) {
+	}
+
+	public record AdminAppInTossAdMetric(
+			String date,
+			long adImpressions,
+			BigDecimal adWatchRatePercent,
+			BigDecimal ecpmWon,
+			Long estimatedRevenueWon,
+			String note,
+			Instant updatedAt
+	) {
+	}
+
+	public record AdminRevenuePoint(
+			String date,
+			long estimatedAdRevenueWon,
+			long estimatedIapRevenueWon,
+			long estimatedGrossRevenueWon,
+			long rewardCostWon,
+			long estimatedNetRevenueWon,
+			long adEventCount,
+			long adSessionStartedCount,
+			long adSessionCompletedCount,
+			long rewardClaimCount,
+			long iapOrderCount,
+			long appEnteredUsers,
+			long activeUsers,
+			long visitorOnlyUsers,
+			Long appInTossAdImpressions,
+			BigDecimal appInTossAdWatchRatePercent,
+			BigDecimal appInTossEcpmWon,
+			Long appInTossEstimatedRevenueWon
+	) {
+	}
+
+	public record AdminIapProductRevenue(
+			String productType,
+			String productLabel,
+			long unitPriceWon,
+			long orderCount,
+			long grantedCount,
+			long estimatedRevenueWon
+	) {
+	}
+
+	public record AdminAdEventRevenue(
+			String type,
+			String label,
+			long eventCount,
+			long estimatedRevenueWon
+	) {
+	}
+
+	public record AdminRevenueReferenceMetric(
+			String label,
+			String description
 	) {
 	}
 

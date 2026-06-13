@@ -14,7 +14,22 @@ import org.springframework.data.repository.query.Param;
 public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 	long countByOccurredAtAfter(Instant occurredAt);
 
+	long countByOccurredAtGreaterThanEqualAndOccurredAtLessThan(Instant startedAt, Instant endedAt);
+
 	long countByTypeAndOccurredAtAfter(AdEventType type, Instant occurredAt);
+
+	@Query("""
+			select a.type as type,
+				count(a.id) as eventCount
+			from AdEvent a
+			where a.occurredAt >= :startedAt
+				and a.occurredAt < :endedAt
+			group by a.type
+			order by count(a.id) desc
+			""")
+	List<AdEventTypeCount> findTypeCountsBetween(
+			@Param("startedAt") Instant startedAt,
+			@Param("endedAt") Instant endedAt);
 
 	@Modifying
 	@Query(value = """
@@ -46,5 +61,11 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 		long getEventCount();
 
 		Instant getLastOccurredAt();
+	}
+
+	interface AdEventTypeCount {
+		AdEventType getType();
+
+		long getEventCount();
 	}
 }

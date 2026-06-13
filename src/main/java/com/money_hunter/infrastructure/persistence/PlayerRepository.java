@@ -2,9 +2,11 @@ package com.money_hunter.infrastructure.persistence;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.money_hunter.domain.AdEventType;
 import com.money_hunter.domain.Player;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,6 +32,134 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant startedAt, Instant endedAt);
 
 	long countByAutoHuntEndsAtAfter(Instant now);
+
+	long countByLastAccessedAtGreaterThanEqual(Instant accessedAt);
+
+	long countByLastAccessedAtGreaterThanEqualAndLastAccessedAtLessThan(Instant startedAt, Instant endedAt);
+
+	long countByJobIsNotNullAndLastAccessedAtGreaterThanEqualAndLastAccessedAtLessThan(Instant startedAt, Instant endedAt);
+
+	@Query("""
+			select count(distinct p.id)
+			from Player p
+			where p.job is not null
+				and p.suspendedAt is null
+				and p.level >= :minimumLevel
+				and exists (
+					select s.id
+					from LoginSession s
+					where s.userKey = p.userKey
+						and s.createdAt >= :firstAccessDayStartedAt
+						and s.createdAt < :firstAccessDayEndedAt
+				)
+				and exists (
+					select s.id
+					from LoginSession s
+					where s.userKey = p.userKey
+						and s.createdAt >= :secondAccessDayStartedAt
+						and s.createdAt < :secondAccessDayEndedAt
+				)
+				and exists (
+					select s.id
+					from LoginSession s
+					where s.userKey = p.userKey
+						and s.createdAt >= :thirdAccessDayStartedAt
+						and s.createdAt < :thirdAccessDayEndedAt
+				)
+				and exists (
+					select r.id
+					from RewardClaim r
+					where r.player = p
+				)
+				and (
+					select count(a.id)
+					from AdEvent a
+					where a.player = p
+						and a.type in :rewardAdTypes
+				) >= :minimumRewardAdEvents
+				and p.weeklyPunchKingBestScore > 0
+				and exists (
+					select d.id
+					from AdEvent d
+					where d.player = p
+						and d.type = :dungeonRunType
+				)
+			""")
+	long countLoyalActiveUsersByReferenceDay(
+			@Param("firstAccessDayStartedAt") Instant firstAccessDayStartedAt,
+			@Param("firstAccessDayEndedAt") Instant firstAccessDayEndedAt,
+			@Param("secondAccessDayStartedAt") Instant secondAccessDayStartedAt,
+			@Param("secondAccessDayEndedAt") Instant secondAccessDayEndedAt,
+			@Param("thirdAccessDayStartedAt") Instant thirdAccessDayStartedAt,
+			@Param("thirdAccessDayEndedAt") Instant thirdAccessDayEndedAt,
+			@Param("minimumLevel") int minimumLevel,
+			@Param("minimumRewardAdEvents") long minimumRewardAdEvents,
+			@Param("rewardAdTypes") Collection<AdEventType> rewardAdTypes,
+			@Param("dungeonRunType") AdEventType dungeonRunType);
+
+	@Query("""
+			select count(distinct p.id)
+			from Player p
+			where p.lastAccessedAt >= :visitedAtStartedAt
+				and p.lastAccessedAt < :visitedAtEndedAt
+				and (
+					p.job is null
+					or p.suspendedAt is not null
+					or p.level < :minimumLevel
+					or not exists (
+						select s.id
+						from LoginSession s
+						where s.userKey = p.userKey
+							and s.createdAt >= :firstAccessDayStartedAt
+							and s.createdAt < :firstAccessDayEndedAt
+					)
+					or not exists (
+						select s.id
+						from LoginSession s
+						where s.userKey = p.userKey
+							and s.createdAt >= :secondAccessDayStartedAt
+							and s.createdAt < :secondAccessDayEndedAt
+					)
+					or not exists (
+						select s.id
+						from LoginSession s
+						where s.userKey = p.userKey
+							and s.createdAt >= :thirdAccessDayStartedAt
+							and s.createdAt < :thirdAccessDayEndedAt
+					)
+					or not exists (
+						select r.id
+						from RewardClaim r
+						where r.player = p
+					)
+					or (
+						select count(a.id)
+						from AdEvent a
+						where a.player = p
+							and a.type in :rewardAdTypes
+					) < :minimumRewardAdEvents
+					or p.weeklyPunchKingBestScore <= 0
+					or not exists (
+						select d.id
+						from AdEvent d
+						where d.player = p
+							and d.type = :dungeonRunType
+					)
+				)
+			""")
+	long countNonLoyalVisitorsByReferenceDay(
+			@Param("visitedAtStartedAt") Instant visitedAtStartedAt,
+			@Param("visitedAtEndedAt") Instant visitedAtEndedAt,
+			@Param("firstAccessDayStartedAt") Instant firstAccessDayStartedAt,
+			@Param("firstAccessDayEndedAt") Instant firstAccessDayEndedAt,
+			@Param("secondAccessDayStartedAt") Instant secondAccessDayStartedAt,
+			@Param("secondAccessDayEndedAt") Instant secondAccessDayEndedAt,
+			@Param("thirdAccessDayStartedAt") Instant thirdAccessDayStartedAt,
+			@Param("thirdAccessDayEndedAt") Instant thirdAccessDayEndedAt,
+			@Param("minimumLevel") int minimumLevel,
+			@Param("minimumRewardAdEvents") long minimumRewardAdEvents,
+			@Param("rewardAdTypes") Collection<AdEventType> rewardAdTypes,
+			@Param("dungeonRunType") AdEventType dungeonRunType);
 
 	long countByRookieEventStartedAtIsNotNull();
 

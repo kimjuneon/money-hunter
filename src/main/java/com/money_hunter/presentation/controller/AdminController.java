@@ -23,6 +23,7 @@ import com.money_hunter.application.dto.response.AdminPlayerResponse;
 import com.money_hunter.domain.AdminAnomalyStatus;
 import com.money_hunter.domain.AdminAuditLog;
 import com.money_hunter.presentation.dto.request.AdminAnomalyActionRequest;
+import com.money_hunter.presentation.dto.request.AdminAppInTossAdMetricRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerActionRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerFavoriteRequest;
 import com.money_hunter.presentation.dto.request.AdminPlayerNicknameRequest;
@@ -155,6 +156,38 @@ public class AdminController {
 	) {
 		adminAccessGuard.require(request);
 		return monitoringService.playerGrowth(days);
+	}
+
+	@GetMapping("/revenue")
+	public AdminMonitoringService.AdminRevenueReport revenue(
+			@RequestParam(defaultValue = "30") int days,
+			HttpServletRequest request
+	) {
+		adminAccessGuard.require(request);
+		return monitoringService.revenue(days);
+	}
+
+	@PostMapping("/revenue/app-in-toss-metrics")
+	public AdminMonitoringService.AdminAppInTossAdMetric saveAppInTossAdMetric(
+			@Valid @RequestBody AdminAppInTossAdMetricRequest requestBody,
+			HttpServletRequest request
+	) {
+		AdminAccessGuard.AdminContext admin = adminAccessGuard.require(request);
+		AdminMonitoringService.AdminAppInTossAdMetric response = monitoringService.saveAppInTossAdMetric(
+				requestBody.date(),
+				requestBody.adImpressions(),
+				requestBody.adWatchRatePercent(),
+				requestBody.ecpmWon(),
+				requestBody.note());
+		adminAuditService.record(
+				admin,
+				"APP_IN_TOSS_AD_METRIC",
+				response.date(),
+				null,
+				response.adImpressions() + " impressions, eCPM " + response.ecpmWon(),
+				"앱인토스 일별 광고 핵심 지표 저장",
+				request);
+		return response;
 	}
 
 	@GetMapping("/server-metrics")

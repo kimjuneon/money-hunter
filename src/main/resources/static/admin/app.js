@@ -7,6 +7,7 @@ const state = {
   paymentPage: 0,
   paymentSize: 30,
   paymentTotalPages: 1,
+  revenueDays: 30,
   toastTimer: null,
   overview: null,
   players: [],
@@ -204,6 +205,7 @@ function activateView(viewId) {
     anomalyView: "이상징후",
     playerView: "유저 관리",
     paymentView: "결제",
+    revenueView: "수익",
     policyView: "정책값",
     auditView: "감사 로그",
     monitoringView: "모니터링",
@@ -232,6 +234,8 @@ async function refreshCurrentView(options = {}) {
       await loadAudits();
     } else if (state.view === "paymentView") {
       await loadPayments();
+    } else if (state.view === "revenueView") {
+      await loadRevenue();
     } else if (state.view === "anomalyView") {
       await loadAnomalies();
     } else if (state.view === "playerView") {
@@ -707,6 +711,9 @@ function renderMetrics(data) {
     ["온보딩 완료", data.onboardedPlayers, "명"],
     ["정지 유저", data.suspendedPlayers, "명"],
     ["오늘 신규", data.newPlayersToday, "명"],
+    ["오늘 앱 진입", data.appEnteredUsersToday, "명"],
+    ["3일 충성 활성", data.activeUsersToday, "명"],
+    ["방문/저관여", data.visitorOnlyUsersToday, "명"],
     ["자동사냥 활성", data.activeAutoHuntPlayers, "명"],
     ["총 보유 골드", data.totalGoldInCirculation, "G"],
     ["오늘 광고 이벤트", data.rewardAdEventsToday, "회"],
@@ -926,11 +933,15 @@ async function saveQuickPolicy(key, value, successMessage, button = null) {
 
 function renderMonitoringPanel(data) {
   const totalPlayers = Number(data.totalPlayers || 0);
+  const appEnteredUsers = Number(data.appEnteredUsersToday || 0);
+  const activeUsers = Number(data.activeUsersToday || 0);
   const adEvents = Number(data.rewardAdEventsToday || 0);
   const items = [
     ["온보딩 전환", formatPercent(data.onboardedPlayers, totalPlayers), "직업 선택 완료 비율"],
     ["자동사냥 활성률", formatPercent(data.activeAutoHuntPlayers, totalPlayers), "현재 사냥 중인 유저"],
-    ["오늘 광고/유저", totalPlayers > 0 ? (adEvents / totalPlayers).toFixed(2) : "0.00", "전체 유저 기준 평균"],
+    ["3일 충성 활성", `${formatNumber(activeUsers)}명`, "오늘 제외 직전 3일 기준"],
+    ["방문/저관여 비율", formatPercent(data.visitorOnlyUsersToday, appEnteredUsers), "오늘 진입 중 충성 조건 미충족"],
+    ["충성 활성당 광고", activeUsers > 0 ? (adEvents / activeUsers).toFixed(2) : "0.00", "서버 광고/보상 이벤트 기준"],
     ["대기 보상", `${formatNumber(data.pendingRewardClaims)}건`, `${formatNumber(data.pendingRewardPoints)}P 지급 대기`],
     ["오늘 순수익", `${formatNumber(data.estimatedNetWonToday)}원`, "광고 추정 - 포인트 지급"],
   ];
@@ -987,6 +998,7 @@ function renderPlayerGrowth(data) {
         ${economyItem("집계 기간", data.days || state.growthDays, "일")}
       </div>
       ${renderLineChart(points)}
+      ${renderActiveUserChart(points)}
     </section>
   `;
   $("growthPeriodSelect").addEventListener("change", (event) => {
@@ -1064,6 +1076,82 @@ function renderLineChart(points) {
         </div>
       </div>
       <div class="growth-x-labels">${labels}</div>
+    </div>
+  `;
+}
+
+function renderActiveUserChart(points) {
+  if (!points.length) {
+    return `<p class="empty">충성 활성 사용자 추이 데이터가 아직 없어요.</p>`;
+  }
+  const series = [
+    { key: "appEnteredUsers", label: "앱 진입", className: "entered" },
+    { key: "onboardedEnteredUsers", label: "게임 시작 후 진입", className: "onboarded" },
+    { key: "activeUsers", label: "충성 활성", className: "active" },
+    { key: "visitorOnlyUsers", label: "방문/저관여", className: "visitor-only" },
+  ];
+  const width = 640;
+  const height = 190;
+  const maxValue = Math.max(1, ...points.flatMap((point) => series.map((item) => Number(point[item.key] || 0))));
+  const paddedMax = Math.max(1, Math.ceil(maxValue * 1.15));
+  const midValue = Math.round(paddedMax / 2);
+  const x = (index) => points.length === 1 ? width / 2 : width * index / (points.length - 1);
+  const y = (value) => height - height * Number(value || 0) / paddedMax;
+  const labelStep = Math.max(1, Math.ceil(points.length / 5));
+  const labels = points
+    .map((point, index) => ({ point, index }))
+    .filter(({ index }) => index === 0 || index === points.length - 1 || index % labelStep === 0)
+    .map(({ point, index }) => {
+      const edgeClass = index === 0 ? " first" : index === points.length - 1 ? " last" : "";
+      return `
+        <span class="growth-x-label${edgeClass}">
+          ${escapeHtml(String(point.date || "").slice(5))}
+          <small>${formatNumber(point.activeUsers || 0)}명</small>
+        </span>
+      `;
+    }).join("");
+  const latest = points[points.length - 1] || {};
+  return `
+    <div class="active-user-section">
+      <div class="active-user-head">
+        <div>
+          <h4>충성 활성 사용자 추이</h4>
+          <p>충성 활성은 기준일을 제외한 직전 3일 매일 접속, 레벨 3+, 토스포인트 보상 이력, 리워드 광고 10회+, 펀치킹과 던전 탐험 이력을 모두 만족한 유저예요.</p>
+        </div>
+        <div class="active-user-legend">
+          ${series.map((item) => `
+            <span class="${escapeHtml(item.className)}">${escapeHtml(item.label)}</span>
+          `).join("")}
+        </div>
+      </div>
+      <div class="active-user-latest">
+        ${economyItem("최신 앱 진입", latest.appEnteredUsers, "명")}
+        ${economyItem("최신 충성 활성", latest.activeUsers, "명")}
+        ${economyItem("최신 방문/저관여", latest.visitorOnlyUsers, "명")}
+      </div>
+      <div class="growth-chart active-user-chart" role="img" aria-label="충성 활성 사용자 추이 그래프">
+        <div class="growth-chart-body">
+          <div class="chart-y-axis" aria-hidden="true">
+            <span>${formatNumber(paddedMax)}명</span>
+            <span>${formatNumber(midValue)}명</span>
+            <span>0명</span>
+          </div>
+          <div class="growth-plot">
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+              <line class="chart-grid" x1="0" y1="0" x2="${width}" y2="0"></line>
+              <line class="chart-grid" x1="0" y1="${height / 2}" x2="${width}" y2="${height / 2}"></line>
+              <line class="chart-grid" x1="0" y1="${height}" x2="${width}" y2="${height}"></line>
+              ${series.map((item) => `
+                <polyline
+                  class="active-user-line ${escapeHtml(item.className)}"
+                  points="${points.map((point, index) => `${x(index).toFixed(1)},${y(point[item.key]).toFixed(1)}`).join(" ")}"
+                ></polyline>
+              `).join("")}
+            </svg>
+          </div>
+        </div>
+        <div class="growth-x-labels">${labels}</div>
+      </div>
     </div>
   `;
 }
@@ -1889,6 +1977,410 @@ function renderServerMetrics(metrics, overview) {
     <div class="runtime-status-grid">
       ${renderRuntimeStatusItems(statusItems)}
     </div>
+  `;
+}
+
+async function loadRevenue() {
+  const select = $("revenuePeriodSelect");
+  if (select) {
+    select.value = String(state.revenueDays);
+  }
+  const data = await request(`/api/admin/revenue?days=${encodeURIComponent(state.revenueDays)}`);
+  state.revenueDays = Number(data.days || state.revenueDays);
+  if (select) {
+    select.value = String(state.revenueDays);
+    select.onchange = (event) => {
+      state.revenueDays = Number(event.target.value || 30);
+      loadRevenue().catch((error) => showToast(error.message, "error"));
+    };
+  }
+  renderRevenue(data);
+}
+
+function renderRevenue(data) {
+  const today = data.today || {};
+  const period = data.period || {};
+  const points = data.points || [];
+  $("revenueSummaryGrid").innerHTML = [
+    ["오늘 추정 총매출", today.estimatedGrossRevenueWon, "원", "광고 추정 + IAP 추정"],
+    ["오늘 광고 추정", today.estimatedAdRevenueWon, "원", "서버 광고/보상 이벤트 기준"],
+    ["오늘 IAP 추정", today.estimatedIapRevenueWon, "원", "주문 상품가 매핑 기준"],
+    ["오늘 보상 비용", today.rewardCostWon, "원", "토스포인트 지급/대기 기준"],
+    ["오늘 추정 순수익", today.estimatedNetRevenueWon, "원", "추정 총매출 - 보상 비용"],
+    ["3일 충성 활성", today.activeUsers, "명", "오늘 제외 직전 3일 충성 조건"],
+    [`${formatNumber(data.days || state.revenueDays)}일 총매출`, period.estimatedGrossRevenueWon, "원", "기간 합산 추정"],
+    [`${formatNumber(data.days || state.revenueDays)}일 순수익`, period.estimatedNetRevenueWon, "원", "기간 합산 추정"],
+  ].map(([label, value, unit, detail]) => `
+    <article class="metric-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${formatNumber(value)}${escapeHtml(unit)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `).join("");
+
+  renderRevenuePanelSafely("revenueDiagnosisPanel", () => renderRevenueDiagnosis(points), "eCPM 원인 분석을 표시하지 못했어요.");
+  renderRevenuePanelSafely("appInTossMetricPanel", () => renderAppInTossMetricPanel(points), "앱인토스 콘솔 핵심값 입력 폼을 표시하지 못했어요.");
+  $("appInTossMetricForm")?.addEventListener("submit", saveAppInTossMetric);
+  $("revenueReferencePanel").innerHTML = `
+    ${(data.referenceMetrics || []).map((item) => `
+      <article class="revenue-reference-card">
+        <span>${escapeHtml(item.label || "-")}</span>
+        <p>${escapeHtml(item.description || "-")}</p>
+      </article>
+    `).join("")}
+  `;
+  renderRevenuePanelSafely("revenueTrendPanel", () => renderRevenueTrendChart(points), "수익 추이 그래프를 표시하지 못했어요.");
+  renderRevenuePanelSafely("revenueIapPanel", () => renderIapRevenuePanel(data.iapProducts || []), "인앱결제 매출 표를 표시하지 못했어요.");
+  renderRevenuePanelSafely("revenueAdPanel", () => renderAdRevenuePanel(data.adEvents || []), "광고/보상 이벤트 표를 표시하지 못했어요.");
+}
+
+function renderRevenuePanelSafely(targetId, renderer, fallbackMessage) {
+  try {
+    $(targetId).innerHTML = renderer();
+  } catch (error) {
+    console.error("Revenue panel render failed", targetId, error);
+    $(targetId).innerHTML = `<p class="empty">${escapeHtml(fallbackMessage)}</p>`;
+  }
+}
+
+function renderRevenueDiagnosis(points) {
+  if (!points.length) {
+    return `<p class="empty">수익 원인 분석 데이터가 아직 없어요.</p>`;
+  }
+  const latest = points[points.length - 1] || {};
+  const previous = points.length > 1 ? points[points.length - 2] : null;
+  const previousConsole = [...points].slice(0, -1).reverse().find(hasAppInTossMetric) || previous;
+  const consoleMetricAvailable = hasAppInTossMetric(latest);
+  const internalCompletionRate = ratioNumber(latest.adSessionCompletedCount, latest.adSessionStartedCount);
+  const consoleWatchRate = consoleMetricAvailable ? Number(latest.appInTossAdWatchRatePercent || 0) / 100 : null;
+  const adsPerActive = ratioNumber(latest.adEventCount, latest.activeUsers);
+  const visitorRatio = ratioNumber(latest.visitorOnlyUsers, latest.appEnteredUsers);
+  const rewardConversion = ratioNumber(latest.rewardClaimCount, latest.adSessionCompletedCount);
+  const adRevenueBase = Number(latest.appInTossEstimatedRevenueWon ?? latest.estimatedAdRevenueWon ?? 0);
+  const rewardCostRatio = ratioNumber(latest.rewardCostWon, adRevenueBase);
+  const cards = [
+    revenueCauseCard(
+      "앱인토스 eCPM",
+      consoleMetricAvailable ? `${formatNumber(latest.appInTossEcpmWon)}원` : "미입력",
+      consoleMetricAvailable ? trendDetail(Number(latest.appInTossEcpmWon || 0), Number(previousConsole?.appInTossEcpmWon || 0), (value) => `${formatNumber(Math.abs(value))}원`) : "콘솔 값 입력 시 실제 변동 추적",
+      ecpmStatus(latest, previousConsole)
+    ),
+    revenueCauseCard(
+      "콘솔 광고 시청률",
+      consoleMetricAvailable ? formatRatio(consoleWatchRate) : "미입력",
+      consoleMetricAvailable ? trendDetail(consoleWatchRate, Number(previousConsole?.appInTossAdWatchRatePercent || 0) / 100, (value) => `${(Math.abs(value) * 100).toFixed(1)}%p`) : "앱인토스 콘솔 기준",
+      consoleWatchRate == null ? "neutral" : consoleWatchRate < 0.4 ? "bad" : "good"
+    ),
+    revenueCauseCard(
+      "내부 세션 완료율",
+      formatRatio(internalCompletionRate),
+      `${formatNumber(latest.adSessionCompletedCount)} / ${formatNumber(latest.adSessionStartedCount)} 세션`,
+      internalCompletionRate < 0.4 && Number(latest.adSessionStartedCount || 0) > 0 ? "bad" : "good"
+    ),
+    revenueCauseCard(
+      "충성 활성당 광고",
+      adsPerActive > 0 ? adsPerActive.toFixed(2) : "0.00",
+      previous ? trendDetail(adsPerActive, ratioNumber(previous.adEventCount, previous.activeUsers), (value) => Math.abs(value).toFixed(2)) : "충성 유저의 광고 소비 강도",
+      previous && adsPerActive < ratioNumber(previous.adEventCount, previous.activeUsers) * 0.8 ? "bad" : "neutral"
+    ),
+    revenueCauseCard(
+      "보상 전환율",
+      formatRatio(rewardConversion),
+      `${formatNumber(latest.rewardClaimCount)} / ${formatNumber(latest.adSessionCompletedCount)}건`,
+      rewardConversion < 0.8 && Number(latest.adSessionCompletedCount || 0) > 0 ? "bad" : "neutral"
+    ),
+    revenueCauseCard(
+      "방문/저관여 비율",
+      formatRatio(visitorRatio),
+      `${formatNumber(latest.visitorOnlyUsers)} / ${formatNumber(latest.appEnteredUsers)}명`,
+      visitorRatio > 0.55 ? "bad" : "neutral"
+    ),
+    revenueCauseCard(
+      "보상 비용률",
+      formatRatio(rewardCostRatio),
+      "광고 수익 대비 토스포인트 비용",
+      rewardCostRatio > 0.8 ? "bad" : "neutral"
+    ),
+  ];
+  const diagnoses = revenueDiagnoses(latest, previous, previousConsole, rewardConversion);
+  return `
+    <section class="revenue-diagnosis">
+      <div class="active-user-head">
+        <div>
+          <h4>eCPM 원인 분석</h4>
+          <p>관리자 입력은 앱인토스 일별 노출, 시청률, eCPM만 사용하고 나머지는 서버가 자동 집계해요.</p>
+        </div>
+      </div>
+      <div class="revenue-cause-grid">${cards.join("")}</div>
+      <div class="revenue-diagnosis-list">
+        ${diagnoses.map((item) => `<p class="${escapeHtml(item.level)}">${escapeHtml(item.text)}</p>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderAppInTossMetricPanel(points) {
+  const latest = points[points.length - 1] || {};
+  const selected = latest;
+  return `
+    <section class="app-in-toss-panel">
+      <div class="panel-head compact-head">
+        <div>
+          <h3>앱인토스 콘솔 핵심값</h3>
+          <p>일별 노출, 광고 시청률, eCPM만 입력하면 실제 콘솔 기준 수익과 내부 퍼널을 함께 비교해요.</p>
+        </div>
+      </div>
+      <form id="appInTossMetricForm" class="app-in-toss-form">
+        <label>
+          <span>날짜</span>
+          <input id="appInTossMetricDate" type="date" value="${escapeHtml(latest.date || selected.date || "")}" required />
+        </label>
+        <label>
+          <span>광고 노출</span>
+          <input id="appInTossAdImpressions" type="number" min="0" step="1" value="${escapeHtml(selected.appInTossAdImpressions ?? "")}" placeholder="예: 82" required />
+        </label>
+        <label>
+          <span>광고 시청률(%)</span>
+          <input id="appInTossAdWatchRate" type="number" min="0" max="100" step="0.01" value="${escapeHtml(selected.appInTossAdWatchRatePercent ?? "")}" placeholder="예: 15.95" required />
+        </label>
+        <label>
+          <span>eCPM(원)</span>
+          <input id="appInTossEcpmWon" type="number" min="0" step="0.01" value="${escapeHtml(selected.appInTossEcpmWon ?? "")}" placeholder="예: 14595" required />
+        </label>
+        <button class="secondary" type="submit">저장</button>
+      </form>
+    </section>
+  `;
+}
+
+async function saveAppInTossMetric(event) {
+  event.preventDefault();
+  const body = {
+    date: $("appInTossMetricDate").value,
+    adImpressions: Number($("appInTossAdImpressions").value),
+    adWatchRatePercent: Number($("appInTossAdWatchRate").value),
+    ecpmWon: Number($("appInTossEcpmWon").value),
+  };
+  if (!body.date || !Number.isFinite(body.adImpressions) || !Number.isFinite(body.adWatchRatePercent) || !Number.isFinite(body.ecpmWon)) {
+    showToast("앱인토스 핵심값을 확인해 주세요.", "error");
+    return;
+  }
+  await request("/api/admin/revenue/app-in-toss-metrics", {
+    method: "POST",
+    body,
+  });
+  showToast("앱인토스 광고 지표를 저장했어요.");
+  await loadRevenue();
+}
+
+function revenueCauseCard(label, value, detail, status = "neutral") {
+  return `
+    <article class="revenue-cause-card ${escapeHtml(status)}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `;
+}
+
+function revenueDiagnoses(latest, previous, previousConsole, rewardConversion) {
+  const items = [];
+  const hasConsole = hasAppInTossMetric(latest);
+  const ecpm = Number(latest.appInTossEcpmWon || 0);
+  const previousEcpm = Number(previousConsole?.appInTossEcpmWon || 0);
+  const ecpmDropped = hasConsole && previousEcpm > 0 && ecpm < previousEcpm * 0.9;
+  const watchRate = hasConsole ? Number(latest.appInTossAdWatchRatePercent || 0) / 100 : null;
+  const previousWatchRate = previousConsole ? Number(previousConsole.appInTossAdWatchRatePercent || 0) / 100 : null;
+  const watchDropped = watchRate != null && previousWatchRate != null && watchRate < previousWatchRate - 0.08;
+  const completionRate = ratioNumber(latest.adSessionCompletedCount, latest.adSessionStartedCount);
+  const visitorRatio = ratioNumber(latest.visitorOnlyUsers, latest.appEnteredUsers);
+  const adsPerActive = ratioNumber(latest.adEventCount, latest.activeUsers);
+  const previousAdsPerActive = previous ? ratioNumber(previous.adEventCount, previous.activeUsers) : 0;
+
+  if (!hasConsole) {
+    items.push({ level: "warning", text: "앱인토스 콘솔 핵심값이 없어서 실제 eCPM 변동은 아직 확정할 수 없어요. 노출, 시청률, eCPM 3개만 입력하면 진단 정확도가 올라가요." });
+  }
+  if (ecpmDropped && watchDropped) {
+    items.push({ level: "bad", text: "eCPM 하락과 광고 시청률 하락이 같이 발생했어요. 보상 매력, 광고 노출 위치, 선로딩 후 이탈 구간을 먼저 확인하는 게 좋아요." });
+  } else if (ecpmDropped && completionRate >= 0.4 && !watchDropped) {
+    items.push({ level: "warning", text: "내부 완료율은 크게 무너지지 않았는데 eCPM이 내려갔어요. 광고 수요, 지면 믹스, 앱인토스 광고 그룹 단가 변동 가능성이 더 커요." });
+  }
+  if (completionRate < 0.4 && Number(latest.adSessionStartedCount || 0) > 0) {
+    items.push({ level: "bad", text: "내부 광고 세션 완료율이 40% 미만이에요. 광고를 열었지만 보상 완료까지 못 가는 사용자가 많을 수 있어요." });
+  }
+  if (visitorRatio > 0.55 && Number(latest.appEnteredUsers || 0) > 0) {
+    items.push({ level: "warning", text: "오늘 앱 진입 중 방문/저관여 비율이 높아요. 충성 유저가 아닌 트래픽이 늘면 광고 시청률과 eCPM이 같이 약해질 수 있어요." });
+  }
+  if (rewardConversion < 0.8 && Number(latest.adSessionCompletedCount || 0) > 0) {
+    items.push({ level: "warning", text: "광고 완료 대비 보상 신청 전환이 낮아요. 보상 지급 버튼, 토스포인트 환급 안내, 완료 후 이동 흐름을 확인해 보세요." });
+  }
+  if (previous && previousAdsPerActive > 0 && adsPerActive < previousAdsPerActive * 0.8) {
+    items.push({ level: "warning", text: "충성 활성 사용자당 광고 이벤트가 전일보다 줄었어요. 광고 보상 위치나 쿨타임, 보상 효율 변경 영향을 확인해 보세요." });
+  }
+  if (items.length === 0) {
+    items.push({ level: "good", text: "현재 자동 집계 지표에서는 큰 내부 퍼널 급락이 보이지 않아요. 실제 eCPM이 하락했다면 앱인토스 콘솔 지면/광고그룹 단가 변동을 우선 확인하세요." });
+  }
+  return items;
+}
+
+function hasAppInTossMetric(point) {
+  return point && point.appInTossEcpmWon !== null && point.appInTossEcpmWon !== undefined;
+}
+
+function ratioNumber(value, total) {
+  const denominator = Number(total || 0);
+  if (denominator <= 0) {
+    return 0;
+  }
+  return Number(value || 0) / denominator;
+}
+
+function formatRatio(value) {
+  return `${(Number(value || 0) * 100).toFixed(1)}%`;
+}
+
+function trendDetail(current, previous, formatter) {
+  if (!Number.isFinite(previous) || previous <= 0) {
+    return "비교 기준 없음";
+  }
+  const delta = Number(current || 0) - previous;
+  const direction = delta >= 0 ? "상승" : "하락";
+  return `${formatter(delta)} ${direction}`;
+}
+
+function ecpmStatus(latest, previous) {
+  if (!hasAppInTossMetric(latest)) {
+    return "neutral";
+  }
+  const ecpm = Number(latest.appInTossEcpmWon || 0);
+  const previousEcpm = Number(previous?.appInTossEcpmWon || 0);
+  if (previousEcpm > 0 && ecpm < previousEcpm * 0.9) {
+    return "bad";
+  }
+  return "good";
+}
+
+function renderRevenueTrendChart(points) {
+  if (!points.length) {
+    return `<p class="empty">수익 추이 데이터가 아직 없어요.</p>`;
+  }
+  const width = 640;
+  const height = 190;
+  const series = [
+    { key: "estimatedGrossRevenueWon", label: "추정 총매출", className: "gross" },
+    { key: "estimatedAdRevenueWon", label: "광고 추정", className: "ad" },
+    { key: "estimatedIapRevenueWon", label: "IAP 추정", className: "iap" },
+    { key: "rewardCostWon", label: "보상 비용", className: "cost" },
+  ];
+  const maxValue = Math.max(1, ...points.flatMap((point) => series.map((item) => Number(point[item.key] || 0))));
+  const paddedMax = Math.max(1, Math.ceil(maxValue * 1.12));
+  const midValue = Math.round(paddedMax / 2);
+  const x = (index) => points.length === 1 ? width / 2 : width * index / (points.length - 1);
+  const y = (value) => height - height * Number(value || 0) / paddedMax;
+  const labelStep = Math.max(1, Math.ceil(points.length / 5));
+  const labels = points
+    .map((point, index) => ({ point, index }))
+    .filter(({ index }) => index === 0 || index === points.length - 1 || index % labelStep === 0)
+    .map(({ point, index }) => {
+      const edgeClass = index === 0 ? " first" : index === points.length - 1 ? " last" : "";
+      return `
+        <span class="growth-x-label${edgeClass}">
+          ${escapeHtml(String(point.date || "").slice(5))}
+          <small>${formatNumber(point.estimatedNetRevenueWon || 0)}원</small>
+        </span>
+      `;
+    }).join("");
+  return `
+    <section class="revenue-trend-section">
+      <div class="active-user-head">
+        <div>
+          <h4>일별 수익 추이</h4>
+          <p>실제 eCPM이 아니라 서버 이벤트와 IAP 주문을 기반으로 한 내부 추정값이에요.</p>
+        </div>
+        <div class="active-user-legend revenue-legend">
+          ${series.map((item) => `<span class="${escapeHtml(item.className)}">${escapeHtml(item.label)}</span>`).join("")}
+        </div>
+      </div>
+      <div class="growth-chart revenue-chart" role="img" aria-label="일별 추정 수익 그래프">
+        <div class="growth-chart-body">
+          <div class="chart-y-axis" aria-hidden="true">
+            <span>${formatNumber(paddedMax)}원</span>
+            <span>${formatNumber(midValue)}원</span>
+            <span>0원</span>
+          </div>
+          <div class="growth-plot">
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+              <line class="chart-grid" x1="0" y1="0" x2="${width}" y2="0"></line>
+              <line class="chart-grid" x1="0" y1="${height / 2}" x2="${width}" y2="${height / 2}"></line>
+              <line class="chart-grid" x1="0" y1="${height}" x2="${width}" y2="${height}"></line>
+              ${series.map((item) => `
+                <polyline
+                  class="revenue-line ${escapeHtml(item.className)}"
+                  points="${points.map((point, index) => `${x(index).toFixed(1)},${y(point[item.key]).toFixed(1)}`).join(" ")}"
+                ></polyline>
+              `).join("")}
+            </svg>
+          </div>
+        </div>
+        <div class="growth-x-labels">${labels}</div>
+      </div>
+    </section>
+  `;
+}
+
+function renderIapRevenuePanel(products) {
+  return `
+    <section class="revenue-subpanel">
+      <div class="panel-head compact-head">
+        <div>
+          <h3>인앱결제 상품별 추정 매출</h3>
+          <p>주문 테이블의 상품 타입과 운영 가격표를 매핑해 계산해요.</p>
+        </div>
+      </div>
+      <div class="revenue-table">
+        ${products.map((item) => `
+          <article class="revenue-table-row">
+            <div>
+              <strong>${escapeHtml(item.productLabel || item.productType || "-")}</strong>
+              <small>${escapeHtml(item.productType || "-")} · 단가 ${formatNumber(item.unitPriceWon)}원</small>
+            </div>
+            <div>
+              <span>${formatNumber(item.orderCount)}건</span>
+              <small>지급 ${formatNumber(item.grantedCount)}건</small>
+            </div>
+            <strong>${formatNumber(item.estimatedRevenueWon)}원</strong>
+          </article>
+        `).join("") || `<p class="empty">기간 내 인앱결제 주문이 없어요.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderAdRevenuePanel(events) {
+  return `
+    <section class="revenue-subpanel">
+      <div class="panel-head compact-head">
+        <div>
+          <h3>광고/보상 이벤트별 추정 수익</h3>
+          <p>SDK의 실제 eCPM이 아니라 서버 이벤트 수에 광고 단가 정책값을 곱한 참고값이에요.</p>
+        </div>
+      </div>
+      <div class="revenue-table">
+        ${events.map((item) => `
+          <article class="revenue-table-row">
+            <div>
+              <strong>${escapeHtml(item.label || item.type || "-")}</strong>
+              <small>${escapeHtml(item.type || "-")}</small>
+            </div>
+            <div>
+              <span>${formatNumber(item.eventCount)}회</span>
+              <small>서버 이벤트</small>
+            </div>
+            <strong>${formatNumber(item.estimatedRevenueWon)}원</strong>
+          </article>
+        `).join("") || `<p class="empty">기간 내 광고/보상 이벤트가 없어요.</p>`}
+      </div>
+    </section>
   `;
 }
 
