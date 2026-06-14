@@ -120,6 +120,12 @@ function bindEvents() {
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.addEventListener("click", () => switchView(button.dataset.view));
   });
+  document.addEventListener("pointerover", showChartTooltip);
+  document.addEventListener("pointermove", moveChartTooltip);
+  document.addEventListener("pointerout", hideChartTooltip);
+  document.addEventListener("mouseover", showChartTooltip);
+  document.addEventListener("mousemove", moveChartTooltip);
+  document.addEventListener("mouseout", hideChartTooltip);
 }
 
 async function restoreSession() {
@@ -1073,11 +1079,139 @@ function renderLineChart(points) {
             <polyline class="growth-line" points="${linePoints}"></polyline>
             <circle class="growth-dot" cx="${lastX}" cy="${lastY}" r="5"></circle>
           </svg>
+          ${renderChartHoverLayer(points, (point) => [
+            chartTooltipRow("누적 유저", `${formatNumber(point.totalPlayers)}명`, "growth-total"),
+            chartTooltipRow("신규 유저", `+${formatNumber(point.newPlayers)}명`, "new"),
+            chartTooltipRow("앱 진입", `${formatNumber(point.appEnteredUsers)}명`, "entered"),
+            chartTooltipRow("충성 활성", `${formatNumber(point.activeUsers)}명`, "active"),
+          ])}
         </div>
       </div>
       <div class="growth-x-labels">${labels}</div>
     </div>
   `;
+}
+
+function chartTooltipRow(label, value, className = "") {
+  return { label, value, className };
+}
+
+function renderChartHoverLayer(points, rowsForPoint) {
+  if (!points.length) {
+    return "";
+  }
+  const lastIndex = points.length - 1;
+  const position = (index) => points.length === 1 ? 50 : index * 100 / lastIndex;
+  return `
+    <div class="chart-hover-layer" aria-hidden="true">
+      ${points.map((point, index) => {
+        const current = position(index);
+        const previous = index === 0 ? 0 : position(index - 1);
+        const next = index === lastIndex ? 100 : position(index + 1);
+        const left = index === 0 ? 0 : (previous + current) / 2;
+        const right = index === lastIndex ? 100 : (current + next) / 2;
+        const width = Math.max(1, right - left);
+        const pointOffset = Math.min(100, Math.max(0, (current - left) / width * 100));
+        const tooltip = encodeURIComponent(renderChartTooltip(point.date || "-", rowsForPoint(point, index)));
+        return `
+          <span
+            class="chart-hover-zone"
+            style="left: ${left.toFixed(3)}%; width: ${width.toFixed(3)}%; --point-offset: ${pointOffset.toFixed(3)}%;"
+            data-chart-tooltip="${tooltip}"
+          ></span>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderChartTooltip(date, rows) {
+  return `
+    <div class="chart-tooltip-date">${escapeHtml(date)}</div>
+    <div class="chart-tooltip-rows">
+      ${(rows || []).filter(Boolean).map((row) => `
+        <div class="chart-tooltip-row">
+          <span>
+            <i class="chart-tooltip-swatch ${escapeHtml(row.className || "")}" aria-hidden="true"></i>
+            ${escapeHtml(row.label)}
+          </span>
+          <strong>${escapeHtml(row.value)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function ensureChartTooltipElement() {
+  let tooltip = document.querySelector(".chart-hover-tooltip");
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.className = "chart-hover-tooltip";
+    tooltip.hidden = true;
+    document.body.appendChild(tooltip);
+  }
+  return tooltip;
+}
+
+function showChartTooltip(event) {
+  const zone = event.target.closest?.("[data-chart-tooltip]");
+  if (!zone) {
+    return;
+  }
+  const tooltip = ensureChartTooltipElement();
+  try {
+    tooltip.innerHTML = decodeURIComponent(zone.dataset.chartTooltip || "");
+  } catch (error) {
+    tooltip.innerHTML = "";
+  }
+  tooltip.hidden = false;
+  tooltip.classList.add("visible");
+  positionChartTooltip(event, zone, tooltip);
+}
+
+function moveChartTooltip(event) {
+  const zone = event.target.closest?.("[data-chart-tooltip]");
+  if (!zone) {
+    return;
+  }
+  const tooltip = document.querySelector(".chart-hover-tooltip");
+  if (tooltip && !tooltip.hidden) {
+    positionChartTooltip(event, zone, tooltip);
+  }
+}
+
+function hideChartTooltip(event) {
+  const zone = event.target.closest?.("[data-chart-tooltip]");
+  if (!zone) {
+    return;
+  }
+  if (event.relatedTarget?.closest?.("[data-chart-tooltip]") === zone) {
+    return;
+  }
+  const tooltip = document.querySelector(".chart-hover-tooltip");
+  if (tooltip) {
+    tooltip.classList.remove("visible");
+    tooltip.hidden = true;
+  }
+}
+
+function positionChartTooltip(event, zone, tooltip) {
+  const zoneRect = zone.getBoundingClientRect();
+  const pointerX = Number.isFinite(event.clientX) ? event.clientX : zoneRect.left + zoneRect.width / 2;
+  const pointerY = Number.isFinite(event.clientY) ? event.clientY : zoneRect.top + zoneRect.height / 2;
+  const gap = 14;
+  let left = pointerX + gap;
+  let top = pointerY + gap;
+  const width = tooltip.offsetWidth || 240;
+  const height = tooltip.offsetHeight || 140;
+  if (left + width + 10 > window.innerWidth) {
+    left = pointerX - width - gap;
+  }
+  if (top + height + 10 > window.innerHeight) {
+    top = pointerY - height - gap;
+  }
+  tooltip.style.left = `${Math.max(10, left)}px`;
+  tooltip.style.top = `${Math.max(10, top)}px`;
 }
 
 function renderActiveUserChart(points) {
@@ -1148,6 +1282,9 @@ function renderActiveUserChart(points) {
                 ></polyline>
               `).join("")}
             </svg>
+            ${renderChartHoverLayer(points, (point) => series.map((item) => (
+              chartTooltipRow(item.label, `${formatNumber(point[item.key])}명`, item.className)
+            )))}
           </div>
         </div>
         <div class="growth-x-labels">${labels}</div>
@@ -2320,6 +2457,18 @@ function renderRevenueTrendChart(points) {
                 ></polyline>
               `).join("")}
             </svg>
+            ${renderChartHoverLayer(points, (point) => {
+              const rows = series.map((item) => (
+                chartTooltipRow(item.label, `${formatNumber(point[item.key])}원`, item.className)
+              ));
+              rows.push(chartTooltipRow("순수익", `${formatNumber(point.estimatedNetRevenueWon)}원`, "net"));
+              if (hasAppInTossMetric(point)) {
+                rows.push(chartTooltipRow("앱인토스 eCPM", `${formatNumber(point.appInTossEcpmWon)}원`, "ecpm"));
+                rows.push(chartTooltipRow("콘솔 시청률", `${Number(point.appInTossAdWatchRatePercent || 0).toFixed(1)}%`, "watch-rate"));
+                rows.push(chartTooltipRow("콘솔 노출", `${formatNumber(point.appInTossAdImpressions)}회`, "impression"));
+              }
+              return rows;
+            })}
           </div>
         </div>
         <div class="growth-x-labels">${labels}</div>
