@@ -77,9 +77,13 @@ public class Player {
 
     private Instant autoHuntEndsAt;
 
-    private Instant autoHuntEndNotifiedAt;
+	private Instant autoHuntEndNotifiedAt;
 
 	private Instant autoHuntEndSmartMessageAttemptedAt;
+
+	private Instant autoHuntEndingSoonNotificationEndsAt;
+
+	private Instant autoHuntEndingSoonNotificationSentAt;
 
 	private Long autoHuntEndSettledGold;
 
@@ -1053,6 +1057,18 @@ public class Player {
 		touch();
 	}
 
+	public boolean autoHuntEndingSoonNotificationSentFor(Instant autoHuntEndsAt) {
+		return autoHuntEndsAt != null
+				&& autoHuntEndingSoonNotificationEndsAt != null
+				&& autoHuntEndsAt.equals(autoHuntEndingSoonNotificationEndsAt);
+	}
+
+	public void markAutoHuntEndingSoonNotificationSent(Instant autoHuntEndsAt, Instant sentAt) {
+		this.autoHuntEndingSoonNotificationEndsAt = autoHuntEndsAt;
+		this.autoHuntEndingSoonNotificationSentAt = sentAt;
+		touch();
+	}
+
 	public void addAutoHuntEndSettledGold(long settledGold) {
 		addAutoHuntEndSettlementSummary(settledGold, 0, 0, 0);
 	}
@@ -1222,6 +1238,8 @@ public class Player {
 		this.autoHuntEndsAt = null;
 		this.autoHuntEndNotifiedAt = null;
 		this.autoHuntEndSmartMessageAttemptedAt = null;
+		this.autoHuntEndingSoonNotificationEndsAt = null;
+		this.autoHuntEndingSoonNotificationSentAt = null;
 		this.autoHuntEndSettledGold = null;
 		this.autoHuntEndLevelGain = 0;
 		this.autoHuntEndSkillPointGain = 0;

@@ -90,6 +90,8 @@ public class PlayerService {
 	private static final int MAX_PET_SKILL_DAMAGE_BONUS = 40;
 	private static final Duration AD_SESSION_TTL = Duration.ofMinutes(10);
 	private static final Duration AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY = Duration.ofMinutes(5);
+	private static final Duration AUTO_HUNT_ENDING_SOON_LEAD_TIME = Duration.ofMinutes(30);
+	private static final Duration AUTO_HUNT_ENDING_SOON_WINDOW = Duration.ofMinutes(2);
 	private static final Duration DORMANT_SP_REWARD_REPEAT_INTERVAL = Duration.ofDays(2);
 	private static final long ROOKIE_EVENT_PLAYER_DAYS = 10;
 	private static final Duration ROOKIE_EVENT_COMPLETED_VISIBLE_DURATION = Duration.ofDays(7);
@@ -1417,6 +1419,39 @@ public class PlayerService {
 	}
 
 	@Transactional
+	public int publishAutoHuntEndingSoonNotifications() {
+		String templateSetCode = smartMessageProperties.normalizedAutoHuntEndingSoonTemplateSetCode();
+		if (!appProperties.realSmartMessageEnabled()
+				|| !smartMessageProperties.autoHuntEndingSoonEnabled()
+				|| templateSetCode.isBlank()) {
+			return 0;
+		}
+		Instant now = clock.instant();
+		Instant notifyBefore = now.plus(AUTO_HUNT_ENDING_SOON_LEAD_TIME);
+		Instant notifyAfter = notifyBefore.minus(AUTO_HUNT_ENDING_SOON_WINDOW);
+		Instant cooldownReadyBefore = now.minusSeconds(Math.max(0, economy.autoHuntAdCooldownSeconds()));
+		List<Player> players = playerRepository.findAutoHuntEndingSoonNotificationTargets(
+				notifyAfter,
+				notifyBefore,
+				cooldownReadyBefore,
+				PageRequest.of(0, smartMessageProperties.safeAutoHuntEndingSoonBatchSize()));
+		int sentCount = 0;
+		for (Player player : players) {
+			if (!autoHuntEndingSoonAvailableForNotification(player, now, notifyAfter, notifyBefore)) {
+				continue;
+			}
+			if (sendAutoHuntEndingSoonSmartMessage(player, now, templateSetCode)) {
+				player.markAutoHuntEndingSoonNotificationSent(player.getAutoHuntEndsAt(), now);
+				sentCount += 1;
+			}
+		}
+		if (sentCount > 0) {
+			log.info("자동사냥 종료 임박 스마트메시지 스케줄러 처리: sentCount={}", sentCount);
+		}
+		return sentCount;
+	}
+
+	@Transactional
 	public int publishRookieEventMissionNotifications() {
 		String templateSetCode = smartMessageProperties.normalizedRookieEventMissionArrivedTemplateSetCode();
 		if (!appProperties.realSmartMessageEnabled()
@@ -1487,24 +1522,34 @@ public class PlayerService {
 		}
 		Instant now = clock.instant();
 		LocalDate today = todayInSeoul();
-		int dailyLimit = dungeonDailyLimit();
-		if (dailyLimit < 1) {
+		int freeDailyLimit = dungeonFreeDailyLimit();
+		if (freeDailyLimit < 1) {
 			return 0;
 		}
 		List<Player> players = playerRepository.findDungeonExploreAvailableNotificationTargets(
 				now,
 				today,
-				dailyLimit,
+				freeDailyLimit,
 				DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS,
 				PageRequest.of(0, smartMessageProperties.safeDungeonExploreAvailableBatchSize()));
 		int sentCount = 0;
 		for (Player player : players) {
 			player.resetDungeonRunCountIfNewDay(today);
-			if (!dungeonExploreAvailableForNotification(player, now, today, dailyLimit)) {
+			if (!dungeonExploreAvailableForNotification(player, now, today, freeDailyLimit)) {
+				continue;
+			}
+			int runCount = Math.max(0, player.getDungeonRunCount());
+			int claimed = playerRepository.claimDungeonExploreAvailableNotification(
+					player.getId(),
+					today,
+					runCount,
+					freeDailyLimit,
+					DUNGEON_ENTRY_HUNT_REQUIREMENT_MILLIS,
+					now);
+			if (claimed < 1) {
 				continue;
 			}
 			if (sendDungeonExploreAvailableSmartMessage(player, now, templateSetCode)) {
-				player.markDungeonExploreAvailableNotificationSent(today, now);
 				sentCount += 1;
 			}
 		}
@@ -3229,6 +3274,57 @@ public class PlayerService {
 					mask(player.getUserKey()),
 					templateSetCode,
 					now.plus(AUTO_HUNT_SMART_MESSAGE_RETRY_DELAY),
+					exception.getMessage(),
+					exception);
+			return false;
+		}
+	}
+
+	private boolean autoHuntEndingSoonAvailableForNotification(
+			Player player,
+			Instant now,
+			Instant notifyAfter,
+			Instant notifyBefore
+	) {
+		Instant autoHuntEndsAt = player.getAutoHuntEndsAt();
+		if (autoHuntEndsAt == null
+				|| !autoHuntEndsAt.isAfter(notifyAfter)
+				|| autoHuntEndsAt.isAfter(notifyBefore)
+				|| player.autoHuntEndingSoonNotificationSentFor(autoHuntEndsAt)) {
+			return false;
+		}
+		if (nextTimeRewardAdAvailableAt(player, AdEventType.AUTO_HUNT) != null) {
+			return false;
+		}
+		long remainingSeconds = Math.max(0, Duration.between(now, autoHuntEndsAt).toSeconds());
+		long rewardSeconds = Math.max(0, economy.autoHuntAdSeconds());
+		long maxSeconds = Math.max(0, economy.maxAdSeconds());
+		return remainingSeconds > 0 && rewardSeconds > 0 && remainingSeconds + rewardSeconds <= maxSeconds;
+	}
+
+	private boolean sendAutoHuntEndingSoonSmartMessage(Player player, Instant now, String templateSetCode) {
+		try {
+			TossSmartMessageClient.SmartMessageSendResult result = tossSmartMessageClient.sendMessage(
+					player.getUserKey(),
+					templateSetCode,
+					smartMessageProperties.autoHuntEndingSoonContext());
+			log.info(
+					"자동사냥 종료 임박 스마트메시지 발송 요청 완료: userKey={}, autoHuntEndsAt={}, templateSetCode={}, msgCount={}, sentPushCount={}, sentInboxCount={}, failureSummary={}",
+					mask(player.getUserKey()),
+					player.getAutoHuntEndsAt(),
+					templateSetCode,
+					result.msgCount(),
+					result.sentPushCount(),
+					result.sentInboxCount(),
+					result.failureSummary());
+			return true;
+		} catch (RuntimeException exception) {
+			log.warn(
+					"자동사냥 종료 임박 스마트메시지 발송 실패: userKey={}, autoHuntEndsAt={}, templateSetCode={}, retryUntil={}, message={}",
+					mask(player.getUserKey()),
+					player.getAutoHuntEndsAt(),
+					templateSetCode,
+					now.plus(AUTO_HUNT_ENDING_SOON_LEAD_TIME),
 					exception.getMessage(),
 					exception);
 			return false;

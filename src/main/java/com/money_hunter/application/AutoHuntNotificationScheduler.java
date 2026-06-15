@@ -15,4 +15,9 @@ public class AutoHuntNotificationScheduler {
 	public void publishAutoHuntEndedNotifications() {
 		playerService.publishAutoHuntEndNotifications();
 	}
+
+	@Scheduled(fixedDelayString = "${money-hunter.notifications.auto-hunt-ending-soon-check-ms:60000}")
+	public void publishAutoHuntEndingSoonNotifications() {
+		playerService.publishAutoHuntEndingSoonNotifications();
+	}
 }

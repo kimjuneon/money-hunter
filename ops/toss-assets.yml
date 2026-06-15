@@ -93,6 +93,12 @@ smart_messages:
     landing_url_env: TOSS_AUTO_HUNT_ENDED_LANDING_URL
     required_when: TOSS_SMART_MESSAGE_ENABLED=true
     status: live
+  auto_hunt_ending_soon:
+    enabled_env: TOSS_AUTO_HUNT_ENDING_SOON_SMART_MESSAGE_ENABLED
+    template_set_secret: TOSS_AUTO_HUNT_ENDING_SOON_TEMPLATE_SET_CODE
+    batch_size_env: TOSS_AUTO_HUNT_ENDING_SOON_SMART_MESSAGE_BATCH_SIZE
+    required_when: TOSS_SMART_MESSAGE_ENABLED=true and TOSS_AUTO_HUNT_ENDING_SOON_SMART_MESSAGE_ENABLED=true
+    status: waiting_approval
   rookie_event_mission_arrived:
     enabled_env: TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_ENABLED
     template_set_secret: TOSS_ROOKIE_EVENT_MISSION_ARRIVED_TEMPLATE_SET_CODE

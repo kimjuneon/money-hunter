@@ -8,6 +8,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record SmartMessageProperties(
 		String autoHuntEndedTemplateSetCode,
 		String autoHuntEndedAgreementTemplateCode,
+		boolean autoHuntEndingSoonEnabled,
+		String autoHuntEndingSoonTemplateSetCode,
+		int autoHuntEndingSoonBatchSize,
 		String landingUrl,
 		boolean rookieEventMissionArrivedEnabled,
 		String rookieEventMissionArrivedTemplateSetCode,
@@ -35,6 +38,22 @@ public record SmartMessageProperties(
 		return Map.of(
 				"title", "사냥 종료",
 				"message", "자동사냥이 종료됐어요.",
+				"landingUrl", value(landingUrl)
+		);
+	}
+
+	public String normalizedAutoHuntEndingSoonTemplateSetCode() {
+		return value(autoHuntEndingSoonTemplateSetCode);
+	}
+
+	public int safeAutoHuntEndingSoonBatchSize() {
+		return Math.max(1, Math.min(500, autoHuntEndingSoonBatchSize));
+	}
+
+	public Map<String, String> autoHuntEndingSoonContext() {
+		return Map.of(
+				"title", "사냥종료 임박",
+				"message", "자동 사냥이 30분 남았어요.",
 				"landingUrl", value(landingUrl)
 		);
 	}

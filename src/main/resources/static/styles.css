@@ -186,6 +186,13 @@ img {
   position: relative;
   overflow: hidden;
   height: var(--battle-screen-height);
+  --battle-hero-left: 24px;
+  --battle-hero-bottom: 52px;
+  --battle-hero-width: 138px;
+  --battle-hero-height: 178px;
+  --battle-hero-top: calc(var(--battle-screen-height) - var(--battle-hero-bottom) - var(--battle-hero-height));
+  --battle-attack-origin-left: var(--battle-hero-left);
+  --battle-attack-origin-top: var(--battle-hero-top);
   background:
     radial-gradient(circle at 72% 18%, rgba(255, 245, 157, 0.46), transparent 17%),
     linear-gradient(var(--wall) 0 43%, var(--floor) 43% 100%);
@@ -368,8 +375,8 @@ img {
 
 .hunter-wrap {
   position: absolute;
-  bottom: 52px;
-  left: 24px;
+  bottom: var(--battle-hero-bottom);
+  left: var(--battle-hero-left);
   z-index: 4;
   width: 168px;
   height: 190px;
@@ -662,6 +669,7 @@ img {
 .projectile-layer {
   position: absolute;
   inset: 0;
+  z-index: 8;
   pointer-events: none;
 }
 
@@ -683,8 +691,8 @@ img {
 }
 
 .projectile.sword {
-  left: 151px;
-  top: 153px;
+  left: calc(var(--battle-attack-origin-left) + 127px);
+  top: calc(var(--battle-attack-origin-top) + 91px);
   width: 120px;
   height: 78px;
   --fly-x: 150px;
@@ -697,8 +705,8 @@ img {
 }
 
 .projectile.arrow {
-  left: 162px;
-  top: 150px;
+  left: calc(var(--battle-attack-origin-left) + 138px);
+  top: calc(var(--battle-attack-origin-top) + 88px);
   width: 132px;
   height: 52px;
   --fly-x: 141px;
@@ -711,8 +719,8 @@ img {
 }
 
 .projectile.magic {
-  left: 154px;
-  top: 146px;
+  left: calc(var(--battle-attack-origin-left) + 130px);
+  top: calc(var(--battle-attack-origin-top) + 84px);
   width: 104px;
   height: 72px;
   --fly-x: 151px;
@@ -725,8 +733,8 @@ img {
 }
 
 .projectile.shuriken {
-  left: 154px;
-  top: 150px;
+  left: calc(var(--battle-attack-origin-left) + 130px);
+  top: calc(var(--battle-attack-origin-top) + 88px);
   width: 88px;
   height: 56px;
   --fly-x: 158px;
@@ -746,32 +754,32 @@ img {
 }
 
 .projectile.skill-projectile.sword {
-  left: 98px;
-  top: 102px;
+  left: calc(var(--battle-attack-origin-left) + 48px);
+  top: calc(var(--battle-attack-origin-top) + 40px);
   width: 136px;
   height: 136px;
   --fly-x: 199px;
 }
 
 .projectile.skill-projectile.arrow {
-  left: 102px;
-  top: 103px;
+  left: calc(var(--battle-attack-origin-left) + 52px);
+  top: calc(var(--battle-attack-origin-top) + 41px);
   width: 130px;
   height: 130px;
   --fly-x: 191px;
 }
 
 .projectile.skill-projectile.magic {
-  left: 100px;
-  top: 103px;
+  left: calc(var(--battle-attack-origin-left) + 50px);
+  top: calc(var(--battle-attack-origin-top) + 41px);
   width: 132px;
   height: 132px;
   --fly-x: 201px;
 }
 
 .projectile.skill-projectile.shuriken {
-  left: 101px;
-  top: 105px;
+  left: calc(var(--battle-attack-origin-left) + 51px);
+  top: calc(var(--battle-attack-origin-top) + 43px);
   width: 130px;
   height: 130px;
   --fly-x: 208px;
@@ -787,14 +795,14 @@ img {
 .pet-attack-layer {
   position: absolute;
   inset: 0;
-  z-index: 7;
+  z-index: 9;
   pointer-events: none;
 }
 
 .pet-attack {
   position: absolute;
-  left: 156px;
-  top: 192px;
+  left: calc(var(--battle-attack-origin-left) + 120px);
+  top: calc(var(--battle-attack-origin-top) + 130px);
   width: 92px;
   height: 58px;
   object-fit: contain;
@@ -807,15 +815,15 @@ img {
 }
 
 .pet-aqua-attack {
-  left: 178px;
-  top: 172px;
+  left: calc(var(--battle-attack-origin-left) + 142px);
+  top: calc(var(--battle-attack-origin-top) + 110px);
   --pet-attack-fly-x: 198px;
   animation-duration: 0.9s;
 }
 
 .pet-event-attack {
-  left: 132px;
-  top: 204px;
+  left: calc(var(--battle-attack-origin-left) + 96px);
+  top: calc(var(--battle-attack-origin-top) + 142px);
   width: 118px;
   height: 72px;
   --pet-attack-fly-x: 226px;
@@ -825,8 +833,8 @@ img {
 
 .skill-effect {
   position: absolute;
-  left: 218px;
-  top: 86px;
+  left: calc(var(--battle-attack-origin-left) + 194px);
+  top: calc(var(--battle-attack-origin-top) + 24px);
   width: 122px;
   height: 122px;
   object-fit: contain;
@@ -858,8 +866,8 @@ img {
 .skill-effect.tier-3,
 .skill-effect.tier-4,
 .skill-effect.tier-5 {
-  left: 218px;
-  top: 86px;
+  left: calc(var(--battle-attack-origin-left) + 194px);
+  top: calc(var(--battle-attack-origin-top) + 24px);
   width: 122px;
   height: 122px;
 }
@@ -5853,10 +5861,12 @@ img {
   z-index: 2;
   overflow: hidden;
   --pk-ground-bottom: clamp(112px, 16.8%, 164px);
-  --pk-hero-left: clamp(22px, 6vw, 34px);
+  --pk-hero-left: 24px;
   --pk-hero-width: 138px;
   --pk-hero-height: 178px;
   --pk-hero-top: calc(100% - var(--pk-ground-bottom) - var(--pk-hero-height));
+  --pk-attack-origin-left: var(--pk-hero-left);
+  --pk-attack-origin-top: var(--pk-hero-top);
   min-height: 0;
   border: 0;
   border-radius: 0;
@@ -6134,99 +6144,100 @@ img {
 .punch-king-projectile-layer,
 .punch-king-skill-effect-layer,
 .punch-king-pet-attack-layer {
+  inset: 0;
   z-index: 5;
 }
 
 .punch-king-projectile {
-  left: calc(var(--pk-hero-left) + 127px);
-  top: calc(var(--pk-hero-top) + 91px);
+  left: calc(var(--pk-attack-origin-left) + 127px);
+  top: calc(var(--pk-attack-origin-top) + 91px);
   --fly-x: 150px;
   --fly-y: -35px;
 }
 
 .punch-king-projectile.sword {
-  left: calc(var(--pk-hero-left) + 127px);
-  top: calc(var(--pk-hero-top) + 91px);
+  left: calc(var(--pk-attack-origin-left) + 127px);
+  top: calc(var(--pk-attack-origin-top) + 91px);
   --fly-x: 150px;
   --fly-y: -35px;
 }
 
 .punch-king-projectile.arrow {
-  left: calc(var(--pk-hero-left) + 138px);
-  top: calc(var(--pk-hero-top) + 88px);
+  left: calc(var(--pk-attack-origin-left) + 138px);
+  top: calc(var(--pk-attack-origin-top) + 88px);
   --fly-x: 141px;
   --fly-y: -21px;
 }
 
 .punch-king-projectile.magic {
-  left: calc(var(--pk-hero-left) + 130px);
-  top: calc(var(--pk-hero-top) + 84px);
+  left: calc(var(--pk-attack-origin-left) + 130px);
+  top: calc(var(--pk-attack-origin-top) + 84px);
   --fly-x: 151px;
   --fly-y: -29px;
 }
 
 .punch-king-projectile.shuriken {
-  left: calc(var(--pk-hero-left) + 130px);
-  top: calc(var(--pk-hero-top) + 88px);
+  left: calc(var(--pk-attack-origin-left) + 130px);
+  top: calc(var(--pk-attack-origin-top) + 88px);
   --fly-x: 158px;
   --fly-y: -33px;
 }
 
 .punch-king-projectile.skill-projectile {
-  left: calc(var(--pk-hero-left) + 50px);
-  top: calc(var(--pk-hero-top) + 41px);
+  left: calc(var(--pk-attack-origin-left) + 50px);
+  top: calc(var(--pk-attack-origin-top) + 41px);
   --fly-x: 199px;
   --fly-y: -29px;
 }
 
 .punch-king-projectile.skill-projectile.sword {
-  left: calc(var(--pk-hero-left) + 48px);
-  top: calc(var(--pk-hero-top) + 40px);
+  left: calc(var(--pk-attack-origin-left) + 48px);
+  top: calc(var(--pk-attack-origin-top) + 40px);
   --fly-x: 199px;
 }
 
 .punch-king-projectile.skill-projectile.arrow {
-  left: calc(var(--pk-hero-left) + 52px);
-  top: calc(var(--pk-hero-top) + 41px);
+  left: calc(var(--pk-attack-origin-left) + 52px);
+  top: calc(var(--pk-attack-origin-top) + 41px);
   --fly-x: 191px;
 }
 
 .punch-king-projectile.skill-projectile.magic {
-  left: calc(var(--pk-hero-left) + 50px);
-  top: calc(var(--pk-hero-top) + 41px);
+  left: calc(var(--pk-attack-origin-left) + 50px);
+  top: calc(var(--pk-attack-origin-top) + 41px);
   --fly-x: 201px;
 }
 
 .punch-king-projectile.skill-projectile.shuriken {
-  left: calc(var(--pk-hero-left) + 51px);
-  top: calc(var(--pk-hero-top) + 43px);
+  left: calc(var(--pk-attack-origin-left) + 51px);
+  top: calc(var(--pk-attack-origin-top) + 43px);
   --fly-x: 208px;
 }
 
 .skill-effect.punch-king-skill-effect {
-  left: calc(var(--pk-hero-left) + 194px);
+  left: calc(var(--pk-attack-origin-left) + 194px);
   right: auto;
-  top: calc(var(--pk-hero-top) + 24px);
+  top: calc(var(--pk-attack-origin-top) + 24px);
   width: 122px;
   height: 122px;
 }
 
 .punch-king-pet-attack {
-  left: calc(var(--pk-hero-left) + 132px);
-  top: calc(var(--pk-hero-top) + 130px);
+  left: calc(var(--pk-attack-origin-left) + 108px);
+  top: calc(var(--pk-attack-origin-top) + 130px);
   --pet-attack-fly-x: 208px;
   --pet-attack-fly-y: -45px;
 }
 
 .punch-king-pet-attack.pet-aqua-attack {
-  left: calc(var(--pk-hero-left) + 154px);
-  top: calc(var(--pk-hero-top) + 110px);
+  left: calc(var(--pk-attack-origin-left) + 130px);
+  top: calc(var(--pk-attack-origin-top) + 110px);
   --pet-attack-fly-x: 198px;
 }
 
 .punch-king-pet-attack.pet-event-attack {
-  left: calc(var(--pk-hero-left) + 108px);
-  top: calc(var(--pk-hero-top) + 142px);
+  left: calc(var(--pk-attack-origin-left) + 84px);
+  top: calc(var(--pk-attack-origin-top) + 142px);
   --pet-attack-fly-x: 226px;
   --pet-attack-fly-y: -66px;
 }

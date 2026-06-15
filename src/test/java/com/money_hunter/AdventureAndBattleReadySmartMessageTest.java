@@ -34,6 +34,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @TestPropertySource(properties = {
 		"money-hunter.app.real-smart-message-enabled=true",
 		"money-hunter.app.dungeon-coupon-enabled=true",
+		"money-hunter.economy.dungeon-free-daily-limit=2",
+		"money-hunter.economy.dungeon-additional-daily-limit=2",
 		"money-hunter.economy.dungeon-reentry-cooldown-seconds=0",
 		"money-hunter.smart-message.dungeon-explore-available-enabled=true",
 		"money-hunter.smart-message.dungeon-explore-available-template-set-code=gold-hunter-DUNGEON_EXPLORE_AVAILABLE",
@@ -75,7 +77,7 @@ class AdventureAndBattleReadySmartMessageTest {
 	}
 
 	@Test
-	void dungeonExploreAvailableSendsOnceUntilExploredThenSendsForNextAvailableRun() {
+	void dungeonExploreAvailableSendsOncePerFreeRun() {
 		playerService.chooseJob(USER_KEY, JobType.WARRIOR);
 		makeDungeonReady(USER_KEY);
 
@@ -100,6 +102,15 @@ class AdventureAndBattleReadySmartMessageTest {
 	void dungeonExploreAvailableDoesNotSendAfterDailyRunsAreExhausted() {
 		playerService.chooseJob(USER_KEY, JobType.WARRIOR);
 		exhaustDungeonRuns(USER_KEY);
+
+		assertThat(playerService.publishDungeonExploreAvailableNotifications()).isZero();
+		assertThat(smartMessageClient.calls()).isEmpty();
+	}
+
+	@Test
+	void dungeonExploreAvailableDoesNotSendForAdOnlyEntries() {
+		playerService.chooseJob(USER_KEY, JobType.WARRIOR);
+		exhaustFreeDungeonRuns(USER_KEY);
 
 		assertThat(playerService.publishDungeonExploreAvailableNotifications()).isZero();
 		assertThat(smartMessageClient.calls()).isEmpty();
@@ -150,8 +161,21 @@ class AdventureAndBattleReadySmartMessageTest {
 			Instant now = Instant.now();
 			player.resetDungeonDailyLimitForTest(today);
 			player.addDungeonEntryHuntProgress(3_600_000L, 3_600_000L);
-			for (int i = 0; i < 5; i++) {
-				player.enterDungeon(now.plusSeconds(i), today, 5, Duration.ZERO);
+			for (int i = 0; i < 4; i++) {
+				player.enterDungeon(now.plusSeconds(i), today, 4, Duration.ZERO);
+			}
+		});
+	}
+
+	private void exhaustFreeDungeonRuns(String userKey) {
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey(userKey).orElseThrow();
+			LocalDate today = LocalDate.now(SEOUL_ZONE);
+			Instant now = Instant.now();
+			player.resetDungeonDailyLimitForTest(today);
+			player.addDungeonEntryHuntProgress(3_600_000L, 3_600_000L);
+			for (int i = 0; i < 2; i++) {
+				player.enterDungeon(now.plusSeconds(i), today, 4, Duration.ZERO);
 			}
 		});
 	}

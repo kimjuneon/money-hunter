@@ -74,6 +74,9 @@ money-hunter:
   smart-message:
     auto-hunt-ended-template-set-code: ${TOSS_AUTO_HUNT_ENDED_TEMPLATE_SET_CODE:}
     auto-hunt-ended-agreement-template-code: ${TOSS_AUTO_HUNT_ENDED_AGREEMENT_TEMPLATE_CODE:}
+    auto-hunt-ending-soon-enabled: ${TOSS_AUTO_HUNT_ENDING_SOON_SMART_MESSAGE_ENABLED:false}
+    auto-hunt-ending-soon-template-set-code: ${TOSS_AUTO_HUNT_ENDING_SOON_TEMPLATE_SET_CODE:gold-hunter-AUTO_HUNT_ENDING_SOON_V1}
+    auto-hunt-ending-soon-batch-size: ${TOSS_AUTO_HUNT_ENDING_SOON_SMART_MESSAGE_BATCH_SIZE:100}
     landing-url: ${TOSS_AUTO_HUNT_ENDED_LANDING_URL:intoss://gold-hunter}
     rookie-event-mission-arrived-enabled: ${TOSS_ROOKIE_EVENT_MISSION_SMART_MESSAGE_ENABLED:false}
     rookie-event-mission-arrived-template-set-code: ${TOSS_ROOKIE_EVENT_MISSION_ARRIVED_TEMPLATE_SET_CODE:}

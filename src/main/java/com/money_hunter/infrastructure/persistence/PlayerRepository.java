@@ -308,6 +308,30 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	@Query("""
 			select p
 			from Player p
+			where p.autoHuntEndsAt is not null
+				and p.autoHuntEndsAt > :notifyAfter
+				and p.autoHuntEndsAt <= :notifyBefore
+				and p.job is not null
+				and p.suspendedAt is null
+				and (
+					p.autoHuntEndingSoonNotificationEndsAt is null
+					or p.autoHuntEndingSoonNotificationEndsAt <> p.autoHuntEndsAt
+				)
+				and (
+					p.lastAutoHuntAdClaimedAt is null
+					or p.lastAutoHuntAdClaimedAt <= :cooldownReadyBefore
+				)
+			order by p.autoHuntEndsAt asc, p.id asc
+			""")
+	List<Player> findAutoHuntEndingSoonNotificationTargets(
+			@Param("notifyAfter") Instant notifyAfter,
+			@Param("notifyBefore") Instant notifyBefore,
+			@Param("cooldownReadyBefore") Instant cooldownReadyBefore,
+			org.springframework.data.domain.Pageable pageable);
+
+	@Query("""
+			select p
+			from Player p
 			where p.rookieEventStartedAt is not null
 				and p.rookieEventStartedAt >= :startedAfter
 				and p.rookieEventMissionNotificationAgreedAt is not null
@@ -375,6 +399,36 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 			@Param("dailyLimit") int dailyLimit,
 			@Param("requiredHuntMillis") long requiredHuntMillis,
 			org.springframework.data.domain.Pageable pageable);
+
+	@Modifying
+	@Query("""
+			update Player p
+			set p.dungeonExploreAvailableNotificationDate = :today,
+				p.dungeonExploreAvailableNotificationRunCount = :runCount,
+				p.dungeonExploreAvailableNotificationSentAt = :sentAt,
+				p.updatedAt = :sentAt
+			where p.id = :playerId
+				and p.job is not null
+				and p.suspendedAt is null
+				and p.dungeonCouponHuntMillis >= :requiredHuntMillis
+				and p.dungeonRunCountDate = :today
+				and p.dungeonRunCount = :runCount
+				and p.dungeonRunCount < :dailyLimit
+				and (p.dungeonNextAvailableAt is null or p.dungeonNextAvailableAt <= :sentAt)
+				and (
+					p.dungeonExploreAvailableNotificationDate is null
+					or p.dungeonExploreAvailableNotificationDate <> :today
+					or p.dungeonExploreAvailableNotificationRunCount is null
+					or p.dungeonExploreAvailableNotificationRunCount <> :runCount
+				)
+			""")
+	int claimDungeonExploreAvailableNotification(
+			@Param("playerId") Long playerId,
+			@Param("today") LocalDate today,
+			@Param("runCount") int runCount,
+			@Param("dailyLimit") int dailyLimit,
+			@Param("requiredHuntMillis") long requiredHuntMillis,
+			@Param("sentAt") Instant sentAt);
 
 	@Query("""
 			select p

@@ -188,6 +188,31 @@ function applyRuntimeSafeAreaFallback() {
   document.documentElement.style.setProperty("--runtime-safe-bottom", `${tallScreen ? 20 : 0}px`);
 }
 
+function syncAttackOrigin(stage, hero, leftVar, topVar) {
+  if (!stage || !hero || typeof stage.getBoundingClientRect !== "function" || typeof hero.getBoundingClientRect !== "function") {
+    return;
+  }
+  const stageRect = stage.getBoundingClientRect();
+  const heroRect = hero.getBoundingClientRect();
+  stage.style.setProperty(leftVar, `${heroRect.left - stageRect.left}px`);
+  stage.style.setProperty(topVar, `${heroRect.top - stageRect.top}px`);
+}
+
+function syncBattleAttackOrigins() {
+  syncAttackOrigin(
+    document.querySelector(".battle-screen"),
+    $("mainHero"),
+    "--battle-attack-origin-left",
+    "--battle-attack-origin-top"
+  );
+  syncAttackOrigin(
+    $("punchKingTarget"),
+    $("punchKingHero"),
+    "--pk-attack-origin-left",
+    "--pk-attack-origin-top"
+  );
+}
+
 function readPendingIapProductIds() {
   try {
     const parsed = JSON.parse(storedValue(pendingIapProductStorageKey) || "{}");
@@ -402,10 +427,10 @@ const gameAudio = {
   },
 };
 const miniGameBgmVolume = 0.48;
-const miniGameJumpSfxVolume = 0.7;
+const miniGameJumpSfxVolume = 0.9;
 const punchKingBgmVolume = 0.5;
 const punchKingUltimateBgmVolume = 0.32;
-const punchKingAttackSfxVolume = 0.5;
+const punchKingAttackSfxVolume = 0.8;
 const miniGameGravity = 0.00215;
 const miniGameJumpVelocity = 0.84;
 const miniGameJumpGroundTolerance = 10;
@@ -3529,6 +3554,7 @@ function playPunchKingAttackMotion() {
     $("punchKingTarget").classList.add("is-attacking");
   }
   $("punchKingTarget").classList.add("is-hit");
+  syncBattleAttackOrigins();
   spawnPunchKingProjectile();
   spawnPunchKingSkillEffect();
   spawnPunchKingPetAttacks();
@@ -7139,6 +7165,7 @@ function simulateHit(options = {}) {
   if (!visual) {
     return;
   }
+  syncBattleAttackOrigins();
   playAttackMotion();
   spawnProjectile();
   spawnSkillEffect();
@@ -7425,6 +7452,7 @@ $("exitMiniGame").addEventListener("click", closeMiniGameScreen);
 $("miniGameContinueAd").addEventListener("click", continueMiniGameAfterAd);
 $("miniGameResultExit").addEventListener("click", closeMiniGameScreen);
 window.addEventListener("resize", () => {
+  syncBattleAttackOrigins();
   if (!$("miniGameScreen").classList.contains("hidden")) {
     window.requestAnimationFrame(() => {
       updateMiniGameGroundLine();
@@ -7854,6 +7882,7 @@ function initializeDevPanel() {
 initializeDevPanel();
 markBenefitTabEntryIfNeeded();
 applyRuntimeSafeAreaFallback();
+syncBattleAttackOrigins();
 syncBgmState();
 function unlockAudioPlayback() {
   resumeAudioContext();
@@ -7863,8 +7892,14 @@ document.addEventListener("pointerdown", unlockAudioPlayback, { once: true, pass
 document.addEventListener("touchstart", unlockAudioPlayback, { once: true, passive: true });
 document.addEventListener("visibilitychange", () => handlePageVisibility(!document.hidden));
 window.addEventListener("focus", () => handlePageVisibility(true));
-window.addEventListener("resize", () => applyRuntimeSafeAreaFallback(), { passive: true });
-window.addEventListener("orientationchange", () => applyRuntimeSafeAreaFallback(), { passive: true });
+window.addEventListener("resize", () => {
+  applyRuntimeSafeAreaFallback();
+  syncBattleAttackOrigins();
+}, { passive: true });
+window.addEventListener("orientationchange", () => {
+  applyRuntimeSafeAreaFallback();
+  window.requestAnimationFrame(syncBattleAttackOrigins);
+}, { passive: true });
 window.addEventListener("pagehide", () => {
   syncPageSoundState(false);
 });

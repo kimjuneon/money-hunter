@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -30,12 +32,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ActiveProfiles("review")
 @TestPropertySource(properties = {
 		"money-hunter.app.real-smart-message-enabled=true",
-		"money-hunter.smart-message.auto-hunt-ended-template-set-code=gold-hunter-money_hunter_auto_hunt_ended"
+		"money-hunter.smart-message.auto-hunt-ended-template-set-code=gold-hunter-money_hunter_auto_hunt_ended",
+		"money-hunter.smart-message.auto-hunt-ending-soon-enabled=true",
+		"money-hunter.smart-message.auto-hunt-ending-soon-template-set-code=gold-hunter-AUTO_HUNT_ENDING_SOON_V1"
 })
 @AutoConfigureMockMvc
 @SpringBootTest
 class AutoHuntSmartMessageRetryTest {
 	private static final String USER_KEY = "auto-hunt-smart-message-retry-user";
+	private static final String ENDING_SOON_TEMPLATE_SET_CODE = "gold-hunter-AUTO_HUNT_ENDING_SOON_V1";
 
 	@Autowired
 	private PlayerService playerService;
@@ -98,6 +103,26 @@ class AutoHuntSmartMessageRetryTest {
 		assertThat(notificationEventRepository.findByPlayerAndTypeAndReadAtIsNull(sentPlayer, NotificationType.AUTO_HUNT_ENDED)).hasSize(1);
 	}
 
+	@Test
+	void autoHuntEndingSoonSmartMessageSendsOnceForThirtyMinuteWindow() {
+		playerService.chooseJob(USER_KEY, JobType.WARRIOR);
+		transactionTemplate.executeWithoutResult(status -> {
+			var player = playerRepository.findByUserKey(USER_KEY).orElseThrow();
+			player.setAutoHuntEndsAt(Instant.now().plus(Duration.ofMinutes(29)));
+			player.markAutoHuntAdClaimed(Instant.now().minus(Duration.ofMinutes(10)));
+		});
+
+		assertThat(playerService.publishAutoHuntEndingSoonNotifications()).isEqualTo(1);
+		assertThat(playerService.publishAutoHuntEndingSoonNotifications()).isZero();
+		assertThat(smartMessageClient.calls()).containsExactly(new SmartMessageCall(
+				USER_KEY,
+				ENDING_SOON_TEMPLATE_SET_CODE,
+				Map.of(
+						"title", "사냥종료 임박",
+						"message", "자동 사냥이 30분 남았어요.",
+						"landingUrl", "intoss://gold-hunter")));
+	}
+
 	@TestConfiguration(proxyBeanMethods = false)
 	static class FakeSmartMessageConfig {
 		@Bean
@@ -107,13 +132,18 @@ class AutoHuntSmartMessageRetryTest {
 		}
 	}
 
+	record SmartMessageCall(String userKey, String templateSetCode, Map<String, String> context) {
+	}
+
 	static class FakeTossSmartMessageClient implements TossSmartMessageClient {
 		private final AtomicInteger attempts = new AtomicInteger();
+		private final List<SmartMessageCall> calls = new ArrayList<>();
 		private boolean failSends;
 
 		@Override
 		public SmartMessageSendResult sendMessage(String userKey, String templateSetCode, Map<String, String> context) {
 			attempts.incrementAndGet();
+			calls.add(new SmartMessageCall(userKey, templateSetCode, Map.copyOf(context)));
 			if (failSends) {
 				throw new IllegalStateException("simulated smart message failure");
 			}
@@ -128,8 +158,13 @@ class AutoHuntSmartMessageRetryTest {
 			return attempts.get();
 		}
 
+		List<SmartMessageCall> calls() {
+			return List.copyOf(calls);
+		}
+
 		void reset() {
 			attempts.set(0);
+			calls.clear();
 			failSends = false;
 		}
 	}
