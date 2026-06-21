@@ -1067,6 +1067,68 @@ nav {
   background: #ffffff;
 }
 
+.ad-analytics-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.ad-analytics-subpanel {
+  display: grid;
+  gap: 12px;
+}
+
+.ad-analytics-table {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ad-analytics-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.average-table .ad-analytics-row {
+  grid-template-columns: minmax(150px, 1.4fr) repeat(5, minmax(80px, 0.75fr));
+}
+
+.player-ad-table .ad-analytics-row {
+  grid-template-columns: minmax(170px, 1.4fr) minmax(130px, 1fr) repeat(4, minmax(76px, 0.65fr)) minmax(130px, 1fr);
+}
+
+.ad-analytics-head {
+  background: #eef6ff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ad-analytics-row strong,
+.ad-analytics-row span,
+.ad-analytics-row small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ad-analytics-row span {
+  color: #0f172a;
+  font-weight: 800;
+  text-align: right;
+}
+
+.ad-analytics-row small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .revenue-table {
   display: grid;
   gap: 9px;
@@ -2220,6 +2282,8 @@ nav {
 	  .revenue-cause-grid,
 	  .revenue-reference-grid,
 	  .revenue-detail-grid,
+	  .average-table .ad-analytics-row,
+	  .player-ad-table .ad-analytics-row,
 	  .test-tool-grid,
 	  .test-tool-metrics,
 	  .test-tool-days,
@@ -2245,7 +2309,8 @@ nav {
   }
 
   .revenue-table-row > div:nth-child(2),
-  .revenue-table-row > strong:last-child {
+  .revenue-table-row > strong:last-child,
+  .ad-analytics-row span {
     text-align: left;
   }
 

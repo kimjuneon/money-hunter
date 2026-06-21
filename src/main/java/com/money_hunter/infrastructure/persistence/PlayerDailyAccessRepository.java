@@ -28,4 +28,24 @@ public interface PlayerDailyAccessRepository extends JpaRepository<PlayerDailyAc
 			where dailyAccess.accessDate < :accessDate
 			""")
 	int deleteBefore(@Param("accessDate") LocalDate accessDate);
+
+	@Query("""
+			select count(distinct dailyAccess.accessDate)
+			from PlayerDailyAccess dailyAccess
+			where dailyAccess.accessDate >= :startedAt
+				and dailyAccess.accessDate <= :endedAt
+			""")
+	long countAccessDatesBetween(
+			@Param("startedAt") LocalDate startedAt,
+			@Param("endedAt") LocalDate endedAt);
+
+	@Query("""
+			select count(dailyAccess.id)
+			from PlayerDailyAccess dailyAccess
+			where dailyAccess.accessDate >= :startedAt
+				and dailyAccess.accessDate <= :endedAt
+			""")
+	long countActiveUserDaysBetween(
+			@Param("startedAt") LocalDate startedAt,
+			@Param("endedAt") LocalDate endedAt);
 }

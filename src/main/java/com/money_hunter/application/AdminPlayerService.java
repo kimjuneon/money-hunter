@@ -10,6 +10,7 @@ import java.util.List;
 import com.money_hunter.application.dto.response.AdminPlayerResetResponse;
 import com.money_hunter.application.dto.response.AdminPlayerResponse;
 import com.money_hunter.domain.Player;
+import com.money_hunter.infrastructure.persistence.AdClientEventRepository;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.AdRewardSessionRepository;
 import com.money_hunter.infrastructure.persistence.LoginSessionRepository;
@@ -39,6 +40,7 @@ public class AdminPlayerService {
 	private final NotificationEventRepository notificationEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
 	private final AdEventRepository adEventRepository;
+	private final AdClientEventRepository adClientEventRepository;
 	private final RuntimeEconomyService economy;
 	private final Clock clock = Clock.systemUTC();
 
@@ -49,6 +51,7 @@ public class AdminPlayerService {
 			NotificationEventRepository notificationEventRepository,
 			RewardClaimRepository rewardClaimRepository,
 			AdEventRepository adEventRepository,
+			AdClientEventRepository adClientEventRepository,
 			RuntimeEconomyService economy
 	) {
 		this.playerRepository = playerRepository;
@@ -57,6 +60,7 @@ public class AdminPlayerService {
 		this.notificationEventRepository = notificationEventRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
 		this.adEventRepository = adEventRepository;
+		this.adClientEventRepository = adClientEventRepository;
 		this.economy = economy;
 	}
 
@@ -201,24 +205,27 @@ public class AdminPlayerService {
 		long notificationsDeleted = 0;
 		long rewardClaimsDeleted = 0;
 		long adEventsDeleted = 0;
+		long adClientEventsDeleted = 0;
 		Player player = playerRepository.findByUserKey(targetUserKey).orElse(null);
 		if (player != null) {
 			adRewardSessionsDeleted = adRewardSessionRepository.deleteByPlayerUserKey(targetUserKey);
 			notificationsDeleted = notificationEventRepository.deleteByPlayerUserKey(targetUserKey);
 			rewardClaimsDeleted = rewardClaimRepository.deleteByPlayerUserKey(targetUserKey);
 			adEventsDeleted = adEventRepository.deleteByPlayerUserKey(targetUserKey);
+			adClientEventsDeleted = adClientEventRepository.deleteByPlayerUserKey(targetUserKey);
 			playerRepository.delete(player);
 			playerDeleted = true;
 		}
 		log.warn(
-				"관리자 유저 초기화 처리: userKey={}, playerDeleted={}, loginSessionsDeleted={}, adRewardSessionsDeleted={}, notificationsDeleted={}, rewardClaimsDeleted={}, adEventsDeleted={}",
+				"관리자 유저 초기화 처리: userKey={}, playerDeleted={}, loginSessionsDeleted={}, adRewardSessionsDeleted={}, notificationsDeleted={}, rewardClaimsDeleted={}, adEventsDeleted={}, adClientEventsDeleted={}",
 				mask(targetUserKey),
 				playerDeleted,
 				loginSessionsDeleted,
 				adRewardSessionsDeleted,
 				notificationsDeleted,
 				rewardClaimsDeleted,
-				adEventsDeleted);
+				adEventsDeleted,
+				adClientEventsDeleted);
 		return new AdminPlayerResetResponse(
 				targetUserKey,
 				playerDeleted,

@@ -5,6 +5,7 @@ import java.security.Principal;
 import com.money_hunter.application.PlayerService;
 import com.money_hunter.infrastructure.config.AppProperties;
 import com.money_hunter.application.dto.response.BossRaidRewardResponse;
+import com.money_hunter.presentation.dto.request.AdClientEventRequest;
 import com.money_hunter.presentation.dto.request.AdCompletionRequest;
 import com.money_hunter.presentation.dto.request.ChooseJobRequest;
 import com.money_hunter.presentation.dto.request.ClaimRewardRequest;
@@ -62,6 +63,23 @@ public class PlayerController {
 		String userKey = userKey(principal);
 		requireRewardAdMode();
 		return playerService.startRewardAdSession(userKey, request.type());
+	}
+
+	@PostMapping("/ads/client-events")
+	public void recordAdClientEvent(
+			Principal principal,
+			@Valid @RequestBody AdClientEventRequest request
+	) {
+		String userKey = userKey(principal);
+		requireRewardAdMode();
+		playerService.recordAdClientEvent(
+				userKey,
+				request.type(),
+				request.eventType(),
+				request.adGroupKey(),
+				request.adGroupId(),
+				request.sessionToken(),
+				request.errorMessage());
 	}
 
 	@PostMapping("/ads/auto-hunt/complete")

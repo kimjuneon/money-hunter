@@ -31,6 +31,22 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 			@Param("startedAt") Instant startedAt,
 			@Param("endedAt") Instant endedAt);
 
+	@Query("""
+			select a.type as type,
+				count(a.id) as eventCount,
+				max(a.occurredAt) as lastOccurredAt
+			from AdEvent a
+			where a.occurredAt >= :startedAt
+				and a.occurredAt < :endedAt
+				and a.type in :types
+			group by a.type
+			order by count(a.id) desc
+			""")
+	List<AdEventTypePeriodCount> findTypeCountsBetween(
+			@Param("startedAt") Instant startedAt,
+			@Param("endedAt") Instant endedAt,
+			@Param("types") List<AdEventType> types);
+
 	@Modifying
 	@Query(value = """
 			delete from ad_events
@@ -55,6 +71,21 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 			@Param("minimumCount") long minimumCount,
 			Pageable pageable);
 
+	@Query("""
+			select a.player.userKey as userKey,
+				a.player.adminNickname as adminNickname,
+				a.player.level as level,
+				a.type as type,
+				count(a.id) as eventCount,
+				max(a.occurredAt) as lastOccurredAt
+			from AdEvent a
+			where a.type in :types
+			group by a.player.userKey, a.player.adminNickname, a.player.level, a.type
+			order by count(a.id) desc, max(a.occurredAt) desc
+			""")
+	List<PlayerAdEventTypeCount> findPlayerTypeCounts(
+			@Param("types") List<AdEventType> types);
+
 	interface PlayerAdEventCount {
 		String getUserKey();
 
@@ -67,5 +98,27 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 		AdEventType getType();
 
 		long getEventCount();
+	}
+
+	interface AdEventTypePeriodCount {
+		AdEventType getType();
+
+		long getEventCount();
+
+		Instant getLastOccurredAt();
+	}
+
+	interface PlayerAdEventTypeCount {
+		String getUserKey();
+
+		String getAdminNickname();
+
+		int getLevel();
+
+		AdEventType getType();
+
+		long getEventCount();
+
+		Instant getLastOccurredAt();
 	}
 }

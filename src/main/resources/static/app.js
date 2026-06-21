@@ -1529,6 +1529,34 @@ async function api(path, options = {}) {
   return response.json();
 }
 
+function logAdClientEvent(action, eventType, options = {}) {
+  if (!action?.adEventType || !shouldUseRealFullScreenAds()) {
+    return;
+  }
+  const body = {
+    type: action.adEventType,
+    eventType,
+    adGroupKey: action.adGroupKey || "",
+    adGroupId: options.groupId || "",
+    sessionToken: options.sessionToken || "",
+    errorMessage: adClientErrorMessage(options.error),
+  };
+  fetch(apiUrl("/api/player/ads/client-events"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...guestRequestHeaders(),
+      ...authRequestHeaders(false),
+    },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
+function adClientErrorMessage(error) {
+  const message = error?.message || (error == null ? "" : String(error));
+  return String(message || "").slice(0, 500);
+}
+
 async function refresh() {
   applyServerPlayer(await api("/api/player"));
   await completeRookieHomeShortcutMissionIfNeeded();
@@ -5877,16 +5905,23 @@ async function runRealFullScreenAd(title, description, action) {
   }
   state.realAdInFlight = true;
   setMessage(isRealFullScreenAdLoaded(groupId) ? `${title} 여는 중...` : `${title} 준비 중...`);
+  logAdClientEvent(action, "ATTEMPTED", { groupId });
+  let adSession = null;
   try {
-    const adSession = action.skipAdSession || action.requiresReward === false
+    adSession = action.skipAdSession || action.requiresReward === false
       ? null
       : await api("/api/player/ads/sessions", {
           method: "POST",
           body: JSON.stringify({ type: action.adEventType }),
         });
-    await loadRealFullScreenAd(groupId);
+    try {
+      await loadRealFullScreenAd(groupId);
+    } catch (error) {
+      logAdClientEvent(action, "LOAD_FAILED", { groupId, sessionToken: adSession?.sessionToken, error });
+      throw error;
+    }
     markRealFullScreenAdConsumed(groupId);
-    await showRealFullScreenAdWithRetry(groupId, action.requiresReward !== false);
+    await showRealFullScreenAdWithRetry(groupId, action.requiresReward !== false, action, adSession?.sessionToken);
     setMessage(action.afterAdMessage || "광고 시청 완료, 보상을 지급하는 중이에요.");
     if (typeof action.afterAd === "function") {
       await action.afterAd(adSession?.sessionToken);
@@ -6014,17 +6049,34 @@ async function showRealFullScreenAd(groupId, requiresReward) {
   });
 }
 
-async function showRealFullScreenAdWithRetry(groupId, requiresReward) {
+async function showRealFullScreenAdWithRetry(groupId, requiresReward, action, sessionToken) {
   try {
-    return await showRealFullScreenAd(groupId, requiresReward);
+    const result = await showRealFullScreenAd(groupId, requiresReward);
+    logAdClientEvent(action, "PLAYED", { groupId, sessionToken });
+    return result;
   } catch (error) {
     if (!error?.retryableAdShowFailure) {
       throw error;
     }
+    logAdClientEvent(action, "SHOW_FAILED", { groupId, sessionToken, error });
     setMessage("광고를 다시 준비하고 있어요.");
-    await loadFreshRealFullScreenAd(groupId);
+    try {
+      await loadFreshRealFullScreenAd(groupId);
+    } catch (loadError) {
+      logAdClientEvent(action, "LOAD_FAILED", { groupId, sessionToken, error: loadError });
+      throw loadError;
+    }
     markRealFullScreenAdConsumed(groupId);
-    return showRealFullScreenAd(groupId, requiresReward);
+    try {
+      const result = await showRealFullScreenAd(groupId, requiresReward);
+      logAdClientEvent(action, "PLAYED", { groupId, sessionToken });
+      return result;
+    } catch (retryError) {
+      if (retryError?.retryableAdShowFailure) {
+        logAdClientEvent(action, "SHOW_FAILED", { groupId, sessionToken, error: retryError });
+      }
+      throw retryError;
+    }
   }
 }
 

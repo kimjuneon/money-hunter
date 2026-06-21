@@ -2,6 +2,7 @@ package com.money_hunter.presentation.controller;
 
 import java.util.List;
 
+import com.money_hunter.application.AdminAdAnalyticsService;
 import com.money_hunter.application.AdminAnomalyCaseService;
 import com.money_hunter.application.AdminAccessGuard;
 import com.money_hunter.application.AdminAuditService;
@@ -76,6 +77,7 @@ public class AdminController {
 	private final AdminAuditService adminAuditService;
 	private final AdminPlayerService adminPlayerService;
 	private final AdminPaymentService adminPaymentService;
+	private final AdminAdAnalyticsService adminAdAnalyticsService;
 	private final AdminAnomalyCaseService anomalyCaseService;
 	private final PlayerService playerService;
 	private final RookieEventSettingsService rookieEventSettingsService;
@@ -87,6 +89,7 @@ public class AdminController {
 			AdminAuditService adminAuditService,
 			AdminPlayerService adminPlayerService,
 			AdminPaymentService adminPaymentService,
+			AdminAdAnalyticsService adminAdAnalyticsService,
 			AdminAnomalyCaseService anomalyCaseService,
 			PlayerService playerService,
 			RookieEventSettingsService rookieEventSettingsService
@@ -97,6 +100,7 @@ public class AdminController {
 		this.adminAuditService = adminAuditService;
 		this.adminPlayerService = adminPlayerService;
 		this.adminPaymentService = adminPaymentService;
+		this.adminAdAnalyticsService = adminAdAnalyticsService;
 		this.anomalyCaseService = anomalyCaseService;
 		this.playerService = playerService;
 		this.rookieEventSettingsService = rookieEventSettingsService;
@@ -165,6 +169,12 @@ public class AdminController {
 	) {
 		adminAccessGuard.require(request);
 		return monitoringService.revenue(days);
+	}
+
+	@GetMapping("/ad-analytics")
+	public AdminAdAnalyticsService.AdminAdAnalyticsReport adAnalytics(HttpServletRequest request) {
+		adminAccessGuard.require(request);
+		return adminAdAnalyticsService.report();
 	}
 
 	@PostMapping("/revenue/app-in-toss-metrics")

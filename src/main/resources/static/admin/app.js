@@ -211,6 +211,7 @@ function activateView(viewId) {
     anomalyView: "이상징후",
     playerView: "유저 관리",
     paymentView: "결제",
+    adAnalyticsView: "광고 분석",
     revenueView: "수익",
     policyView: "정책값",
     auditView: "감사 로그",
@@ -242,6 +243,8 @@ async function refreshCurrentView(options = {}) {
       await loadPayments();
     } else if (state.view === "revenueView") {
       await loadRevenue();
+    } else if (state.view === "adAnalyticsView") {
+      await loadAdAnalytics();
     } else if (state.view === "anomalyView") {
       await loadAnomalies();
     } else if (state.view === "playerView") {
@@ -2178,6 +2181,108 @@ function renderRevenuePanelSafely(targetId, renderer, fallbackMessage) {
     console.error("Revenue panel render failed", targetId, error);
     $(targetId).innerHTML = `<p class="empty">${escapeHtml(fallbackMessage)}</p>`;
   }
+}
+
+async function loadAdAnalytics() {
+  const data = await request("/api/admin/ad-analytics");
+  renderAdAnalytics(data);
+}
+
+function renderAdAnalytics(data) {
+  const summary = data.summary || {};
+  $("adAnalyticsUpdatedAt").textContent = `${data.weekStartedAt || "-"} ~ ${data.weekEndedAt || "-"} · ${formatDate(data.generatedAt)}`;
+  $("adAnalyticsSummaryGrid").innerHTML = [
+    ["7일 재생", summary.playedCount, "회", "서버 보상 완료 기준"],
+    ["하루 평균 재생", adAverageText(summary.averageDailyPlayedCount), "회", `${formatNumber(summary.accessDayCount)}개 접속일 기준`],
+    ["광고 시도", summary.attemptedCount, "회", "클라이언트 버튼 플로우 기준"],
+    ["로드 실패", summary.loadFailureCount, "회", "SDK loadFullScreenAd 실패"],
+    ["재생 실패", summary.showFailureCount, "회", "SDK showFullScreenAd 실패"],
+    ["활성 유저일", summary.activeUserDays, "일", "최근 7일 접속 기록 합계"],
+  ].map(([label, value, unit, detail]) => `
+    <article class="metric-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${typeof value === "number" ? formatNumber(value) : escapeHtml(value)}${escapeHtml(unit)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `).join("");
+  $("adDailyAveragePanel").innerHTML = renderAdDailyAveragePanel(data.dailyAverages || []);
+  $("adPlayerPlaybackPanel").innerHTML = renderAdPlayerPlaybackPanel(data.playerPlaybacks || []);
+}
+
+function renderAdDailyAveragePanel(items) {
+  return `
+    <section class="revenue-subpanel ad-analytics-subpanel">
+      <div class="panel-head compact-head">
+        <div>
+          <h3>최근 7일 광고별 하루 평균</h3>
+          <p>접속 기록이 있는 날짜를 기준으로 광고 보상 완료 횟수를 나눠요.</p>
+        </div>
+      </div>
+      <div class="ad-analytics-table average-table">
+        <div class="ad-analytics-row ad-analytics-head">
+          <span>광고</span>
+          <span>7일 재생</span>
+          <span>하루 평균</span>
+          <span>시도</span>
+          <span>로드 실패</span>
+          <span>재생 실패</span>
+        </div>
+        ${items.map((item) => `
+          <div class="ad-analytics-row">
+            <strong>${escapeHtml(item.label || item.type || "-")}</strong>
+            <span>${formatNumber(item.playedCount)}회</span>
+            <span>${adAverageText(item.averageDailyPlayedCount)}회</span>
+            <span>${formatNumber(item.attemptedCount)}회</span>
+            <span>${formatNumber(item.loadFailureCount)}회</span>
+            <span>${formatNumber(item.showFailureCount)}회</span>
+          </div>
+        `).join("") || `<p class="empty">최근 7일 광고 데이터가 없어요.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderAdPlayerPlaybackPanel(rows) {
+  return `
+    <section class="revenue-subpanel ad-analytics-subpanel">
+      <div class="panel-head compact-head">
+        <div>
+          <h3>유저별 광고 재생/실패</h3>
+          <p>총 재생은 서버 보상 완료 기준이고, 시도/실패는 배포 이후 클라이언트 로그 기준이에요.</p>
+        </div>
+      </div>
+      <div class="ad-analytics-table player-ad-table">
+        <div class="ad-analytics-row ad-analytics-head">
+          <span>유저</span>
+          <span>광고</span>
+          <span>총 재생</span>
+          <span>시도</span>
+          <span>로드 실패</span>
+          <span>재생 실패</span>
+          <span>최근 재생</span>
+        </div>
+        ${rows.map((row) => `
+          <div class="ad-analytics-row">
+            <div>
+              <strong>${escapeHtml(row.adminNickname || row.userKey || "-")}</strong>
+              <small>${escapeHtml(row.userKey || "-")} · Lv.${formatNumber(row.level)}</small>
+            </div>
+            <strong>${escapeHtml(row.label || row.type || "-")}</strong>
+            <span>${formatNumber(row.totalPlayedCount)}회</span>
+            <span>${formatNumber(row.attemptedCount)}회</span>
+            <span>${formatNumber(row.loadFailureCount)}회</span>
+            <span>${formatNumber(row.showFailureCount)}회</span>
+            <span>${formatDate(row.lastPlayedAt || row.lastClientEventAt)}</span>
+          </div>
+        `).join("") || `<p class="empty">유저별 광고 데이터가 아직 없어요.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function adAverageText(value) {
+  const number = Number(value || 0);
+  return number.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function renderRevenueDiagnosis(points) {

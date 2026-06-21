@@ -16,6 +16,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.money_hunter.domain.AdClientEvent;
+import com.money_hunter.domain.AdClientEventType;
 import com.money_hunter.domain.AdEvent;
 import com.money_hunter.domain.AdEventType;
 import com.money_hunter.domain.AdRewardSession;
@@ -29,6 +31,7 @@ import com.money_hunter.domain.Player;
 import com.money_hunter.domain.PlayerSkill;
 import com.money_hunter.domain.RewardClaim;
 import com.money_hunter.domain.SkillType;
+import com.money_hunter.infrastructure.persistence.AdClientEventRepository;
 import com.money_hunter.infrastructure.persistence.AdEventRepository;
 import com.money_hunter.infrastructure.persistence.AdRewardSessionRepository;
 import com.money_hunter.infrastructure.persistence.EventRewardRepository;
@@ -329,6 +332,7 @@ public class PlayerService {
 	private final PlayerRepository playerRepository;
 	private final PlayerDailyAccessRepository playerDailyAccessRepository;
 	private final AdEventRepository adEventRepository;
+	private final AdClientEventRepository adClientEventRepository;
 	private final AdRewardSessionRepository adRewardSessionRepository;
 	private final NotificationEventRepository notificationEventRepository;
 	private final RewardClaimRepository rewardClaimRepository;
@@ -349,6 +353,7 @@ public class PlayerService {
 			PlayerRepository playerRepository,
 			PlayerDailyAccessRepository playerDailyAccessRepository,
 			AdEventRepository adEventRepository,
+			AdClientEventRepository adClientEventRepository,
 				AdRewardSessionRepository adRewardSessionRepository,
 				NotificationEventRepository notificationEventRepository,
 				RewardClaimRepository rewardClaimRepository,
@@ -367,6 +372,7 @@ public class PlayerService {
 		this.playerRepository = playerRepository;
 		this.playerDailyAccessRepository = playerDailyAccessRepository;
 		this.adEventRepository = adEventRepository;
+		this.adClientEventRepository = adClientEventRepository;
 		this.adRewardSessionRepository = adRewardSessionRepository;
 		this.notificationEventRepository = notificationEventRepository;
 		this.rewardClaimRepository = rewardClaimRepository;
@@ -427,6 +433,31 @@ public class PlayerService {
 				now.plus(AD_SESSION_TTL)));
 		log.info("광고 보상 세션 생성: userKey={}, type={}, expiresAt={}", mask(userKey), type, now.plus(AD_SESSION_TTL));
 		return new AdRewardSessionResponse(type, session.getSessionToken(), now.plus(AD_SESSION_TTL));
+	}
+
+	@Transactional
+	public void recordAdClientEvent(
+			String userKey,
+			AdEventType type,
+			AdClientEventType eventType,
+			String adGroupKey,
+			String adGroupId,
+			String sessionToken,
+			String errorMessage
+	) {
+		requireRewardAdType(type);
+		Player player = getOrCreatePlayer(userKey);
+		Instant now = clock.instant();
+		adClientEventRepository.save(new AdClientEvent(
+				player,
+				type,
+				eventType,
+				adGroupKey,
+				adGroupId,
+				sessionToken,
+				errorMessage,
+				now));
+		log.info("광고 클라이언트 이벤트 기록: userKey={}, type={}, eventType={}", mask(userKey), type, eventType);
 	}
 
 	@Transactional
