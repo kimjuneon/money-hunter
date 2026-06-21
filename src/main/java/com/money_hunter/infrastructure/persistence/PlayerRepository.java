@@ -46,25 +46,22 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 				and p.suspendedAt is null
 				and p.level >= :minimumLevel
 				and exists (
-					select s.id
-					from LoginSession s
-					where s.userKey = p.userKey
-						and s.createdAt >= :firstAccessDayStartedAt
-						and s.createdAt < :firstAccessDayEndedAt
+					select da.id
+					from PlayerDailyAccess da
+					where da.player = p
+						and da.accessDate = :firstAccessDate
 				)
 				and exists (
-					select s.id
-					from LoginSession s
-					where s.userKey = p.userKey
-						and s.createdAt >= :secondAccessDayStartedAt
-						and s.createdAt < :secondAccessDayEndedAt
+					select da.id
+					from PlayerDailyAccess da
+					where da.player = p
+						and da.accessDate = :secondAccessDate
 				)
 				and exists (
-					select s.id
-					from LoginSession s
-					where s.userKey = p.userKey
-						and s.createdAt >= :thirdAccessDayStartedAt
-						and s.createdAt < :thirdAccessDayEndedAt
+					select da.id
+					from PlayerDailyAccess da
+					where da.player = p
+						and da.accessDate = :thirdAccessDate
 				)
 				and exists (
 					select r.id
@@ -86,12 +83,9 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 				)
 			""")
 	long countLoyalActiveUsersByReferenceDay(
-			@Param("firstAccessDayStartedAt") Instant firstAccessDayStartedAt,
-			@Param("firstAccessDayEndedAt") Instant firstAccessDayEndedAt,
-			@Param("secondAccessDayStartedAt") Instant secondAccessDayStartedAt,
-			@Param("secondAccessDayEndedAt") Instant secondAccessDayEndedAt,
-			@Param("thirdAccessDayStartedAt") Instant thirdAccessDayStartedAt,
-			@Param("thirdAccessDayEndedAt") Instant thirdAccessDayEndedAt,
+			@Param("firstAccessDate") LocalDate firstAccessDate,
+			@Param("secondAccessDate") LocalDate secondAccessDate,
+			@Param("thirdAccessDate") LocalDate thirdAccessDate,
 			@Param("minimumLevel") int minimumLevel,
 			@Param("minimumRewardAdEvents") long minimumRewardAdEvents,
 			@Param("rewardAdTypes") Collection<AdEventType> rewardAdTypes,
@@ -107,25 +101,22 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 					or p.suspendedAt is not null
 					or p.level < :minimumLevel
 					or not exists (
-						select s.id
-						from LoginSession s
-						where s.userKey = p.userKey
-							and s.createdAt >= :firstAccessDayStartedAt
-							and s.createdAt < :firstAccessDayEndedAt
+						select da.id
+						from PlayerDailyAccess da
+						where da.player = p
+							and da.accessDate = :firstAccessDate
 					)
 					or not exists (
-						select s.id
-						from LoginSession s
-						where s.userKey = p.userKey
-							and s.createdAt >= :secondAccessDayStartedAt
-							and s.createdAt < :secondAccessDayEndedAt
+						select da.id
+						from PlayerDailyAccess da
+						where da.player = p
+							and da.accessDate = :secondAccessDate
 					)
 					or not exists (
-						select s.id
-						from LoginSession s
-						where s.userKey = p.userKey
-							and s.createdAt >= :thirdAccessDayStartedAt
-							and s.createdAt < :thirdAccessDayEndedAt
+						select da.id
+						from PlayerDailyAccess da
+						where da.player = p
+							and da.accessDate = :thirdAccessDate
 					)
 					or not exists (
 						select r.id
@@ -150,12 +141,9 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
 	long countNonLoyalVisitorsByReferenceDay(
 			@Param("visitedAtStartedAt") Instant visitedAtStartedAt,
 			@Param("visitedAtEndedAt") Instant visitedAtEndedAt,
-			@Param("firstAccessDayStartedAt") Instant firstAccessDayStartedAt,
-			@Param("firstAccessDayEndedAt") Instant firstAccessDayEndedAt,
-			@Param("secondAccessDayStartedAt") Instant secondAccessDayStartedAt,
-			@Param("secondAccessDayEndedAt") Instant secondAccessDayEndedAt,
-			@Param("thirdAccessDayStartedAt") Instant thirdAccessDayStartedAt,
-			@Param("thirdAccessDayEndedAt") Instant thirdAccessDayEndedAt,
+			@Param("firstAccessDate") LocalDate firstAccessDate,
+			@Param("secondAccessDate") LocalDate secondAccessDate,
+			@Param("thirdAccessDate") LocalDate thirdAccessDate,
 			@Param("minimumLevel") int minimumLevel,
 			@Param("minimumRewardAdEvents") long minimumRewardAdEvents,
 			@Param("rewardAdTypes") Collection<AdEventType> rewardAdTypes,

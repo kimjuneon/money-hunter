@@ -34,6 +34,7 @@ import com.money_hunter.infrastructure.persistence.AdRewardSessionRepository;
 import com.money_hunter.infrastructure.persistence.EventRewardRepository;
 import com.money_hunter.infrastructure.persistence.IapOrderRepository;
 import com.money_hunter.infrastructure.persistence.NotificationEventRepository;
+import com.money_hunter.infrastructure.persistence.PlayerDailyAccessRepository;
 import com.money_hunter.infrastructure.persistence.PlayerRepository;
 import com.money_hunter.infrastructure.persistence.RewardClaimRepository;
 import com.money_hunter.infrastructure.config.AppProperties;
@@ -326,6 +327,7 @@ public class PlayerService {
 	}
 
 	private final PlayerRepository playerRepository;
+	private final PlayerDailyAccessRepository playerDailyAccessRepository;
 	private final AdEventRepository adEventRepository;
 	private final AdRewardSessionRepository adRewardSessionRepository;
 	private final NotificationEventRepository notificationEventRepository;
@@ -345,6 +347,7 @@ public class PlayerService {
 
 	public PlayerService(
 			PlayerRepository playerRepository,
+			PlayerDailyAccessRepository playerDailyAccessRepository,
 			AdEventRepository adEventRepository,
 				AdRewardSessionRepository adRewardSessionRepository,
 				NotificationEventRepository notificationEventRepository,
@@ -362,6 +365,7 @@ public class PlayerService {
 			TossSmartMessageClient tossSmartMessageClient
 	) {
 		this.playerRepository = playerRepository;
+		this.playerDailyAccessRepository = playerDailyAccessRepository;
 		this.adEventRepository = adEventRepository;
 		this.adRewardSessionRepository = adRewardSessionRepository;
 		this.notificationEventRepository = notificationEventRepository;
@@ -383,10 +387,12 @@ public class PlayerService {
 	@Transactional
 	public PlayerStateResponse getState(String userKey) {
 		Player player = getOrCreatePlayer(userKey);
-		player.markAccessed(clock.instant());
+		Instant now = clock.instant();
+		player.markAccessed(now);
+		recordDailyAccess(player, now);
 		prepareRookieEvent(player);
 		long settledGold = settle(player);
-		publishAutoHuntEndNotificationIfDue(player, clock.instant(), settledGold);
+		publishAutoHuntEndNotificationIfDue(player, now, settledGold);
 		return toState(player);
 	}
 
@@ -1792,6 +1798,12 @@ public class PlayerService {
 
 	private LocalDate todayInSeoul() {
 		return LocalDate.ofInstant(clock.instant(), SEOUL_ZONE);
+	}
+
+	private void recordDailyAccess(Player player, Instant now) {
+		LocalDate accessDate = LocalDate.ofInstant(now, SEOUL_ZONE);
+		playerDailyAccessRepository.upsertAccess(player.getId(), accessDate, now);
+		playerDailyAccessRepository.deleteBefore(accessDate.minusDays(6));
 	}
 
 	private void prepareDailyMission(Player player) {

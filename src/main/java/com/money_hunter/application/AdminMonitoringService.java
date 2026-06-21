@@ -459,12 +459,9 @@ public class AdminMonitoringService {
 		LocalDate secondAccessDay = referenceDate.minusDays(2);
 		LocalDate thirdAccessDay = referenceDate.minusDays(3);
 		return playerRepository.countLoyalActiveUsersByReferenceDay(
-				startOfDay(firstAccessDay),
-				startOfDay(firstAccessDay.plusDays(1)),
-				startOfDay(secondAccessDay),
-				startOfDay(secondAccessDay.plusDays(1)),
-				startOfDay(thirdAccessDay),
-				startOfDay(thirdAccessDay.plusDays(1)),
+				firstAccessDay,
+				secondAccessDay,
+				thirdAccessDay,
 				LOYAL_MIN_LEVEL,
 				LOYAL_MIN_REWARD_AD_EVENTS,
 				LOYAL_REWARD_AD_TYPES,
@@ -478,12 +475,9 @@ public class AdminMonitoringService {
 		return playerRepository.countNonLoyalVisitorsByReferenceDay(
 				visitedAtStartedAt,
 				visitedAtEndedAt,
-				startOfDay(firstAccessDay),
-				startOfDay(firstAccessDay.plusDays(1)),
-				startOfDay(secondAccessDay),
-				startOfDay(secondAccessDay.plusDays(1)),
-				startOfDay(thirdAccessDay),
-				startOfDay(thirdAccessDay.plusDays(1)),
+				firstAccessDay,
+				secondAccessDay,
+				thirdAccessDay,
 				LOYAL_MIN_LEVEL,
 				LOYAL_MIN_REWARD_AD_EVENTS,
 				LOYAL_REWARD_AD_TYPES,
@@ -493,7 +487,7 @@ public class AdminMonitoringService {
 	private String loyalActiveUserDefinition() {
 		return "기준일인 오늘은 제외하고 직전 3일 동안 매일 접속했고, 레벨 " + LOYAL_MIN_LEVEL
 				+ " 이상이며, 토스포인트 보상 수령 이력, 리워드 광고 이벤트 " + LOYAL_MIN_REWARD_AD_EVENTS
-				+ "회 이상, 주간 펀치킹 점수, 던전 탐험 이력을 모두 가진 유저예요. 접속은 로그인 세션 생성일 기준이에요.";
+				+ "회 이상, 주간 펀치킹 점수, 던전 탐험 이력을 모두 가진 유저예요. 접속은 일별 접속 기록 기준이에요.";
 	}
 
 	private Instant startOfDay(LocalDate day) {
