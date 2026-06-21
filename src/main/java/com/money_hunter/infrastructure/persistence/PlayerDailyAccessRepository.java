@@ -48,4 +48,14 @@ public interface PlayerDailyAccessRepository extends JpaRepository<PlayerDailyAc
 	long countActiveUserDaysBetween(
 			@Param("startedAt") LocalDate startedAt,
 			@Param("endedAt") LocalDate endedAt);
+
+	@Query("""
+			select count(distinct dailyAccess.player.id)
+			from PlayerDailyAccess dailyAccess
+			where dailyAccess.accessDate >= :startedAt
+				and dailyAccess.accessDate <= :endedAt
+			""")
+	long countActivePlayersBetween(
+			@Param("startedAt") LocalDate startedAt,
+			@Param("endedAt") LocalDate endedAt);
 }

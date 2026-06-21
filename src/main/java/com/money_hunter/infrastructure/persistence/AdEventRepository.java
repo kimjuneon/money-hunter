@@ -75,12 +75,13 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 			select a.player.userKey as userKey,
 				a.player.adminNickname as adminNickname,
 				a.player.level as level,
+				a.player.lastAccessedAt as lastAccessedAt,
 				a.type as type,
 				count(a.id) as eventCount,
 				max(a.occurredAt) as lastOccurredAt
 			from AdEvent a
 			where a.type in :types
-			group by a.player.userKey, a.player.adminNickname, a.player.level, a.type
+			group by a.player.userKey, a.player.adminNickname, a.player.level, a.player.lastAccessedAt, a.type
 			order by count(a.id) desc, max(a.occurredAt) desc
 			""")
 	List<PlayerAdEventTypeCount> findPlayerTypeCounts(
@@ -114,6 +115,8 @@ public interface AdEventRepository extends JpaRepository<AdEvent, Long> {
 		String getAdminNickname();
 
 		int getLevel();
+
+		Instant getLastAccessedAt();
 
 		AdEventType getType();
 

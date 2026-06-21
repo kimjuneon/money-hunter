@@ -32,13 +32,14 @@ public interface AdClientEventRepository extends JpaRepository<AdClientEvent, Lo
 			select e.player.userKey as userKey,
 				e.player.adminNickname as adminNickname,
 				e.player.level as level,
+				e.player.lastAccessedAt as lastAccessedAt,
 				e.type as type,
 				e.eventType as eventType,
 				count(e.id) as eventCount,
 				max(e.occurredAt) as lastOccurredAt
 			from AdClientEvent e
 			where e.type in :types
-			group by e.player.userKey, e.player.adminNickname, e.player.level, e.type, e.eventType
+			group by e.player.userKey, e.player.adminNickname, e.player.level, e.player.lastAccessedAt, e.type, e.eventType
 			order by count(e.id) desc, max(e.occurredAt) desc
 			""")
 	List<PlayerAdClientEventTypeCount> findPlayerEventCountsByType(@Param("types") Collection<AdEventType> types);
@@ -66,6 +67,8 @@ public interface AdClientEventRepository extends JpaRepository<AdClientEvent, Lo
 		String getAdminNickname();
 
 		int getLevel();
+
+		Instant getLastAccessedAt();
 
 		AdEventType getType();
 

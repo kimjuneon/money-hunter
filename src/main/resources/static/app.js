@@ -3254,6 +3254,7 @@ function continueMiniGameAfterAd() {
   }
   return runRewardFlow("순발력 훈련장 이어하기 광고", "광고를 보면 남은 시간부터 이어서 도전해요.", {
     adGroupKey: "miniGameContinue",
+    adEventType: "MINI_GAME_CONTINUE",
     requiresReward: true,
     skipAdSession: true,
     adCompleteLabel: "광고 완료하고 이어하기",

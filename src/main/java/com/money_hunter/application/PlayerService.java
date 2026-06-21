@@ -184,6 +184,13 @@ public class PlayerService {
 			AdEventType.REWARD_CLAIM,
 			AdEventType.DUNGEON_ADDITIONAL_ENTRY
 	);
+	private static final Set<AdEventType> CLIENT_AD_TYPES = EnumSet.of(
+			AdEventType.AUTO_HUNT,
+			AdEventType.SKILL_POINT,
+			AdEventType.REWARD_CLAIM,
+			AdEventType.DUNGEON_ADDITIONAL_ENTRY,
+			AdEventType.MINI_GAME_CONTINUE
+	);
 	private static final List<RookieEventDayPlan> ROOKIE_EVENT_PLANS = List.of(
 			new RookieEventDayPlan(1, "사냥 준비", skillPointReward(), List.of(
 					new RookieMissionPlan("hunt_1h", RookieMissionType.HUNT_MILLIS, HOUR_MILLIS, "사냥 1시간 진행하기"),
@@ -445,7 +452,7 @@ public class PlayerService {
 			String sessionToken,
 			String errorMessage
 	) {
-		requireRewardAdType(type);
+		requireClientAdType(type);
 		Player player = getOrCreatePlayer(userKey);
 		Instant now = clock.instant();
 		adClientEventRepository.save(new AdClientEvent(
@@ -2101,6 +2108,12 @@ public class PlayerService {
 	private void requireRewardAdType(AdEventType type) {
 		if (!REWARD_AD_TYPES.contains(type)) {
 			throw new IllegalArgumentException("지원하지 않는 광고 보상 타입이에요.");
+		}
+	}
+
+	private void requireClientAdType(AdEventType type) {
+		if (!CLIENT_AD_TYPES.contains(type)) {
+			throw new IllegalArgumentException("지원하지 않는 광고 타입이에요.");
 		}
 	}
 

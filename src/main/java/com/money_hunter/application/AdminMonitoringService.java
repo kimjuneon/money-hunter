@@ -614,6 +614,7 @@ public class AdminMonitoringService {
 			case AUTO_HUNT -> "1시간 자동사냥";
 			case SKILL_POINT -> "SP 1개";
 			case REWARD_CLAIM -> "토스포인트 환급 전 광고";
+			case MINI_GAME_CONTINUE -> "순발력 훈련장 이어하기";
 			case DUNGEON_ADDITIONAL_ENTRY -> "던전 추가 입장권";
 			case DUNGEON_COUPON -> "던전 입장권";
 			case DUNGEON_RUN -> "던전 실행";

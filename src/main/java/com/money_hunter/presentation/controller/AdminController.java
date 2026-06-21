@@ -172,9 +172,14 @@ public class AdminController {
 	}
 
 	@GetMapping("/ad-analytics")
-	public AdminAdAnalyticsService.AdminAdAnalyticsReport adAnalytics(HttpServletRequest request) {
+	public AdminAdAnalyticsService.AdminAdAnalyticsReport adAnalytics(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "30") int size,
+			@RequestParam(defaultValue = "lastAccessedAt:desc") String sort,
+			HttpServletRequest request
+	) {
 		adminAccessGuard.require(request);
-		return adminAdAnalyticsService.report();
+		return adminAdAnalyticsService.report(page, size, sort);
 	}
 
 	@PostMapping("/revenue/app-in-toss-metrics")

@@ -1095,11 +1095,11 @@ nav {
 }
 
 .average-table .ad-analytics-row {
-  grid-template-columns: minmax(150px, 1.4fr) repeat(5, minmax(80px, 0.75fr));
+  grid-template-columns: minmax(150px, 1.4fr) repeat(6, minmax(86px, 0.75fr));
 }
 
 .player-ad-table .ad-analytics-row {
-  grid-template-columns: minmax(170px, 1.4fr) minmax(130px, 1fr) repeat(4, minmax(76px, 0.65fr)) minmax(130px, 1fr);
+  grid-template-columns: minmax(180px, 0.8fr) minmax(420px, 2.4fr) minmax(140px, 0.7fr);
 }
 
 .ad-analytics-head {
@@ -1126,6 +1126,60 @@ nav {
 .ad-analytics-row small {
   margin-top: 4px;
   color: var(--muted);
+  font-size: 12px;
+}
+
+.ad-analytics-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.player-ad-row {
+  align-items: stretch;
+}
+
+.player-ad-user,
+.player-ad-total {
+  display: grid;
+  align-content: center;
+}
+
+.player-ad-total {
+  text-align: right;
+}
+
+.player-ad-total strong {
+  font-size: 18px;
+}
+
+.player-ad-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.player-ad-breakdown-card {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.player-ad-breakdown-card strong {
+  color: var(--blue);
+  font-size: 13px;
+}
+
+.player-ad-breakdown-card span,
+.player-ad-breakdown-card small {
+  margin-top: 4px;
+  text-align: left;
+}
+
+.player-ad-breakdown-card span {
   font-size: 12px;
 }
 

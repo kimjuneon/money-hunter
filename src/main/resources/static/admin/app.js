@@ -7,6 +7,10 @@ const state = {
   paymentPage: 0,
   paymentSize: 30,
   paymentTotalPages: 1,
+  adAnalyticsPage: 0,
+  adAnalyticsSize: 30,
+  adAnalyticsTotalPages: 1,
+  adAnalyticsSort: "lastAccessedAt:desc",
   revenueDays: 30,
   toastTimer: null,
   overview: null,
@@ -2184,20 +2188,30 @@ function renderRevenuePanelSafely(targetId, renderer, fallbackMessage) {
 }
 
 async function loadAdAnalytics() {
-  const data = await request("/api/admin/ad-analytics");
+  const params = new URLSearchParams({
+    page: String(state.adAnalyticsPage),
+    size: String(state.adAnalyticsSize),
+    sort: state.adAnalyticsSort,
+  });
+  const data = await request(`/api/admin/ad-analytics?${params}`);
   renderAdAnalytics(data);
 }
 
 function renderAdAnalytics(data) {
   const summary = data.summary || {};
+  const page = data.playerPlaybackPage || {};
+  state.adAnalyticsPage = Number(page.page || 0);
+  state.adAnalyticsSize = Number(page.size || state.adAnalyticsSize);
+  state.adAnalyticsTotalPages = Number(page.totalPages || 1);
+  state.adAnalyticsSort = page.sort || state.adAnalyticsSort;
   $("adAnalyticsUpdatedAt").textContent = `${data.weekStartedAt || "-"} ~ ${data.weekEndedAt || "-"} · ${formatDate(data.generatedAt)}`;
   $("adAnalyticsSummaryGrid").innerHTML = [
     ["7일 재생", summary.playedCount, "회", "서버 보상 완료 기준"],
     ["하루 평균 재생", adAverageText(summary.averageDailyPlayedCount), "회", `${formatNumber(summary.accessDayCount)}개 접속일 기준`],
+    ["유저당 하루 평균", adAverageText(summary.averageDailyPlayedPerActiveUserCount), "회", `${formatNumber(summary.activeUserCount)}명 기준`],
     ["광고 시도", summary.attemptedCount, "회", "클라이언트 버튼 플로우 기준"],
     ["로드 실패", summary.loadFailureCount, "회", "SDK loadFullScreenAd 실패"],
     ["재생 실패", summary.showFailureCount, "회", "SDK showFullScreenAd 실패"],
-    ["활성 유저일", summary.activeUserDays, "일", "최근 7일 접속 기록 합계"],
   ].map(([label, value, unit, detail]) => `
     <article class="metric-card">
       <span>${escapeHtml(label)}</span>
@@ -2206,7 +2220,8 @@ function renderAdAnalytics(data) {
     </article>
   `).join("");
   $("adDailyAveragePanel").innerHTML = renderAdDailyAveragePanel(data.dailyAverages || []);
-  $("adPlayerPlaybackPanel").innerHTML = renderAdPlayerPlaybackPanel(data.playerPlaybacks || []);
+  $("adPlayerPlaybackPanel").innerHTML = renderAdPlayerPlaybackPanel(page);
+  bindAdAnalyticsControls();
 }
 
 function renderAdDailyAveragePanel(items) {
@@ -2215,7 +2230,7 @@ function renderAdDailyAveragePanel(items) {
       <div class="panel-head compact-head">
         <div>
           <h3>최근 7일 광고별 하루 평균</h3>
-          <p>접속 기록이 있는 날짜를 기준으로 광고 보상 완료 횟수를 나눠요.</p>
+          <p>접속일 평균과 최근 7일 접속 유저 수 기준 평균을 함께 봐요.</p>
         </div>
       </div>
       <div class="ad-analytics-table average-table">
@@ -2223,6 +2238,7 @@ function renderAdDailyAveragePanel(items) {
           <span>광고</span>
           <span>7일 재생</span>
           <span>하루 평균</span>
+          <span>모든 유저 하루 평균</span>
           <span>시도</span>
           <span>로드 실패</span>
           <span>재생 실패</span>
@@ -2232,6 +2248,7 @@ function renderAdDailyAveragePanel(items) {
             <strong>${escapeHtml(item.label || item.type || "-")}</strong>
             <span>${formatNumber(item.playedCount)}회</span>
             <span>${adAverageText(item.averageDailyPlayedCount)}회</span>
+            <span>${adAverageText(item.averageDailyPlayedPerActiveUserCount)}회</span>
             <span>${formatNumber(item.attemptedCount)}회</span>
             <span>${formatNumber(item.loadFailureCount)}회</span>
             <span>${formatNumber(item.showFailureCount)}회</span>
@@ -2242,42 +2259,115 @@ function renderAdDailyAveragePanel(items) {
   `;
 }
 
-function renderAdPlayerPlaybackPanel(rows) {
+function renderAdPlayerPlaybackPanel(page) {
+  const rows = page.content || [];
   return `
     <section class="revenue-subpanel ad-analytics-subpanel">
       <div class="panel-head compact-head">
         <div>
           <h3>유저별 광고 재생/실패</h3>
-          <p>총 재생은 서버 보상 완료 기준이고, 시도/실패는 배포 이후 클라이언트 로그 기준이에요.</p>
+          <p>한 유저 행 안에서 자동사냥, 던전추가입장, 훈련장, 토스환급 광고를 함께 비교해요.</p>
+        </div>
+        <div class="ad-analytics-controls">
+          <label class="compact-select">
+            <span>정렬</span>
+            <select id="adAnalyticsSortSelect">
+              <option value="lastAccessedAt:desc">최근 접속</option>
+              <option value="played:desc">총 재생 많은 순</option>
+              <option value="failures:desc">실패 많은 순</option>
+              <option value="attempted:desc">시도 많은 순</option>
+              <option value="recentActivity:desc">최근 광고 활동</option>
+            </select>
+          </label>
+          <label class="compact-select">
+            <span>표시</span>
+            <select id="adAnalyticsPageSizeSelect">
+              <option value="20">20개</option>
+              <option value="30">30개</option>
+              <option value="50">50개</option>
+              <option value="100">100개</option>
+            </select>
+          </label>
         </div>
       </div>
       <div class="ad-analytics-table player-ad-table">
         <div class="ad-analytics-row ad-analytics-head">
           <span>유저</span>
-          <span>광고</span>
-          <span>총 재생</span>
-          <span>시도</span>
-          <span>로드 실패</span>
-          <span>재생 실패</span>
-          <span>최근 재생</span>
+          <span>광고별 재생/실패</span>
+          <span>합계</span>
         </div>
         ${rows.map((row) => `
-          <div class="ad-analytics-row">
-            <div>
+          <div class="ad-analytics-row player-ad-row">
+            <div class="player-ad-user">
               <strong>${escapeHtml(row.adminNickname || row.userKey || "-")}</strong>
               <small>${escapeHtml(row.userKey || "-")} · Lv.${formatNumber(row.level)}</small>
+              <small>최근 접속 ${formatDate(row.lastAccessedAt)}</small>
             </div>
-            <strong>${escapeHtml(row.label || row.type || "-")}</strong>
-            <span>${formatNumber(row.totalPlayedCount)}회</span>
-            <span>${formatNumber(row.attemptedCount)}회</span>
-            <span>${formatNumber(row.loadFailureCount)}회</span>
-            <span>${formatNumber(row.showFailureCount)}회</span>
-            <span>${formatDate(row.lastPlayedAt || row.lastClientEventAt)}</span>
+            <div class="player-ad-breakdown">
+              ${(row.ads || []).map((ad) => `
+                <article class="player-ad-breakdown-card">
+                  <strong>${escapeHtml(ad.shortLabel || ad.label || ad.type || "-")}</strong>
+                  <span>재생 ${formatNumber(ad.totalPlayedCount)}회 · 시도 ${formatNumber(ad.attemptedCount)}회</span>
+                  <small>로드실패 ${formatNumber(ad.loadFailureCount)} · 재생실패 ${formatNumber(ad.showFailureCount)}</small>
+                </article>
+              `).join("")}
+            </div>
+            <div class="player-ad-total">
+              <strong>${formatNumber(row.totalPlayedCount)}회</strong>
+              <small>시도 ${formatNumber(row.attemptedCount)} · 실패 ${formatNumber((row.loadFailureCount || 0) + (row.showFailureCount || 0))}</small>
+              <small>최근 광고 ${formatDate(row.lastPlayedAt || row.lastClientEventAt)}</small>
+            </div>
           </div>
         `).join("") || `<p class="empty">유저별 광고 데이터가 아직 없어요.</p>`}
       </div>
+      <div class="pager">
+        <button id="prevAdAnalyticsButton" class="ghost" type="button">이전</button>
+        <span class="muted">${formatNumber((page.page || 0) + 1)} / ${formatNumber(page.totalPages || 1)} · 총 ${formatNumber(page.totalElements || 0)}명</span>
+        <button id="nextAdAnalyticsButton" class="ghost" type="button">다음</button>
+      </div>
     </section>
   `;
+}
+
+function bindAdAnalyticsControls() {
+  const sortSelect = $("adAnalyticsSortSelect");
+  if (sortSelect) {
+    sortSelect.value = state.adAnalyticsSort;
+    sortSelect.onchange = (event) => {
+      state.adAnalyticsSort = event.target.value || "lastAccessedAt:desc";
+      state.adAnalyticsPage = 0;
+      loadAdAnalytics().catch((error) => showToast(error.message, "error"));
+    };
+  }
+  const sizeSelect = $("adAnalyticsPageSizeSelect");
+  if (sizeSelect) {
+    sizeSelect.value = String(state.adAnalyticsSize);
+    sizeSelect.onchange = (event) => {
+      state.adAnalyticsSize = Number(event.target.value || 30);
+      state.adAnalyticsPage = 0;
+      loadAdAnalytics().catch((error) => showToast(error.message, "error"));
+    };
+  }
+  const prevButton = $("prevAdAnalyticsButton");
+  if (prevButton) {
+    prevButton.disabled = state.adAnalyticsPage <= 0;
+    prevButton.onclick = () => {
+      if (state.adAnalyticsPage > 0) {
+        state.adAnalyticsPage -= 1;
+        loadAdAnalytics().catch((error) => showToast(error.message, "error"));
+      }
+    };
+  }
+  const nextButton = $("nextAdAnalyticsButton");
+  if (nextButton) {
+    nextButton.disabled = state.adAnalyticsPage + 1 >= state.adAnalyticsTotalPages;
+    nextButton.onclick = () => {
+      if (state.adAnalyticsPage + 1 < state.adAnalyticsTotalPages) {
+        state.adAnalyticsPage += 1;
+        loadAdAnalytics().catch((error) => showToast(error.message, "error"));
+      }
+    };
+  }
 }
 
 function adAverageText(value) {
