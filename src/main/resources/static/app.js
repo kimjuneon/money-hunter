@@ -4522,7 +4522,7 @@ function openDailyMissionModal() {
     return;
   }
   closeEventHubModal();
-  state.dailyMissionSelectedDay = mission.currentDay || Math.max(1, mission.completedDays || 1);
+  state.dailyMissionSelectedDay = dailyMissionDefaultSelectedDay(mission);
   $("dailyMissionModal").classList.remove("hidden");
   renderDailyMissionModal(mission);
 }
@@ -4537,15 +4537,25 @@ function closeDailyMissionModal(options = {}) {
 function dailyMissionDays(mission = state.player?.dailyMission) {
   const completedDays = Math.max(0, Math.min(7, Number(mission?.completedDays || 0)));
   const currentDay = Math.max(1, Math.min(7, Number(mission?.currentDay || completedDays + 1)));
+  const lockedUntilTomorrow = Boolean(mission?.completedToday) && completedDays < 7;
   return Array.from({ length: 7 }, (_, index) => {
     const day = index + 1;
+    const completed = day <= completedDays;
     return {
       day,
-      completed: day <= completedDays,
-      current: day === currentDay && completedDays < 7,
-      locked: day > currentDay,
+      completed,
+      current: !lockedUntilTomorrow && day === currentDay && completedDays < 7,
+      locked: !completed && (day > currentDay || lockedUntilTomorrow),
     };
   });
+}
+
+function dailyMissionDefaultSelectedDay(mission = state.player?.dailyMission) {
+  const completedDays = Math.max(0, Math.min(7, Number(mission?.completedDays || 0)));
+  if (mission?.completedToday && completedDays > 0) {
+    return completedDays;
+  }
+  return Math.max(1, Math.min(7, Number(mission?.currentDay || completedDays + 1 || 1)));
 }
 
 function renderDailyMissionModal(mission = state.player?.dailyMission) {
@@ -4619,6 +4629,10 @@ function dailyMissionRewardRowsForDay(day, mission) {
 
 function dailyMissionDayRewardStatus(day, mission) {
   if (day.locked) {
+    const completedDays = Number(mission?.completedDays || 0);
+    if (mission?.completedToday && day.day === completedDays + 1) {
+      return "다음 일차는 내일 열려요";
+    }
     return "이전 일차 완료 후 진행 가능";
   }
   if (day.completed && !day.current) {
@@ -4853,7 +4867,7 @@ async function openRookieEventDetailFromHub() {
     return;
   }
   closeEventHubModal();
-  state.rookieEventSelectedDay = event.currentDay || 1;
+  state.rookieEventSelectedDay = rookieEventDefaultSelectedDay(event);
   $("rookieEventModal").classList.remove("hidden");
   renderRookieEventModal(event);
   window.setTimeout(() => requestRookieEventMissionNotificationAgreementIfNeeded(), 450);
@@ -4872,7 +4886,7 @@ function closeRookieEventModal(options = {}) {
 function renderRookieEventModal(event) {
   const days = Array.isArray(event?.days) ? event.days : [];
   const selectedDay = days.find((day) => day.day === state.rookieEventSelectedDay)
-    || days.find((day) => day.day === event.currentDay)
+    || days.find((day) => day.day === rookieEventDefaultSelectedDay(event))
     || days[0];
   if (!selectedDay) {
     return;
@@ -4897,6 +4911,14 @@ function renderRookieEventModal(event) {
   finalClaimButton.textContent = "수령함 열기";
   renderRookieEventDayTabs(days);
   renderRookieEventSelectedDay(selectedDay);
+}
+
+function rookieEventDefaultSelectedDay(event = state.player?.rookieEvent) {
+  const completedDays = Math.max(0, Math.min(7, Number(event?.completedDays || 0)));
+  if (event?.lockedUntilTomorrow && completedDays > 0) {
+    return completedDays;
+  }
+  return Math.max(1, Math.min(7, Number(event?.currentDay || completedDays + 1 || 1)));
 }
 
 function shouldRequestRookieEventMissionNotificationAgreement(event) {
@@ -5156,7 +5178,7 @@ function renderRookieEventDayTabs(days) {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = `${day.day}일`;
-    button.classList.toggle("is-current", day.current || day.day === state.rookieEventSelectedDay);
+    button.classList.toggle("is-current", (!day.locked && day.current) || day.day === state.rookieEventSelectedDay);
     button.classList.toggle("is-completed", day.completed);
     button.classList.toggle("is-locked", day.locked);
     button.addEventListener("click", () => {
