@@ -54,8 +54,8 @@ money-hunter:
     mode: ${TOSS_AD_MODE:test}
     auto-hunt-reward-ad-group-id: ${TOSS_AD_GROUP_AUTO_HUNT_ID:}
     skill-point-reward-ad-group-id: ${TOSS_AD_GROUP_SKILL_POINT_ID:ait.v2.live.d0b17dc03f08403a}
-    reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:}
-    dungeon-additional-reward-ad-group-id: ${TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID:}
+    reward-claim-reward-ad-group-id: ${TOSS_AD_GROUP_REWARD_CLAIM_ID:ait.v2.live.d2e651f3b2cd4494}
+    dungeon-additional-reward-ad-group-id: ${TOSS_AD_GROUP_DUNGEON_ADDITIONAL_ID:ait.v2.live.d0f15b08f14047c6}
     mini-game-continue-reward-ad-group-id: ${TOSS_AD_GROUP_MINI_GAME_CONTINUE_ID:${TOSS_AD_GROUP_SKILL_POINT_ID:ait.v2.live.d0b17dc03f08403a}}
     job-change-interstitial-ad-group-id: ${TOSS_AD_GROUP_JOB_CHANGE_ID:}
     banner-ad-group-id: ${TOSS_AD_GROUP_BANNER_ID:}
