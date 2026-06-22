@@ -2032,6 +2032,21 @@ function policyGroups() {
       keys: ["dungeonFreeDailyLimit", "dungeonAdditionalDailyLimit", "dungeonReentryCooldownSeconds"],
     },
     {
+      title: "주간 펀치킹",
+      description: "골드 곡선과 SP 보상 구간",
+      keys: [
+        "weeklyPunchKingMaxGoldReward",
+        "weeklyPunchKingGoldRewardScoreScale",
+        "weeklyPunchKingBaseSkillPoints",
+        "weeklyPunchKingSkillPointTier2Score",
+        "weeklyPunchKingSkillPointTier2Reward",
+        "weeklyPunchKingSkillPointTier3Score",
+        "weeklyPunchKingSkillPointTier3Reward",
+        "weeklyPunchKingSkillPointTier4Score",
+        "weeklyPunchKingSkillPointTier4Reward",
+      ],
+    },
+    {
       title: "상점/초대",
       description: "펫, SP 패키지, 친구 초대 보상",
       keys: ["companionPriceWon", "skillPointPackPriceWon", "skillPointPackAmount", "friendInviteRewardSkillPoints", "friendInviteLimit", "maxCharacterSlots"],

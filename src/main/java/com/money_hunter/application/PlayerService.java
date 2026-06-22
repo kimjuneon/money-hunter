@@ -116,13 +116,6 @@ public class PlayerService {
 	private static final Duration ADVENTURE_MINI_GAME_ENTRY_TTL = Duration.ofMinutes(8);
 	private static final int WEEKLY_PUNCH_KING_DURATION_SECONDS = 90;
 	private static final int WEEKLY_PUNCH_KING_ULTIMATE_COOLDOWN_SECONDS = 30;
-	private static final long WEEKLY_PUNCH_KING_MAX_GOLD_REWARD = 30_000L;
-	private static final List<PunchKingSkillPointTier> WEEKLY_PUNCH_KING_SP_TIERS = List.of(
-			new PunchKingSkillPointTier(0, 1),
-			new PunchKingSkillPointTier(500_000, 2),
-			new PunchKingSkillPointTier(1_000_000, 3),
-			new PunchKingSkillPointTier(3_000_000, 4)
-	);
 	private static final int SKILL_UPGRADE_COST_INCREASE_LEVEL = 20;
 	private static final int BASE_SKILL_UPGRADE_COST = 1;
 	private static final int HIGH_LEVEL_SKILL_UPGRADE_COST = 2;
@@ -2275,15 +2268,19 @@ public class PlayerService {
 	}
 
 	private long weeklyPunchKingGoldReward(long score) {
-		long clampedScore = Math.max(0, Math.min(score, MAX_COMBAT_POWER));
-		double rewardRatio = Math.sqrt((double) clampedScore / MAX_COMBAT_POWER);
-		return Math.min(WEEKLY_PUNCH_KING_MAX_GOLD_REWARD,
-				(long) Math.floor(WEEKLY_PUNCH_KING_MAX_GOLD_REWARD * rewardRatio));
+		long maxReward = Math.max(0, economy.weeklyPunchKingMaxGoldReward());
+		if (maxReward <= 0) {
+			return 0;
+		}
+		long scoreScale = Math.max(1, economy.weeklyPunchKingGoldRewardScoreScale());
+		long clampedScore = Math.max(0, Math.min(score, scoreScale));
+		double rewardRatio = Math.sqrt((double) clampedScore / scoreScale);
+		return Math.min(maxReward, (long) Math.floor(maxReward * rewardRatio));
 	}
 
 	private int weeklyPunchKingSkillPointReward(long score) {
 		int reward = 0;
-		for (PunchKingSkillPointTier tier : WEEKLY_PUNCH_KING_SP_TIERS) {
+		for (PunchKingSkillPointTier tier : weeklyPunchKingSkillPointTiers()) {
 			if (score >= tier.score()) {
 				reward = Math.max(reward, tier.skillPoints());
 			}
@@ -2292,26 +2289,39 @@ public class PlayerService {
 	}
 
 	private long nextWeeklyPunchKingGoldRewardScore(long bestScore) {
+		long maxReward = Math.max(0, economy.weeklyPunchKingMaxGoldReward());
+		if (maxReward <= 0) {
+			return 0;
+		}
 		long currentReward = weeklyPunchKingGoldReward(bestScore);
-		if (currentReward >= WEEKLY_PUNCH_KING_MAX_GOLD_REWARD) {
+		if (currentReward >= maxReward) {
 			return 0;
 		}
 		long targetReward = currentReward + 1;
-		double targetRatio = (double) targetReward / WEEKLY_PUNCH_KING_MAX_GOLD_REWARD;
-		return Math.max(1, (long) Math.ceil(targetRatio * targetRatio * MAX_COMBAT_POWER));
+		double targetRatio = (double) targetReward / maxReward;
+		return Math.max(1, (long) Math.ceil(targetRatio * targetRatio * Math.max(1, economy.weeklyPunchKingGoldRewardScoreScale())));
 	}
 
 	private long weeklyPunchKingGoldRewardScoreStep() {
 		return nextWeeklyPunchKingGoldRewardScore(0);
 	}
 
-	private int nextWeeklyPunchKingSkillPointScore(long bestScore) {
-		for (PunchKingSkillPointTier tier : WEEKLY_PUNCH_KING_SP_TIERS) {
+	private long nextWeeklyPunchKingSkillPointScore(long bestScore) {
+		for (PunchKingSkillPointTier tier : weeklyPunchKingSkillPointTiers()) {
 			if (bestScore < tier.score()) {
 				return tier.score();
 			}
 		}
 		return 0;
+	}
+
+	private List<PunchKingSkillPointTier> weeklyPunchKingSkillPointTiers() {
+		return List.of(
+				new PunchKingSkillPointTier(0, economy.weeklyPunchKingBaseSkillPoints()),
+				new PunchKingSkillPointTier(economy.weeklyPunchKingSkillPointTier2Score(), economy.weeklyPunchKingSkillPointTier2Reward()),
+				new PunchKingSkillPointTier(economy.weeklyPunchKingSkillPointTier3Score(), economy.weeklyPunchKingSkillPointTier3Reward()),
+				new PunchKingSkillPointTier(economy.weeklyPunchKingSkillPointTier4Score(), economy.weeklyPunchKingSkillPointTier4Reward())
+		);
 	}
 
 	private record RewardTimeGrant(Instant endsAt, long grantedSeconds) {
@@ -2323,7 +2333,7 @@ public class PlayerService {
 		AD
 	}
 
-	private record PunchKingSkillPointTier(int score, int skillPoints) {
+	private record PunchKingSkillPointTier(long score, int skillPoints) {
 	}
 
 	private PlayerStateResponse toState(Player player) {

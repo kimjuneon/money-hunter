@@ -36,6 +36,15 @@ public class RuntimeEconomyService {
 			new PolicyDefinition("dungeonAdditionalDailyLimit", "던전 광고 추가 횟수", "회", 0, 20),
 			new PolicyDefinition("dungeonReentryCooldownSeconds", "던전 재입장 대기 시간", "초", 0, 86_400),
 			new PolicyDefinition("skillPointAdCooldownSeconds", "SP 광고 보상 쿨타임", "초", 0, 86_400),
+			new PolicyDefinition("weeklyPunchKingMaxGoldReward", "주간 펀치킹 최대 골드", "G", 0, 10_000_000_000L),
+			new PolicyDefinition("weeklyPunchKingGoldRewardScoreScale", "주간 펀치킹 최대 골드 점수 기준", "점", 1, 100_000_000_000L),
+			new PolicyDefinition("weeklyPunchKingBaseSkillPoints", "주간 펀치킹 기본 SP", "SP", 0, 1_000),
+			new PolicyDefinition("weeklyPunchKingSkillPointTier2Score", "주간 펀치킹 SP 2단계 점수", "점", 0, 100_000_000_000L),
+			new PolicyDefinition("weeklyPunchKingSkillPointTier2Reward", "주간 펀치킹 SP 2단계 보상", "SP", 0, 1_000),
+			new PolicyDefinition("weeklyPunchKingSkillPointTier3Score", "주간 펀치킹 SP 3단계 점수", "점", 0, 100_000_000_000L),
+			new PolicyDefinition("weeklyPunchKingSkillPointTier3Reward", "주간 펀치킹 SP 3단계 보상", "SP", 0, 1_000),
+			new PolicyDefinition("weeklyPunchKingSkillPointTier4Score", "주간 펀치킹 SP 4단계 점수", "점", 0, 100_000_000_000L),
+			new PolicyDefinition("weeklyPunchKingSkillPointTier4Reward", "주간 펀치킹 SP 4단계 보상", "SP", 0, 1_000),
 			new PolicyDefinition("rewardPointAmount", "보상 수령 포인트 기준", "P", 1, 1_000_000),
 			new PolicyDefinition("anomalyLimitPerRule", "이상징후 룰별 최대 표시", "건", 1, 200),
 			new PolicyDefinition("anomalyAdEventsPerHourWarning", "1시간 광고 이벤트 이상징후 기준", "회", 1, 10_000),
@@ -166,6 +175,15 @@ public class RuntimeEconomyService {
 				nvl(row.getDungeonAdditionalDailyLimit(), defaults.dungeonAdditionalDailyLimit()),
 				nvl(row.getDungeonReentryCooldownSeconds(), defaults.dungeonReentryCooldownSeconds()),
 				nvl(row.getSkillPointAdCooldownSeconds(), defaults.skillPointAdCooldownSeconds()),
+				nvl(row.getWeeklyPunchKingMaxGoldReward(), defaults.weeklyPunchKingMaxGoldReward()),
+				nvl(row.getWeeklyPunchKingGoldRewardScoreScale(), defaults.weeklyPunchKingGoldRewardScoreScale()),
+				nvl(row.getWeeklyPunchKingBaseSkillPoints(), defaults.weeklyPunchKingBaseSkillPoints()),
+				nvl(row.getWeeklyPunchKingSkillPointTier2Score(), defaults.weeklyPunchKingSkillPointTier2Score()),
+				nvl(row.getWeeklyPunchKingSkillPointTier2Reward(), defaults.weeklyPunchKingSkillPointTier2Reward()),
+				nvl(row.getWeeklyPunchKingSkillPointTier3Score(), defaults.weeklyPunchKingSkillPointTier3Score()),
+				nvl(row.getWeeklyPunchKingSkillPointTier3Reward(), defaults.weeklyPunchKingSkillPointTier3Reward()),
+				nvl(row.getWeeklyPunchKingSkillPointTier4Score(), defaults.weeklyPunchKingSkillPointTier4Score()),
+				nvl(row.getWeeklyPunchKingSkillPointTier4Reward(), defaults.weeklyPunchKingSkillPointTier4Reward()),
 				rewardGoldThreshold(goldPerTossPoint, rewardPointAmount),
 				rewardPointAmount,
 				nvl(row.getAnomalyLimitPerRule(), defaults.anomalyLimitPerRule()),
@@ -195,6 +213,15 @@ public class RuntimeEconomyService {
 				defaults.dungeonAdditionalDailyLimit(),
 				defaults.dungeonReentryCooldownSeconds(),
 				defaults.skillPointAdCooldownSeconds(),
+				defaults.weeklyPunchKingMaxGoldReward(),
+				defaults.weeklyPunchKingGoldRewardScoreScale(),
+				defaults.weeklyPunchKingBaseSkillPoints(),
+				defaults.weeklyPunchKingSkillPointTier2Score(),
+				defaults.weeklyPunchKingSkillPointTier2Reward(),
+				defaults.weeklyPunchKingSkillPointTier3Score(),
+				defaults.weeklyPunchKingSkillPointTier3Reward(),
+				defaults.weeklyPunchKingSkillPointTier4Score(),
+				defaults.weeklyPunchKingSkillPointTier4Reward(),
 				rewardGoldThreshold,
 				defaults.rewardPointAmount(),
 				defaults.anomalyLimitPerRule(),
@@ -266,6 +293,42 @@ public class RuntimeEconomyService {
 		return snapshot().skillPointAdCooldownSeconds();
 	}
 
+	public long weeklyPunchKingMaxGoldReward() {
+		return snapshot().weeklyPunchKingMaxGoldReward();
+	}
+
+	public long weeklyPunchKingGoldRewardScoreScale() {
+		return snapshot().weeklyPunchKingGoldRewardScoreScale();
+	}
+
+	public int weeklyPunchKingBaseSkillPoints() {
+		return snapshot().weeklyPunchKingBaseSkillPoints();
+	}
+
+	public long weeklyPunchKingSkillPointTier2Score() {
+		return snapshot().weeklyPunchKingSkillPointTier2Score();
+	}
+
+	public int weeklyPunchKingSkillPointTier2Reward() {
+		return snapshot().weeklyPunchKingSkillPointTier2Reward();
+	}
+
+	public long weeklyPunchKingSkillPointTier3Score() {
+		return snapshot().weeklyPunchKingSkillPointTier3Score();
+	}
+
+	public int weeklyPunchKingSkillPointTier3Reward() {
+		return snapshot().weeklyPunchKingSkillPointTier3Reward();
+	}
+
+	public long weeklyPunchKingSkillPointTier4Score() {
+		return snapshot().weeklyPunchKingSkillPointTier4Score();
+	}
+
+	public int weeklyPunchKingSkillPointTier4Reward() {
+		return snapshot().weeklyPunchKingSkillPointTier4Reward();
+	}
+
 	public long rewardGoldThreshold() {
 		return snapshot().rewardGoldThreshold();
 	}
@@ -327,6 +390,15 @@ public class RuntimeEconomyService {
 			case "dungeonAdditionalDailyLimit" -> snapshot.dungeonAdditionalDailyLimit();
 			case "dungeonReentryCooldownSeconds" -> snapshot.dungeonReentryCooldownSeconds();
 			case "skillPointAdCooldownSeconds" -> snapshot.skillPointAdCooldownSeconds();
+			case "weeklyPunchKingMaxGoldReward" -> snapshot.weeklyPunchKingMaxGoldReward();
+			case "weeklyPunchKingGoldRewardScoreScale" -> snapshot.weeklyPunchKingGoldRewardScoreScale();
+			case "weeklyPunchKingBaseSkillPoints" -> snapshot.weeklyPunchKingBaseSkillPoints();
+			case "weeklyPunchKingSkillPointTier2Score" -> snapshot.weeklyPunchKingSkillPointTier2Score();
+			case "weeklyPunchKingSkillPointTier2Reward" -> snapshot.weeklyPunchKingSkillPointTier2Reward();
+			case "weeklyPunchKingSkillPointTier3Score" -> snapshot.weeklyPunchKingSkillPointTier3Score();
+			case "weeklyPunchKingSkillPointTier3Reward" -> snapshot.weeklyPunchKingSkillPointTier3Reward();
+			case "weeklyPunchKingSkillPointTier4Score" -> snapshot.weeklyPunchKingSkillPointTier4Score();
+			case "weeklyPunchKingSkillPointTier4Reward" -> snapshot.weeklyPunchKingSkillPointTier4Reward();
 			case "rewardGoldThreshold" -> snapshot.rewardGoldThreshold();
 			case "rewardPointAmount" -> snapshot.rewardPointAmount();
 			case "anomalyLimitPerRule" -> snapshot.anomalyLimitPerRule();

@@ -2450,6 +2450,7 @@ function renderAdventurePanel(player) {
     );
   }
   $("miniGameCard").classList.toggle("is-completed", Boolean(miniGame.completedToday));
+  $("miniGameCard").classList.toggle("needs-attention", Boolean(miniGame.visible) && !Boolean(miniGame.completedToday));
   const miniGameEntryCost = Number(miniGame.entryCostGold || 300);
   const miniGameDurationLabel = preciseDurationLabel(miniGame.clearSeconds || 90);
   const miniGameTitle = `${miniGameEntryCost.toLocaleString("ko-KR")}G 도전 · ${miniGameDurationLabel} 버티기`;
@@ -2488,6 +2489,7 @@ function renderAdventurePanel(player) {
     punchKingDurationLabel,
   );
   $("weeklyPunchKingStatus").textContent = `최고 ${formatCompactNumber(punchKing.bestScore || 0)} · 지급 ${Number(punchKing.rewardedGold || 0).toLocaleString("ko-KR")}G / SP ${Number(punchKing.rewardedSkillPoints || 0).toLocaleString("ko-KR")}`;
+  $("weeklyPunchKingCard").classList.toggle("needs-attention", Boolean(punchKing.visible) && Number(punchKing.bestScore || 0) <= 0);
   $("openWeeklyPunchKing").disabled = !punchKing.visible;
   setAdventureButtonState($("openWeeklyPunchKing"), punchKing.visible ? "danger" : "disabled");
   setAdventureButtonContent($("openWeeklyPunchKing"), punchKing.visible ? "도전" : "준비중");
@@ -5922,7 +5924,7 @@ async function runRealFullScreenAd(title, description, action) {
       throw error;
     }
     markRealFullScreenAdConsumed(groupId);
-    await showRealFullScreenAdWithRetry(groupId, action.requiresReward !== false, action, adSession?.sessionToken);
+    await showRealFullScreenAdWithRetry(groupId, realFullScreenAdCompletionMode(action), action, adSession?.sessionToken);
     setMessage(action.afterAdMessage || "광고 시청 완료, 보상을 지급하는 중이에요.");
     if (typeof action.afterAd === "function") {
       await action.afterAd(adSession?.sessionToken);
@@ -6003,7 +6005,14 @@ async function requestRealFullScreenAdLoad(groupId) {
   });
 }
 
-async function showRealFullScreenAd(groupId, requiresReward) {
+function realFullScreenAdCompletionMode(action = {}) {
+  if (action.adCompletionMode === "dismissed" || action.adCompletionMode === "impression" || action.adCompletionMode === "reward") {
+    return action.adCompletionMode;
+  }
+  return action.requiresReward === false ? "impression" : "reward";
+}
+
+async function showRealFullScreenAd(groupId, completionMode) {
   const sdk = await loadTossSdk();
   const showFullScreenAd = sdk.showFullScreenAd;
   if (typeof showFullScreenAd !== "function" || showFullScreenAd.isSupported?.() !== true) {
@@ -6023,12 +6032,16 @@ async function showRealFullScreenAd(groupId, requiresReward) {
     unregister = showFullScreenAd({
       options: { adGroupId: groupId },
       onEvent: (event) => {
-        if (requiresReward && event.type === "userEarnedReward") {
+        if (completionMode === "reward" && event.type === "userEarnedReward") {
           finish("reward");
           return;
         }
-        if (!requiresReward && event.type === "impression") {
+        if (completionMode === "impression" && event.type === "impression") {
           finish("impression");
+          return;
+        }
+        if (completionMode === "dismissed" && event.type === "dismissed") {
+          finish("dismissed");
           return;
         }
         if (event.type === "failedToShow") {
@@ -6037,7 +6050,7 @@ async function showRealFullScreenAd(groupId, requiresReward) {
           finish(null, error);
           return;
         }
-        if (event.type === "dismissed" && requiresReward && !completed) {
+        if (event.type === "dismissed" && completionMode === "reward" && !completed) {
           finish(null, new Error("광고 시청을 완료해야 보상이 지급돼요."));
         }
       },
@@ -6050,9 +6063,9 @@ async function showRealFullScreenAd(groupId, requiresReward) {
   });
 }
 
-async function showRealFullScreenAdWithRetry(groupId, requiresReward, action, sessionToken) {
+async function showRealFullScreenAdWithRetry(groupId, completionMode, action, sessionToken) {
   try {
-    const result = await showRealFullScreenAd(groupId, requiresReward);
+    const result = await showRealFullScreenAd(groupId, completionMode);
     logAdClientEvent(action, "PLAYED", { groupId, sessionToken });
     return result;
   } catch (error) {
@@ -6069,7 +6082,7 @@ async function showRealFullScreenAdWithRetry(groupId, requiresReward, action, se
     }
     markRealFullScreenAdConsumed(groupId);
     try {
-      const result = await showRealFullScreenAd(groupId, requiresReward);
+      const result = await showRealFullScreenAd(groupId, completionMode);
       logAdClientEvent(action, "PLAYED", { groupId, sessionToken });
       return result;
     } catch (retryError) {
@@ -6336,6 +6349,7 @@ async function useDungeonCoupon() {
         adGroupKey: "dungeonAdditional",
         adEventType: "DUNGEON_ADDITIONAL_ENTRY",
         requiresReward: true,
+        adCompletionMode: "dismissed",
         afterAd: (adSessionToken) => runAdventureAction("dungeon", () => requestWithLoginRetry(() => dungeonRunRequest(adSessionToken))),
       }
     );
@@ -6372,6 +6386,7 @@ function claimRewardAfterConfirmation() {
       adGroupKey: "rewardClaim",
       adEventType: "REWARD_CLAIM",
       requiresReward: true,
+      adCompletionMode: "dismissed",
       request: (adSessionToken) => api(isOneStoreTarget()
         ? "/api/player/onestore/reward/claim"
         : "/api/player/reward/claim-after-ad", {

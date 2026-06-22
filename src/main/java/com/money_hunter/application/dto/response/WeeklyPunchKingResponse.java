@@ -12,6 +12,6 @@ public record WeeklyPunchKingResponse(
 		int ultimateCooldownSeconds,
 		long goldRewardDivisor,
 		long nextGoldRewardScore,
-		int nextSkillPointRewardScore
+		long nextSkillPointRewardScore
 ) {
 }

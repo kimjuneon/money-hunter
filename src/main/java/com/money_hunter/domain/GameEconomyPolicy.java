@@ -61,6 +61,33 @@ public class GameEconomyPolicy {
 	@Column(name = "skill_point_ad_cooldown_seconds")
 	private Long skillPointAdCooldownSeconds;
 
+	@Column(name = "weekly_punch_king_max_gold_reward")
+	private Long weeklyPunchKingMaxGoldReward;
+
+	@Column(name = "weekly_punch_king_gold_reward_score_scale")
+	private Long weeklyPunchKingGoldRewardScoreScale;
+
+	@Column(name = "weekly_punch_king_base_skill_points")
+	private Integer weeklyPunchKingBaseSkillPoints;
+
+	@Column(name = "weekly_punch_king_skill_point_tier2_score")
+	private Long weeklyPunchKingSkillPointTier2Score;
+
+	@Column(name = "weekly_punch_king_skill_point_tier2_reward")
+	private Integer weeklyPunchKingSkillPointTier2Reward;
+
+	@Column(name = "weekly_punch_king_skill_point_tier3_score")
+	private Long weeklyPunchKingSkillPointTier3Score;
+
+	@Column(name = "weekly_punch_king_skill_point_tier3_reward")
+	private Integer weeklyPunchKingSkillPointTier3Reward;
+
+	@Column(name = "weekly_punch_king_skill_point_tier4_score")
+	private Long weeklyPunchKingSkillPointTier4Score;
+
+	@Column(name = "weekly_punch_king_skill_point_tier4_reward")
+	private Integer weeklyPunchKingSkillPointTier4Reward;
+
 	@Column(name = "reward_gold_threshold")
 	private Long rewardGoldThreshold;
 
@@ -159,6 +186,42 @@ public class GameEconomyPolicy {
 		return skillPointAdCooldownSeconds;
 	}
 
+	public Long getWeeklyPunchKingMaxGoldReward() {
+		return weeklyPunchKingMaxGoldReward;
+	}
+
+	public Long getWeeklyPunchKingGoldRewardScoreScale() {
+		return weeklyPunchKingGoldRewardScoreScale;
+	}
+
+	public Integer getWeeklyPunchKingBaseSkillPoints() {
+		return weeklyPunchKingBaseSkillPoints;
+	}
+
+	public Long getWeeklyPunchKingSkillPointTier2Score() {
+		return weeklyPunchKingSkillPointTier2Score;
+	}
+
+	public Integer getWeeklyPunchKingSkillPointTier2Reward() {
+		return weeklyPunchKingSkillPointTier2Reward;
+	}
+
+	public Long getWeeklyPunchKingSkillPointTier3Score() {
+		return weeklyPunchKingSkillPointTier3Score;
+	}
+
+	public Integer getWeeklyPunchKingSkillPointTier3Reward() {
+		return weeklyPunchKingSkillPointTier3Reward;
+	}
+
+	public Long getWeeklyPunchKingSkillPointTier4Score() {
+		return weeklyPunchKingSkillPointTier4Score;
+	}
+
+	public Integer getWeeklyPunchKingSkillPointTier4Reward() {
+		return weeklyPunchKingSkillPointTier4Reward;
+	}
+
 	public Long getRewardGoldThreshold() {
 		return rewardGoldThreshold;
 	}
@@ -212,6 +275,15 @@ public class GameEconomyPolicy {
 			case "dungeonAdditionalDailyLimit" -> this.dungeonAdditionalDailyLimit = value.intValue();
 			case "dungeonReentryCooldownSeconds" -> this.dungeonReentryCooldownSeconds = value.longValue();
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = value.longValue();
+			case "weeklyPunchKingMaxGoldReward" -> this.weeklyPunchKingMaxGoldReward = value.longValue();
+			case "weeklyPunchKingGoldRewardScoreScale" -> this.weeklyPunchKingGoldRewardScoreScale = value.longValue();
+			case "weeklyPunchKingBaseSkillPoints" -> this.weeklyPunchKingBaseSkillPoints = value.intValue();
+			case "weeklyPunchKingSkillPointTier2Score" -> this.weeklyPunchKingSkillPointTier2Score = value.longValue();
+			case "weeklyPunchKingSkillPointTier2Reward" -> this.weeklyPunchKingSkillPointTier2Reward = value.intValue();
+			case "weeklyPunchKingSkillPointTier3Score" -> this.weeklyPunchKingSkillPointTier3Score = value.longValue();
+			case "weeklyPunchKingSkillPointTier3Reward" -> this.weeklyPunchKingSkillPointTier3Reward = value.intValue();
+			case "weeklyPunchKingSkillPointTier4Score" -> this.weeklyPunchKingSkillPointTier4Score = value.longValue();
+			case "weeklyPunchKingSkillPointTier4Reward" -> this.weeklyPunchKingSkillPointTier4Reward = value.intValue();
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = value.longValue();
 			case "rewardPointAmount" -> this.rewardPointAmount = value.intValue();
 			case "anomalyLimitPerRule" -> this.anomalyLimitPerRule = value.intValue();
@@ -242,6 +314,15 @@ public class GameEconomyPolicy {
 			case "dungeonAdditionalDailyLimit" -> this.dungeonAdditionalDailyLimit = null;
 			case "dungeonReentryCooldownSeconds" -> this.dungeonReentryCooldownSeconds = null;
 			case "skillPointAdCooldownSeconds" -> this.skillPointAdCooldownSeconds = null;
+			case "weeklyPunchKingMaxGoldReward" -> this.weeklyPunchKingMaxGoldReward = null;
+			case "weeklyPunchKingGoldRewardScoreScale" -> this.weeklyPunchKingGoldRewardScoreScale = null;
+			case "weeklyPunchKingBaseSkillPoints" -> this.weeklyPunchKingBaseSkillPoints = null;
+			case "weeklyPunchKingSkillPointTier2Score" -> this.weeklyPunchKingSkillPointTier2Score = null;
+			case "weeklyPunchKingSkillPointTier2Reward" -> this.weeklyPunchKingSkillPointTier2Reward = null;
+			case "weeklyPunchKingSkillPointTier3Score" -> this.weeklyPunchKingSkillPointTier3Score = null;
+			case "weeklyPunchKingSkillPointTier3Reward" -> this.weeklyPunchKingSkillPointTier3Reward = null;
+			case "weeklyPunchKingSkillPointTier4Score" -> this.weeklyPunchKingSkillPointTier4Score = null;
+			case "weeklyPunchKingSkillPointTier4Reward" -> this.weeklyPunchKingSkillPointTier4Reward = null;
 			case "rewardGoldThreshold" -> this.rewardGoldThreshold = null;
 			case "rewardPointAmount" -> this.rewardPointAmount = null;
 			case "anomalyLimitPerRule" -> this.anomalyLimitPerRule = null;

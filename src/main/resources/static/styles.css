@@ -992,6 +992,27 @@ img {
   animation: auto-hunt-add-dot-pulse 1s ease-in-out infinite;
 }
 
+.adventure-attention-dot {
+  display: none;
+  position: absolute;
+  top: 7.2%;
+  right: 6.2%;
+  z-index: 5;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.66), 0 0 7px rgba(239, 68, 68, 0.82);
+  pointer-events: none;
+}
+
+#miniGameCard.needs-attention .adventure-attention-dot,
+#weeklyPunchKingCard.needs-attention .adventure-attention-dot {
+  display: block;
+  animation: auto-hunt-add-dot-pulse 1s ease-in-out infinite;
+}
+
 @keyframes auto-hunt-add-dot-pulse {
   0%,
   100% {

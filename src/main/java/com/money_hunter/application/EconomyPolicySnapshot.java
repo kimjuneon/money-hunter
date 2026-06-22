@@ -16,6 +16,15 @@ public record EconomyPolicySnapshot(
 		int dungeonAdditionalDailyLimit,
 		long dungeonReentryCooldownSeconds,
 		long skillPointAdCooldownSeconds,
+		long weeklyPunchKingMaxGoldReward,
+		long weeklyPunchKingGoldRewardScoreScale,
+		int weeklyPunchKingBaseSkillPoints,
+		long weeklyPunchKingSkillPointTier2Score,
+		int weeklyPunchKingSkillPointTier2Reward,
+		long weeklyPunchKingSkillPointTier3Score,
+		int weeklyPunchKingSkillPointTier3Reward,
+		long weeklyPunchKingSkillPointTier4Score,
+		int weeklyPunchKingSkillPointTier4Reward,
 		long rewardGoldThreshold,
 		int rewardPointAmount,
 		int anomalyLimitPerRule,
@@ -41,6 +50,15 @@ public record EconomyPolicySnapshot(
 		range(dungeonAdditionalDailyLimit, 0, 20, "던전 광고 추가 횟수");
 		range(dungeonReentryCooldownSeconds, 0, 86_400, "던전 재입장 대기 시간");
 		range(skillPointAdCooldownSeconds, 0, 86_400, "SP 광고 보상 쿨타임");
+		range(weeklyPunchKingMaxGoldReward, 0, 10_000_000_000L, "주간 펀치킹 최대 골드");
+		range(weeklyPunchKingGoldRewardScoreScale, 1, 100_000_000_000L, "주간 펀치킹 최대 골드 점수 기준");
+		range(weeklyPunchKingBaseSkillPoints, 0, 1_000, "주간 펀치킹 기본 SP 보상");
+		range(weeklyPunchKingSkillPointTier2Score, 0, 100_000_000_000L, "주간 펀치킹 SP 2단계 점수");
+		range(weeklyPunchKingSkillPointTier2Reward, 0, 1_000, "주간 펀치킹 SP 2단계 보상");
+		range(weeklyPunchKingSkillPointTier3Score, 0, 100_000_000_000L, "주간 펀치킹 SP 3단계 점수");
+		range(weeklyPunchKingSkillPointTier3Reward, 0, 1_000, "주간 펀치킹 SP 3단계 보상");
+		range(weeklyPunchKingSkillPointTier4Score, 0, 100_000_000_000L, "주간 펀치킹 SP 4단계 점수");
+		range(weeklyPunchKingSkillPointTier4Reward, 0, 1_000, "주간 펀치킹 SP 4단계 보상");
 		range(rewardGoldThreshold, 1, 1_000_000_000_000L, "보상 수령 환산 골드");
 		range(rewardPointAmount, 1, 1_000_000, "보상 수령 포인트 기준");
 		range(anomalyLimitPerRule, 1, 200, "이상징후 룰별 표시 수");
@@ -51,6 +69,15 @@ public record EconomyPolicySnapshot(
 		range(anomalyTimerGraceSeconds, 0, 86_400, "자동사냥 시간 이상징후 유예");
 		if (maxAdSeconds < autoHuntAdSeconds) {
 			throw new IllegalArgumentException("광고 보상 최대 누적 시간은 개별 보상 시간보다 작을 수 없어요.");
+		}
+		if (weeklyPunchKingSkillPointTier3Score < weeklyPunchKingSkillPointTier2Score
+				|| weeklyPunchKingSkillPointTier4Score < weeklyPunchKingSkillPointTier3Score) {
+			throw new IllegalArgumentException("주간 펀치킹 SP 보상 점수 구간은 낮은 단계부터 오름차순이어야 해요.");
+		}
+		if (weeklyPunchKingSkillPointTier2Reward < weeklyPunchKingBaseSkillPoints
+				|| weeklyPunchKingSkillPointTier3Reward < weeklyPunchKingSkillPointTier2Reward
+				|| weeklyPunchKingSkillPointTier4Reward < weeklyPunchKingSkillPointTier3Reward) {
+			throw new IllegalArgumentException("주간 펀치킹 SP 보상은 낮은 단계보다 작을 수 없어요.");
 		}
 	}
 

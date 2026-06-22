@@ -134,6 +134,15 @@ money-hunter:
     dungeon-additional-daily-limit: 2
     dungeon-reentry-cooldown-seconds: 1800
     skill-point-ad-cooldown-seconds: 1800
+    weekly-punch-king-max-gold-reward: 30000
+    weekly-punch-king-gold-reward-score-scale: 99999999
+    weekly-punch-king-base-skill-points: 1
+    weekly-punch-king-skill-point-tier2-score: 500000
+    weekly-punch-king-skill-point-tier2-reward: 2
+    weekly-punch-king-skill-point-tier3-score: 1000000
+    weekly-punch-king-skill-point-tier3-reward: 3
+    weekly-punch-king-skill-point-tier4-score: 3000000
+    weekly-punch-king-skill-point-tier4-reward: 4
     reward-gold-threshold: 7240
     reward-point-amount: 10
     anomaly-limit-per-rule: 20
